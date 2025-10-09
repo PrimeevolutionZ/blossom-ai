@@ -21,7 +21,7 @@ A beautiful Python SDK for [Pollinations.AI](https://pollinations.ai) - Generate
 ## 📦 Installation
 
 ```bash
-pip install blossom-ai
+pip install eclips-blossom-ai
 ```
 
 ## 🚀 Quick Start
