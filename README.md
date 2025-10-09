@@ -250,4 +250,4 @@ Built with love using the [Pollinations.AI](https://pollinations.ai) platform.
 
 ---
 
-Made with 🌸 by the Blossom AI team
+Made with 🌸 by the eclips team
