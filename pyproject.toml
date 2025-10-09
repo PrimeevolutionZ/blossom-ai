@@ -1,0 +1,407 @@
+# ============================================================================
+# BUILD SYSTEM
+# ============================================================================
+
+[build-system]
+requires = ["hatchling>=1.18.0"]
+build-backend = "hatchling.build"
+
+
+# ============================================================================
+# PROJECT METADATA
+# ============================================================================
+
+[project]
+name = "blossom-ai"
+version = "0.1.0"
+description = "🌸 Beautiful and simple AI generation library for images, text, and audio"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Eclips Team", email = "develop@eclips-team.ru"}
+]
+maintainers = [
+    {name = "Eclips Team", email = "develop@eclips-team.ru"}
+]
+keywords = [
+    "ai",
+    "artificial-intelligence",
+    "image-generation",
+    "text-generation",
+    "audio-generation",
+    "text-to-speech",
+    "tts",
+    "pollinations",
+    "stable-diffusion",
+    "gpt",
+    "llm",
+    "generative-ai",
+    "machine-learning",
+    "deep-learning"
+]
+classifiers = [
+    # Development Status
+    "Development Status :: 4 - Beta",
+    
+    # Intended Audience
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Information Technology",
+    
+    # License
+    "License :: OSI Approved :: MIT License",
+    
+    # Programming Language
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation :: CPython",
+    
+    # Topics
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    
+    # Operating System
+    "Operating System :: OS Independent",
+    
+    # Typing
+    "Typing :: Typed",
+    
+    # Natural Language
+    "Natural Language :: English",
+    "Natural Language :: Russian"
+]
+
+# ============================================================================
+# DEPENDENCIES
+# ============================================================================
+
+dependencies = [
+    "requests>=2.28.0,<3.0.0",
+]
+
+[project.optional-dependencies]
+# Development dependencies
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.0",
+    "black>=23.7.0",
+    "ruff>=0.0.287",
+    "mypy>=1.5.0",
+    "types-requests>=2.31.0",
+    "pre-commit>=3.3.0",
+]
+
+# Documentation dependencies
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.2.0",
+    "mkdocstrings[python]>=0.22.0",
+]
+
+# Testing dependencies (subset of dev)
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.0",
+]
+
+# All dependencies
+all = [
+    "blossom-ai[dev,docs]",
+]
+
+
+# ============================================================================
+# PROJECT URLS
+# ============================================================================
+
+[project.urls]
+Homepage = "https://github.com/PrimeevolutionZ/blossom-ai"
+Documentation = "https://github.com/PrimeevolutionZ/blossom-ai#readme"
+Repository = "https://github.com/PrimeevolutionZ/blossom-ai"
+"Source Code" = "https://github.com/PrimeevolutionZ/blossom-ai"
+"Bug Tracker" = "https://github.com/PrimeevolutionZ/blossom-ai/issues"
+"Issue Tracker" = "https://github.com/PrimeevolutionZ/blossom-ai/issues"
+Changelog = "https://github.com/PrimeevolutionZ/blossom-ai/releases"
+Discussions = "https://github.com/PrimeevolutionZ/blossom-ai/discussions"
+
+
+# ============================================================================
+# HATCH BUILD CONFIGURATION
+# ============================================================================
+
+[tool.hatch.version]
+path = "blossom_ai/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["blossom_ai"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/blossom_ai",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+exclude = [
+    "/.github",
+    "/.venv",
+    "/.pytest_cache",
+    "/__pycache__",
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    ".DS_Store",
+    "*.egg-info",
+    "/dist",
+    "/build",
+]
+
+
+# ============================================================================
+# PYTEST CONFIGURATION
+# ============================================================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--disable-warnings",
+]
+markers = [
+    "integration: Integration tests requiring internet connection",
+    "slow: Slow running tests",
+    "unit: Unit tests (fast)",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+
+# ============================================================================
+# COVERAGE CONFIGURATION
+# ============================================================================
+
+[tool.coverage.run]
+source = ["blossom_ai"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/.venv/*",
+    "*/venv/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+
+# ============================================================================
+# BLACK CONFIGURATION (Code Formatting)
+# ============================================================================
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.pytest_cache
+  | __pycache__
+  | build
+  | dist
+)/
+'''
+
+
+# ============================================================================
+# RUFF CONFIGURATION (Linting)
+# ============================================================================
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "C",    # flake8-comprehensions
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+    "SIM",  # flake8-simplify
+    "RUF",  # Ruff-specific rules
+]
+ignore = [
+    "E501",   # Line too long (handled by black)
+    "B008",   # Do not perform function calls in argument defaults
+    "C901",   # Too complex
+    "W191",   # Indentation contains tabs
+]
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
+"tests/*" = ["S101", "PLR2004"]
+
+[tool.ruff.isort]
+known-first-party = ["blossom_ai"]
+force-single-line = false
+lines-after-imports = 2
+no-lines-before = ["future", "standard-library"]
+
+
+# ============================================================================
+# MYPY CONFIGURATION (Type Checking)
+# ============================================================================
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+strict_optional = true
+check_untyped_defs = true
+disallow_untyped_defs = false
+disallow_any_generics = false
+disallow_untyped_calls = false
+disallow_incomplete_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_incomplete_stub = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "requests.*"
+ignore_missing_imports = true
+
+
+# ============================================================================
+# ISORT CONFIGURATION (Import Sorting)
+# ============================================================================
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+split_on_trailing_comma = true
+skip_gitignore = true
+known_first_party = ["blossom_ai"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+
+# ============================================================================
+# BANDIT CONFIGURATION (Security Linting)
+# ============================================================================
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "venv"]
+skips = ["B101", "B601"]
+
+
+# ============================================================================
+# PYLINT CONFIGURATION
+# ============================================================================
+
+[tool.pylint.messages_control]
+disable = [
+    "C0103",  # Invalid name
+    "C0114",  # Missing module docstring
+    "C0115",  # Missing class docstring
+    "C0116",  # Missing function docstring
+    "R0903",  # Too few public methods
+    "R0913",  # Too many arguments
+    "W0212",  # Access to protected member
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.basic]
+good-names = ["i", "j", "k", "e", "ex", "ai", "id", "ok"]
+
+
+# ============================================================================
+# SETUPTOOLS CONFIGURATION (Fallback)
+# ============================================================================
+
+[tool.setuptools]
+zip-safe = false
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["blossom_ai*"]
+exclude = ["tests*", "docs*", "examples*"]
+
+
+# ============================================================================
+# ADDITIONAL METADATA
+# ============================================================================
+
+[project.entry-points."blossom_ai.plugins"]
+# Future plugin system support
+
+# ============================================================================
+# END OF CONFIGURATION
+# ============================================================================
