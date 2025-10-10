@@ -7,7 +7,7 @@ A beautiful Python SDK for [Pollinations.AI](https://pollinations.ai) - Generate
 ---
 >Warning!!
 > 
->image generation and text generation are working properly in the current version of the library. Unfortunately, audio generation is temporarily unavailable. I'm already working on it.
+>To generate audio, you need an authentication!!!
 ---
 ## ✨ Features
 
@@ -219,11 +219,22 @@ Check out the `tests/` directory for more detailed examples:
 
 ## 🔑 Authentication (Optional)
 
-For higher rate limits and additional features:
+For higher rate limits, access to advanced features (like `nologo` for image generation), and to avoid `Payment Required` errors, you can provide an API token.
 
-1. Visit [auth.pollinations.ai](https://auth.pollinations.ai)
-2. Register your application
-3. Use tokens or referrers for authentication
+1.  Visit [auth.pollinations.ai](https://auth.pollinations.ai) to register your application and obtain an API token.
+2.  Pass your API token when initializing the `Blossom` client:
+
+    ```python
+    from blossom_ai import Blossom
+
+    # Initialize with your API token
+    ai = Blossom(api_token="YOUR_API_TOKEN_HERE")
+
+    # Now you can use features that require authentication, e.g., nologo
+    ai.image.save("a beautiful sunset", "sunset_no_logo.jpg", nologo=True)
+    ```
+
+    If no `api_token` is provided, the library will operate in anonymous mode with default rate limits and feature restrictions.
 
 ## 📝 License
 
