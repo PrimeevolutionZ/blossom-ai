@@ -1,3 +1,4 @@
+ 
 """
 🌸 Blossom AI - Custom Errors and Handlers
 """
@@ -21,9 +22,6 @@ class BlossomError(Exception):
         super().__init__(f"[{error_type}] {message}" + (f" -> {suggestion}" if suggestion else ""))
 
 # Вспомогательные функции для вывода в консоль
-def print_success(message: str):
-    print(f"✅ {message}")
-
 def print_info(message: str):
     print(f"ℹ️ {message}")
 
@@ -31,8 +29,24 @@ def print_warning(message: str):
     print(f"⚠️ {message}")
 
 # Обработчик ошибок запросов
-def handle_request_error(e: requests.exceptions.RequestException, context: str) -> BlossomError:
-    """Handles request exceptions and converts them to BlossomError."""
+def handle_request_error(e: Exception, context: str) -> BlossomError:
+    """Handles request exceptions (requests and aiohttp) and converts them to BlossomError."""
+    # Handle aiohttp client errors
+    if "aiohttp" in str(type(e)):
+        if hasattr(e, 'status'): # ClientResponseError
+            return BlossomError(
+                message=f"HTTP Error {e.status} when {context}: {e.message}",
+                error_type=ErrorType.API,
+                suggestion="Check API status or your request parameters."
+            )
+        else: # Other client errors
+            return BlossomError(
+                message=f"Connection error when {context}: {e}",
+                error_type=ErrorType.NETWORK,
+                suggestion="Check your internet connection."
+            )
+
+    # Handle requests errors
     if isinstance(e, requests.exceptions.HTTPError):
         status_code = e.response.status_code
         return BlossomError(
@@ -46,10 +60,11 @@ def handle_request_error(e: requests.exceptions.RequestException, context: str) 
             error_type=ErrorType.NETWORK,
             suggestion="Check your internet connection."
         )
-    else:
-        return BlossomError(
-            message=f"An unexpected network error occurred when {context}: {e}",
-            error_type=ErrorType.UNKNOWN,
-            suggestion="Retry the request later."
-        )
+    
+    # Fallback for other errors
+    return BlossomError(
+        message=f"An unexpected error occurred when {context}: {e}",
+        error_type=ErrorType.UNKNOWN,
+        suggestion="Retry the request later."
+    )
 

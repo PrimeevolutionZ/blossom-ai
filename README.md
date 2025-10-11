@@ -9,6 +9,12 @@ A beautiful Python SDK for [Pollinations.AI](https://pollinations.ai) - Generate
 > 
 >To generate audio, you need an authentication!!!
 ---
+# New version V0.2.0
+
+Asynco suuport
+
+
+---
 ## ✨ Features
 
 - 🖼️ **Image Generation** - Create stunning images from text descriptions

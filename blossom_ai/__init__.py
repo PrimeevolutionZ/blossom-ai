@@ -1,16 +1,15 @@
+
 """
 Blossom AI - Python Client
 """
 
-from .core import Blossom, ImageGenerator, TextGenerator, AudioGenerator
+from .blossom import Blossom, AsyncBlossom
 from .errors import BlossomError, ErrorType
 
 __all__ = [
     "Blossom",
+    "AsyncBlossom",
     "BlossomError",
-    "ErrorType",
-    "ImageGenerator",
-    "TextGenerator",
-    "AudioGenerator"
+    "ErrorType"
 ]
 
