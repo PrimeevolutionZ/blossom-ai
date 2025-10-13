@@ -444,8 +444,8 @@ class AudioGenerator(BaseAPI):
         text = text.rstrip('.!?;:,')
 
         encoded_text = quote(text)
-        # ИСПРАВЛЕНИЕ: использовать /prompt/ (совместимо с текстовым эндпойнтом)
-        url = f"{self.base_url}/prompt/{encoded_text}"
+        # ИСПРАВЛЕНО: используем тот же формат что и для текста (БЕЗ /prompt/)
+        url = f"{self.base_url}/{encoded_text}"
 
         params = {
             "model": model,
@@ -503,8 +503,7 @@ class AsyncAudioGenerator(AsyncBaseAPI):
         text = text.rstrip('.!?;:,')
 
         encoded_text = quote(text)
-        # ИСПРАВЛЕНИЕ: использовать /prompt/
-        url = f"{self.base_url}/prompt/{encoded_text}"
+        url = f"{self.base_url}/{encoded_text}"
 
         params = {
             "model": model,
