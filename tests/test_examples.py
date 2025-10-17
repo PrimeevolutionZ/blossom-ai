@@ -11,9 +11,6 @@ Usage:
 
     # Run only async tests
     python test_examples.py --async
-
-    # Run specific test
-    python test_examples.py --test image_generation
 """
 
 import asyncio
@@ -21,7 +18,15 @@ import sys
 import argparse
 from pathlib import Path
 
-from blossom_ai import Blossom, BlossomError
+# Import from the current package
+try:
+    from blossom_ai import Blossom, BlossomError
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent))
+    from blossom_ai import Blossom,BlossomError, ErrorType
 
 
 # ==============================================================================
@@ -44,110 +49,140 @@ def test_image_generation_sync():
     """Test synchronous image generation"""
     print("\n🖼️  Testing Image Generation (Sync)...")
 
-    ai = Blossom(api_token=API_TOKEN)
+    with Blossom(api_token=API_TOKEN, timeout=60) as ai:
+        try:
+            # Basic image generation
+            print("  → Generating basic image...")
+            filename = ai.image.save(
+                prompt="a cute robot painting a landscape",
+                filename=OUTPUT_DIR / "robot_sync.jpg",
+                width=512,
+                height=512,
+                model="flux"
+            )
+            print(f"  ✅ Basic image saved: {filename}")
+            assert filename.exists(), "Image file should exist"
 
-    try:
-        # Basic image generation
-        print("  → Generating basic image...")
-        ai.image.save(
-            prompt="a cute robot painting a landscape",
-            filename=OUTPUT_DIR / "robot_sync.jpg",
-            width=512,
-            height=512,
-            model="flux"
-        )
-        print("  ✅ Basic image saved!")
+            # Image with seed (reproducible)
+            print("  → Generating reproducible image...")
+            filename = ai.image.save(
+                prompt="a majestic dragon in a mystical forest",
+                filename=OUTPUT_DIR / "dragon_sync.jpg",
+                seed=42,
+                width=768,
+                height=768
+            )
+            print(f"  ✅ Reproducible image saved: {filename}")
+            assert filename.exists(), "Image file should exist"
 
-        # Image with seed (reproducible)
-        print("  → Generating reproducible image...")
-        ai.image.save(
-            prompt="a majestic dragon in a mystical forest",
-            filename=OUTPUT_DIR / "dragon_sync.jpg",
-            seed=42,
-            width=768,
-            height=768
-        )
-        print("  ✅ Reproducible image saved!")
+            # Enhanced prompt
+            print("  → Generating with enhanced prompt...")
+            filename = ai.image.save(
+                prompt="sunset over mountains",
+                filename=OUTPUT_DIR / "sunset_sync.jpg",
+                enhance=True,
+                width=1024,
+                height=576
+            )
+            print(f"  ✅ Enhanced image saved: {filename}")
+            assert filename.exists(), "Image file should exist"
 
-        # Enhanced prompt
-        print("  → Generating with enhanced prompt...")
-        ai.image.save(
-            prompt="sunset over mountains",
-            filename=OUTPUT_DIR / "sunset_sync.jpg",
-            enhance=True,
-            width=1024,
-            height=576
-        )
-        print("  ✅ Enhanced image saved!")
+            # Test generate method (returns bytes)
+            print("  → Testing generate method (bytes)...")
+            image_data = ai.image.generate(
+                prompt="a simple test pattern",
+                width=256,
+                height=256
+            )
+            print(f"  ✅ Generated image data: {len(image_data)} bytes")
+            assert len(image_data) > 0, "Image data should not be empty"
 
-        # List models
-        models = ai.image.models()
-        print(f"  ℹ️  Available models: {models}")
+            # List models
+            models = ai.image.models()
+            print(f"  ℹ️  Available models: {models}")
+            assert isinstance(models, list), "Models should be a list"
+            assert len(models) > 0, "Should have at least one model"
 
-        print("✅ Image generation tests passed!\n")
+            print("✅ Image generation tests passed!\n")
 
-    except BlossomError as e:
-        print(f"❌ Error: {e.message}")
-        print(f"   Suggestion: {e.suggestion}\n")
-        return False
-
-    return True
+        except BlossomError as e:
+            print(f"❌ Error: {e.message}")
+            print(f"   Suggestion: {e.suggestion}\n")
+            raise
+        except Exception as e:
+            print(f"❌ Unexpected error: {e}\n")
+            raise
 
 
 def test_text_generation_sync():
     """Test synchronous text generation"""
     print("\n📝 Testing Text Generation (Sync)...")
 
-    ai = Blossom(api_token=API_TOKEN)
+    with Blossom(api_token=API_TOKEN) as ai:
+        try:
+            # Simple generation
+            print("  → Simple text generation...")
+            response = ai.text.generate("Explain quantum computing in one sentence")
+            print(f"  💬 Response: {response[:100]}...")
+            assert len(response) > 0, "Response should not be empty"
 
-    try:
-        # Simple generation
-        print("  → Simple text generation...")
-        response = ai.text.generate("Explain quantum computing in one sentence")
-        print(f"  💬 Response: {response[:100]}...")
+            # With system message
+            print("  → Generation with system message...")
+            response = ai.text.generate(
+                prompt="Write a haiku about coding",
+                system="You are a creative poet who loves technology"
+            )
+            print(f"  💬 Haiku:\n{response}")
+            assert len(response) > 0, "Response should not be empty"
 
-        # With system message
-        print("  → Generation with system message...")
-        response = ai.text.generate(
-            prompt="Write a haiku about coding",
-            system="You are a creative poet who loves technology"
-        )
-        print(f"  💬 Haiku:\n{response}")
+            # Reproducible with seed
+            print("  → Reproducible generation...")
+            response1 = ai.text.generate("Random creative idea", seed=42)
+            response2 = ai.text.generate("Random creative idea", seed=42)
+            print(f"  ✅ Seeds match: {response1 == response2}")
+            # Note: Sometimes API might not guarantee exact reproducibility
 
-        # Reproducible with seed
-        print("  → Reproducible generation...")
-        response1 = ai.text.generate("Random creative idea", seed=42)
-        response2 = ai.text.generate("Random creative idea", seed=42)
-        print(f"  ✅ Seeds match: {response1 == response2}")
+            # JSON mode - fixed to include 'json' in prompt
+            print("  → JSON mode generation...")
+            response = ai.text.generate(
+                prompt="List 3 programming languages with their use cases in JSON format",
+                json_mode=True
+            )
+            print(f"  💬 JSON: {response[:150]}...")
+            assert len(response) > 0, "Response should not be empty"
 
-        # JSON mode
-        print("  → JSON mode generation...")
-        response = ai.text.generate(
-            prompt="List 3 programming languages with their use cases",
-            json_mode=True
-        )
-        print(f"  💬 JSON: {response[:150]}...")
+            # Chat completion
+            print("  → Chat completion...")
+            response = ai.text.chat([
+                {"role": "system", "content": "You are a helpful coding assistant"},
+                {"role": "user", "content": "What is Python best for?"}
+            ])
+            print(f"  💬 Chat response: {response[:100]}...")
+            assert len(response) > 0, "Response should not be empty"
 
-        # Chat completion
-        print("  → Chat completion...")
-        response = ai.text.chat([
-            {"role": "system", "content": "You are a helpful coding assistant"},
-            {"role": "user", "content": "What is Python best for?"}
-        ])
-        print(f"  💬 Chat response: {response[:100]}...")
+            # Chat with temperature
+            print("  → Chat with temperature...")
+            response = ai.text.chat([
+                {"role": "user", "content": "Tell me a short story"}
+            ], temperature=0.8)
+            print(f"  💬 Story: {response[:100]}...")
+            assert len(response) > 0, "Response should not be empty"
 
-        # List models
-        models = ai.text.models()
-        print(f"  ℹ️  Available models: {models}")
+            # List models
+            models = ai.text.models()
+            print(f"  ℹ️  Available models: {models}")
+            assert isinstance(models, list), "Models should be a list"
+            assert len(models) > 0, "Should have at least one model"
 
-        print("✅ Text generation tests passed!\n")
+            print("✅ Text generation tests passed!\n")
 
-    except BlossomError as e:
-        print(f"❌ Error: {e.message}")
-        print(f"   Suggestion: {e.suggestion}\n")
-        return False
-
-    return True
+        except BlossomError as e:
+            print(f"❌ Error: {e.message}")
+            print(f"   Suggestion: {e.suggestion}\n")
+            raise
+        except Exception as e:
+            print(f"❌ Unexpected error: {e}\n")
+            raise
 
 
 def test_audio_generation_sync():
@@ -157,93 +192,105 @@ def test_audio_generation_sync():
     if not API_TOKEN:
         print("  ⚠️  Skipping: Audio generation requires API token")
         print("     Get yours at https://auth.pollinations.ai\n")
-        return True
+        return
 
-    ai = Blossom(api_token=API_TOKEN)
-
-    try:
-        # Basic audio generation
-        print("  → Generating basic audio...")
-        ai.audio.save(
-            text="Welcome to Blossom AI, the beautiful Python SDK for Pollinations",
-            filename=OUTPUT_DIR / "welcome_sync.mp3",
-            voice="nova"
-        )
-        print("  ✅ Basic audio saved!")
-
-        # Different voices
-        voices_to_test = ["alloy", "echo", "shimmer"]
-        for voice in voices_to_test:
-            print(f"  → Testing voice: {voice}...")
-            ai.audio.save(
-                text=f"This is the {voice} voice",
-                filename=OUTPUT_DIR / f"voice_{voice}_sync.mp3",
-                voice=voice
+    with Blossom(api_token=API_TOKEN) as ai:
+        try:
+            # Basic audio generation
+            print("  → Generating basic audio...")
+            filename = ai.audio.save(
+                text="Welcome to Blossom AI, the beautiful Python SDK for Pollinations",
+                filename=OUTPUT_DIR / "welcome_sync.mp3",
+                voice="nova"
             )
-        print("  ✅ All voices tested!")
+            print(f"  ✅ Basic audio saved: {filename}")
+            assert filename.exists(), "Audio file should exist"
 
-        # List available voices
-        voices = ai.audio.voices()
-        print(f"  ℹ️  Available voices: {voices}")
+            # Different voices
+            voices_to_test = ["alloy", "echo", "shimmer"]
+            for voice in voices_to_test:
+                print(f"  → Testing voice: {voice}...")
+                filename = ai.audio.save(
+                    text=f"This is the {voice} voice",
+                    filename=OUTPUT_DIR / f"voice_{voice}_sync.mp3",
+                    voice=voice
+                )
+                print(f"    Saved: {filename}")
+                assert filename.exists(), "Audio file should exist"
+            print("  ✅ All voices tested!")
 
-        print("✅ Audio generation tests passed!\n")
+            # Test generate method (returns bytes)
+            print("  → Testing generate method (bytes)...")
+            audio_data = ai.audio.generate(
+                text="Test audio generation",
+                voice="alloy"
+            )
+            print(f"  ✅ Generated audio data: {len(audio_data)} bytes")
+            assert len(audio_data) > 0, "Audio data should not be empty"
 
-    except BlossomError as e:
-        print(f"❌ Error: {e.message}")
-        print(f"   Suggestion: {e.suggestion}\n")
-        return False
+            # List available voices
+            voices = ai.audio.voices()
+            print(f"  ℹ️  Available voices: {voices}")
+            assert isinstance(voices, list), "Voices should be a list"
+            assert len(voices) > 0, "Should have at least one voice"
 
-    return True
+            print("✅ Audio generation tests passed!\n")
+
+        except BlossomError as e:
+            print(f"❌ Error: {e.message}")
+            print(f"   Suggestion: {e.suggestion}\n")
+            raise
+        except Exception as e:
+            print(f"❌ Unexpected error: {e}\n")
+            raise
 
 
 def test_error_handling_sync():
     """Test error handling"""
     print("\n🛡️  Testing Error Handling (Sync)...")
 
-    ai = Blossom(api_token=API_TOKEN)
+    with Blossom(api_token=API_TOKEN) as ai:
+        # Test invalid prompt length
+        try:
+            print("  → Testing prompt length validation...")
+            very_long_prompt = "a" * 300
+            ai.image.generate(very_long_prompt)
+            assert False, "Should have raised an error for long prompt"
+        except BlossomError as e:
+            print(f"  ✅ Caught expected error: {e.error_type}")
+            assert e.error_type == "INVALID_PARAMETER"
 
-    # Test invalid prompt length
-    try:
-        print("  → Testing prompt length validation...")
-        very_long_prompt = "a" * 300
-        ai.image.generate(very_long_prompt)
-        print("  ❌ Should have raised an error!")
-        return False
-    except BlossomError as e:
-        print(f"  ✅ Caught expected error: {e.error_type}")
-
-    # Test authentication requirement
+    # Test authentication requirement for audio
     try:
         print("  → Testing authentication requirement...")
-        ai_no_auth = Blossom(api_token=None)
-        ai_no_auth.audio.generate("test")
-        print("  ⚠️  Audio might work without auth (API change?)")
+        with Blossom(api_token=None) as ai_no_auth:
+            ai_no_auth.audio.generate("test")
+            print("  ⚠️  Audio might work without auth (API change?)")
     except BlossomError as e:
         print(f"  ✅ Caught expected error: {e.error_type}")
 
     print("✅ Error handling tests passed!\n")
-    return True
 
 
 # ==============================================================================
-# ASYNCHRONOUS TESTS
+# ASYNCHRONOUS TESTS (for manual running, not pytest)
 # ==============================================================================
 
-async def test_image_generation_async():
-    """Test asynchronous image generation"""
+async def _test_image_generation_async():
+    """Test asynchronous image generation - for manual execution"""
     print("\n🖼️  Testing Image Generation (Async)...")
 
-    async with Blossom(api_token=API_TOKEN) as ai:
+    async with Blossom(api_token=API_TOKEN, timeout=60) as ai:
         try:
             # Basic image generation
             print("  → Generating basic image...")
-            await ai.image.save(
+            filename = await ai.image.save(
                 prompt="a cute robot painting a landscape",
                 filename=OUTPUT_DIR / "robot_async.jpg",
                 width=512,
                 height=512
             )
-            print("  ✅ Basic image saved!")
+            print(f"  ✅ Basic image saved: {filename}")
 
             # Parallel generation
             print("  → Parallel image generation...")
@@ -252,25 +299,33 @@ async def test_image_generation_async():
                 ai.image.save("forest", OUTPUT_DIR / "forest_async.jpg", width=512, height=512),
                 ai.image.save("ocean", OUTPUT_DIR / "ocean_async.jpg", width=512, height=512)
             ]
-            await asyncio.gather(*tasks)
-            print("  ✅ All parallel images saved!")
+            results = await asyncio.gather(*tasks)
+            print(f"  ✅ All parallel images saved: {len(results)} files")
+
+            # Test async generate method
+            print("  → Testing async generate method...")
+            image_data = await ai.image.generate(
+                prompt="async test image",
+                width=256,
+                height=256
+            )
+            print(f"  ✅ Generated async image: {len(image_data)} bytes")
 
             # List models
             models = await ai.image.models()
             print(f"  ℹ️  Available models: {models}")
 
             print("✅ Async image generation tests passed!\n")
+            return True
 
         except BlossomError as e:
             print(f"❌ Error: {e.message}")
             print(f"   Suggestion: {e.suggestion}\n")
             return False
 
-    return True
 
-
-async def test_text_generation_async():
-    """Test asynchronous text generation"""
+async def _test_text_generation_async():
+    """Test asynchronous text generation - for manual execution"""
     print("\n📝 Testing Text Generation (Async)...")
 
     async with Blossom(api_token=API_TOKEN) as ai:
@@ -298,18 +353,24 @@ async def test_text_generation_async():
             ])
             print(f"  💬 Chat: {response[:100]}...")
 
+            # Chat with JSON mode
+            print("  → Async chat with JSON mode...")
+            response = await ai.text.chat([
+                {"role": "user", "content": "List 2 colors in JSON format"}
+            ], json_mode=True)
+            print(f"  💬 JSON response: {response[:100]}...")
+
             print("✅ Async text generation tests passed!\n")
+            return True
 
         except BlossomError as e:
             print(f"❌ Error: {e.message}")
             print(f"   Suggestion: {e.suggestion}\n")
             return False
 
-    return True
 
-
-async def test_audio_generation_async():
-    """Test asynchronous audio generation"""
+async def _test_audio_generation_async():
+    """Test asynchronous audio generation - for manual execution"""
     print("\n🎙️  Testing Audio Generation (Async)...")
 
     if not API_TOKEN:
@@ -321,12 +382,12 @@ async def test_audio_generation_async():
         try:
             # Basic audio
             print("  → Generating basic audio...")
-            await ai.audio.save(
+            filename = await ai.audio.save(
                 text="Async audio generation test",
                 filename=OUTPUT_DIR / "test_async.mp3",
                 voice="nova"
             )
-            print("  ✅ Basic audio saved!")
+            print(f"  ✅ Basic audio saved: {filename}")
 
             # Parallel audio generation
             print("  → Parallel audio generation...")
@@ -334,24 +395,35 @@ async def test_audio_generation_async():
                 ai.audio.save(f"Voice test {i}", OUTPUT_DIR / f"parallel_{i}.mp3", voice="alloy")
                 for i in range(3)
             ]
-            await asyncio.gather(*tasks)
-            print("  ✅ All parallel audio saved!")
+            results = await asyncio.gather(*tasks)
+            print(f"  ✅ All parallel audio saved: {len(results)} files")
+
+            # Test async generate method
+            print("  → Testing async generate method...")
+            audio_data = await ai.audio.generate(
+                text="Test async audio generation",
+                voice="echo"
+            )
+            print(f"  ✅ Generated async audio: {len(audio_data)} bytes")
+
+            # List voices
+            voices = await ai.audio.voices()
+            print(f"  ℹ️  Available voices: {voices}")
 
             print("✅ Async audio generation tests passed!\n")
+            return True
 
         except BlossomError as e:
             print(f"❌ Error: {e.message}")
             print(f"   Suggestion: {e.suggestion}\n")
             return False
 
-    return True
 
-
-async def test_mixed_async():
-    """Test mixed async operations"""
+async def _test_mixed_async():
+    """Test mixed async operations - for manual execution"""
     print("\n🔀 Testing Mixed Async Operations...")
 
-    async with Blossom(api_token=API_TOKEN) as ai:
+    async with Blossom(api_token=API_TOKEN, timeout=60) as ai:
         try:
             # All operations in parallel!
             print("  → Running ALL operations in parallel...")
@@ -359,23 +431,27 @@ async def test_mixed_async():
             image_task = ai.image.save("robot", OUTPUT_DIR / "mixed_robot.jpg", width=512, height=512)
             text_task = ai.text.generate("Fun fact about AI")
 
-            results = await asyncio.gather(image_task, text_task)
+            if API_TOKEN:
+                audio_task = ai.audio.save("Mixed operation test", OUTPUT_DIR / "mixed_audio.mp3", voice="alloy")
+                results = await asyncio.gather(image_task, text_task, audio_task)
+                print(f"  🔊 Audio saved: {results[2]}")
+            else:
+                results = await asyncio.gather(image_task, text_task)
 
             print(f"  ✅ Image saved: {results[0]}")
             print(f"  💬 Text generated: {results[1][:50]}...")
 
             print("✅ Mixed async tests passed!\n")
+            return True
 
         except BlossomError as e:
             print(f"❌ Error: {e.message}")
             print(f"   Suggestion: {e.suggestion}\n")
             return False
 
-    return True
-
 
 # ==============================================================================
-# TEST RUNNER
+# TEST RUNNER (for manual execution)
 # ==============================================================================
 
 def run_sync_tests():
@@ -386,10 +462,29 @@ def run_sync_tests():
 
     results = []
 
-    results.append(("Image Generation", test_image_generation_sync()))
-    results.append(("Text Generation", test_text_generation_sync()))
-    results.append(("Audio Generation", test_audio_generation_sync()))
-    results.append(("Error Handling", test_error_handling_sync()))
+    try:
+        test_image_generation_sync()
+        results.append(("Image Generation", True))
+    except Exception:
+        results.append(("Image Generation", False))
+
+    try:
+        test_text_generation_sync()
+        results.append(("Text Generation", True))
+    except Exception:
+        results.append(("Text Generation", False))
+
+    try:
+        test_audio_generation_sync()
+        results.append(("Audio Generation", True))
+    except Exception:
+        results.append(("Audio Generation", False))
+
+    try:
+        test_error_handling_sync()
+        results.append(("Error Handling", True))
+    except Exception:
+        results.append(("Error Handling", False))
 
     return results
 
@@ -402,10 +497,10 @@ async def run_async_tests():
 
     results = []
 
-    results.append(("Image Generation (Async)", await test_image_generation_async()))
-    results.append(("Text Generation (Async)", await test_text_generation_async()))
-    results.append(("Audio Generation (Async)", await test_audio_generation_async()))
-    results.append(("Mixed Operations (Async)", await test_mixed_async()))
+    results.append(("Image Generation (Async)", await _test_image_generation_async()))
+    results.append(("Text Generation (Async)", await _test_text_generation_async()))
+    results.append(("Audio Generation (Async)", await _test_audio_generation_async()))
+    results.append(("Mixed Operations (Async)", await _test_mixed_async()))
 
     return results
 
