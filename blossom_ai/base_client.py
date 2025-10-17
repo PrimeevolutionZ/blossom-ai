@@ -73,7 +73,6 @@ class BaseAPI:
             raise handle_request_error(e, f"making {method} request to {url}")
 
 
-# ИСПРАВЛЕНИЕ: Создаем wrapper класс для ответа
 class AsyncResponseWrapper:
     """Wrapper for aiohttp response to ensure it's properly closed"""
     def __init__(self, response: aiohttp.ClientResponse, data: bytes):
@@ -110,16 +109,44 @@ class AsyncBaseAPI:
         self.timeout = timeout
         self.api_token = api_token
         self._session = None
+        self._session_loop = None  # Track which event loop owns the session
 
     async def _get_session(self):
-        if self._session is None or self._session.closed:
+        """Get or create aiohttp session for the current event loop"""
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+
+        # If session exists but belongs to a different (closed) loop, close it
+        if self._session is not None:
+            if self._session.closed or self._session_loop != current_loop:
+                try:
+                    if not self._session.closed:
+                        await self._session.close()
+                except Exception:
+                    pass
+                finally:
+                    self._session = None
+                    self._session_loop = None
+
+        # Create new session if needed
+        if self._session is None:
             self._session = aiohttp.ClientSession()
+            self._session_loop = current_loop
+
         return self._session
 
     async def _close_session(self):
+        """Close the aiohttp session"""
         if self._session and not self._session.closed:
-            await self._session.close()
-            self._session = None
+            try:
+                await self._session.close()
+            except Exception as e:
+                print_info(f"Error closing aiohttp session: {e}")
+            finally:
+                self._session = None
+                self._session_loop = None
 
     async def _make_request(self, method: str, url: str, **kwargs) -> AsyncResponseWrapper:
         """Make asynchronous HTTP request with error handling and retry logic"""
@@ -141,7 +168,6 @@ class AsyncBaseAPI:
                     else:
                         params['token'] = self.api_token
 
-                # ИСПРАВЛЕНИЕ: Используем async with для правильного управления соединением
                 async with session.request(
                     method,
                     url,
@@ -150,10 +176,10 @@ class AsyncBaseAPI:
                     timeout=timeout,
                     **kwargs
                 ) as response:
-                    # Читаем данные ВНУТРИ контекста
+                    # Read data inside context
                     data = await response.read()
 
-                    # Проверяем статус
+                    # Check status
                     if response.status >= 400:
                         if response.status == 402:
                             try:
@@ -175,10 +201,10 @@ class AsyncBaseAPI:
                             retry_count += 1
                             if retry_count < max_retries:
                                 print_info(f"Retrying 502 error for {url}... (attempt {retry_count}/{max_retries})")
-                                await asyncio.sleep(2 ** retry_count)  # Exponential backoff
+                                await asyncio.sleep(2 ** retry_count)
                                 continue
 
-                        # Для других ошибок 4xx/5xx
+                        # For other 4xx/5xx errors
                         error_text = data.decode('utf-8', errors='replace')
                         raise aiohttp.ClientResponseError(
                             request_info=response.request_info,
@@ -187,7 +213,7 @@ class AsyncBaseAPI:
                             message=error_text
                         )
 
-                    # Возвращаем wrapper с уже прочитанными данными
+                    # Return wrapper with already read data
                     return AsyncResponseWrapper(response, data)
 
             except aiohttp.ClientError as e:
@@ -207,7 +233,7 @@ class AsyncBaseAPI:
                     suggestion="Try increasing timeout or check your connection."
                 )
 
-        # Если все попытки исчерпаны
+        # If all retries exhausted
         raise BlossomError(
             message=f"Max retries exceeded for {method} request to {url}",
             error_type=ErrorType.NETWORK,
