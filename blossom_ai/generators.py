@@ -6,6 +6,7 @@ Fixed version with proper session handling and temperature parameter support
 from urllib.parse import quote
 from typing import Optional, Dict, Any, List
 import asyncio
+import json
 
 from .base_client import BaseAPI, AsyncBaseAPI
 from .errors import BlossomError, ErrorType, print_warning
@@ -103,11 +104,16 @@ class ImageGenerator(BaseAPI):
             f.write(image_data)
         return str(filename)
 
-    def models(self) -> List[str]:
+    def models(self) -> list:
         """Get list of available image models"""
         url = f"{self.base_url}/models"
         response = self._make_request("GET", url)
-        return response.json()
+        try:
+            return response.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            # If the server returns empty response or non-JSON content, return default models
+            print_warning(f"Failed to parse models response: {e}")
+            return ["flux", "kontext", "turbo", "gptimage"]
 
 
 class AsyncImageGenerator(AsyncBaseAPI):
@@ -176,11 +182,16 @@ class AsyncImageGenerator(AsyncBaseAPI):
             f.write(image_data)
         return str(filename)
 
-    async def models(self) -> List[str]:
+    async def models(self) -> list:
         """Get list of available image models asynchronously"""
         url = f"{self.base_url}/models"
         response = await self._make_request("GET", url)
-        return await response.json()
+        try:
+            return await response.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            # If the server returns empty response or non-JSON content, return default models
+            print_warning(f"Failed to parse models response: {e}")
+            return ["flux", "kontext", "turbo", "gptimage"]
 
 
 # ============================================================================
@@ -198,34 +209,49 @@ class TextGenerator(BaseAPI):
             prompt: str,
             model: str = "openai",
             system: Optional[str] = None,
-            temperature: Optional[float] = None,
             seed: Optional[int] = None,
+            temperature: Optional[float] = None,
             json_mode: bool = False,
-            stream: bool = False,
             private: bool = False
     ) -> str:
         """
-        Generate text from a prompt (GET method)
-        """
-        if temperature is not None:
-            print_warning("Temperature parameter is not supported in GET endpoint and will be ignored")
+        Generate text from a prompt
 
-        # Убираем trailing пунктуацию
-        prompt = prompt.rstrip('.!?;:,')
+        Args:
+            prompt: Text prompt to generate from
+            model: Model to use (default: openai)
+            system: System message to guide generation
+            seed: Seed for reproducible results
+            temperature: Sampling temperature (0.0-2.0, default: 1.0)
+            json_mode: Force JSON output format
+            private: Keep generation private
+
+        Returns:
+            Generated text
+        """
+        MAX_PROMPT_LENGTH = 10000
+        if len(prompt) > MAX_PROMPT_LENGTH:
+            raise BlossomError(
+                message=f"Prompt exceeds maximum allowed length of {MAX_PROMPT_LENGTH} characters.",
+                error_type=ErrorType.INVALID_PARAM,
+                suggestion="Please shorten your prompt."
+            )
 
         encoded_prompt = quote(prompt)
         url = f"{self.base_url}/{encoded_prompt}"
 
-        params = {"model": model}
+        params = {
+            "model": model,
+        }
 
         if system:
             params["system"] = system
         if seed is not None:
-            params["seed"] = str(seed)
+            params["seed"] = seed
+        if temperature is not None:
+            params["temperature"] = temperature
         if json_mode:
             params["json"] = "true"
-        if stream:
-            params["stream"] = "true"
         if private:
             params["private"] = "true"
 
@@ -239,8 +265,7 @@ class TextGenerator(BaseAPI):
             temperature: Optional[float] = None,
             stream: bool = False,
             json_mode: bool = False,
-            private: bool = False,
-            use_get_fallback: bool = True
+            private: bool = False
     ) -> str:
         """
         Chat completion using OpenAI-compatible endpoint (POST method)
@@ -278,32 +303,37 @@ class TextGenerator(BaseAPI):
             return result["choices"][0]["message"]["content"]
 
         except Exception as e:
-            if use_get_fallback:
-                user_message = None
-                system_message = None
+            # Fallback to GET method if POST fails
+            user_message = None
+            system_message = None
 
-                for msg in messages:
-                    if msg.get("role") == "user":
-                        user_message = msg.get("content")
-                    elif msg.get("role") == "system":
-                        system_message = msg.get("content")
+            for msg in messages:
+                if msg.get("role") == "user":
+                    user_message = msg.get("content")
+                elif msg.get("role") == "system":
+                    system_message = msg.get("content")
 
-                if user_message:
-                    return self.generate(
-                        prompt=user_message,
-                        model=model,
-                        system=system_message,
-                        # FIXED: Don't pass temperature to GET fallback since it's not supported
-                        json_mode=json_mode,
-                        private=private
-                    )
+            if user_message:
+                return self.generate(
+                    prompt=user_message,
+                    model=model,
+                    system=system_message,
+                    # FIXED: Don't pass temperature to GET fallback since it's not supported
+                    json_mode=json_mode,
+                    private=private
+                )
             raise
 
     def models(self) -> List[str]:
         """Get list of available text models"""
         url = f"{self.base_url}/models"
         response = self._make_request("GET", url)
-        return response.json()
+        try:
+            return response.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            # If the server returns empty response or non-JSON content, return default models
+            print_warning(f"Failed to parse models response: {e}")
+            return ["deepseek", "gemini", "mistral", "openai", "qwen-coder"]
 
 
 class AsyncTextGenerator(AsyncBaseAPI):
@@ -317,34 +347,37 @@ class AsyncTextGenerator(AsyncBaseAPI):
             prompt: str,
             model: str = "openai",
             system: Optional[str] = None,
-            temperature: Optional[float] = None,
             seed: Optional[int] = None,
+            temperature: Optional[float] = None,
             json_mode: bool = False,
-            stream: bool = False,
             private: bool = False
     ) -> str:
         """
-        Generate text from a prompt asynchronously (GET method)
+        Generate text from a prompt asynchronously
         """
-        if temperature is not None:
-            print_warning("Temperature parameter is not supported in GET endpoint and will be ignored")
-
-        prompt = prompt.rstrip('.!?;:,')
+        MAX_PROMPT_LENGTH = 10000
+        if len(prompt) > MAX_PROMPT_LENGTH:
+            raise BlossomError(
+                message=f"Prompt exceeds maximum allowed length of {MAX_PROMPT_LENGTH} characters.",
+                error_type=ErrorType.INVALID_PARAM,
+                suggestion="Please shorten your prompt."
+            )
 
         encoded_prompt = quote(prompt)
-
         url = f"{self.base_url}/{encoded_prompt}"
 
-        params = {"model": model}
+        params = {
+            "model": model,
+        }
 
         if system:
             params["system"] = system
         if seed is not None:
-            params["seed"] = str(seed)
+            params["seed"] = seed
+        if temperature is not None:
+            params["temperature"] = temperature
         if json_mode:
             params["json"] = "true"
-        if stream:
-            params["stream"] = "true"
         if private:
             params["private"] = "true"
 
@@ -419,12 +452,15 @@ class AsyncTextGenerator(AsyncBaseAPI):
             raise
 
     async def models(self) -> List[str]:
-        """
-        Get list of available text models asynchronously
-        """
+        """Get list of available text models asynchronously"""
         url = f"{self.base_url}/models"
         response = await self._make_request("GET", url)
-        return await response.json()
+        try:
+            return await response.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            # If the server returns empty response or non-JSON content, return default models
+            print_warning(f"Failed to parse models response: {e}")
+            return ["deepseek", "gemini", "mistral", "openai", "qwen-coder"]
 
 
 # ============================================================================
@@ -478,7 +514,12 @@ class AudioGenerator(BaseAPI):
         """Get list of available voices"""
         url = f"{self.base_url}/voices"
         response = self._make_request("GET", url)
-        return response.json()
+        try:
+            return response.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            # If the server returns empty response or non-JSON content, return default voices
+            print_warning(f"Failed to parse voices response: {e}")
+            return ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
 
 
 class AsyncAudioGenerator(AsyncBaseAPI):
@@ -528,4 +569,9 @@ class AsyncAudioGenerator(AsyncBaseAPI):
         """Get list of available voices asynchronously"""
         url = f"{self.base_url}/voices"
         response = await self._make_request("GET", url)
-        return await response.json()
+        try:
+            return await response.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            # If the server returns empty response or non-JSON content, return default voices
+            print_warning(f"Failed to parse voices response: {e}")
+            return ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
