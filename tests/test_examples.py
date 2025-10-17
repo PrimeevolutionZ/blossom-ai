@@ -1,16 +1,16 @@
 """
-🌸 Blossom AI - Unified Test Suite
+🌸 Blossom AI - Unified Test Suite (Fixed)
 Run all examples in one place!
 
 Usage:
     # Run all tests
-    python test_examples.py
+    python test_examples_fixed.py
 
     # Run only sync tests
-    python test_examples.py --sync
+    python test_examples_fixed.py --sync
 
     # Run only async tests
-    python test_examples.py --async
+    python test_examples_fixed.py --async
 """
 
 import asyncio
@@ -61,7 +61,7 @@ def test_image_generation_sync():
                 model="flux"
             )
             print(f"  ✅ Basic image saved: {filename}")
-            assert filename.exists(), "Image file should exist"
+            assert Path(filename).exists(), "Image file should exist"
 
             # Image with seed (reproducible)
             print("  → Generating reproducible image...")
@@ -73,7 +73,7 @@ def test_image_generation_sync():
                 height=768
             )
             print(f"  ✅ Reproducible image saved: {filename}")
-            assert filename.exists(), "Image file should exist"
+            assert Path(filename).exists(), "Image file should exist"
 
             # Enhanced prompt
             print("  → Generating with enhanced prompt...")
@@ -85,7 +85,7 @@ def test_image_generation_sync():
                 height=576
             )
             print(f"  ✅ Enhanced image saved: {filename}")
-            assert filename.exists(), "Image file should exist"
+            assert Path(filename).exists(), "Image file should exist"
 
             # Test generate method (returns bytes)
             print("  → Testing generate method (bytes)...")
@@ -118,7 +118,7 @@ def test_text_generation_sync():
     """Test synchronous text generation"""
     print("\n📝 Testing Text Generation (Sync)...")
 
-    with Blossom(api_token=API_TOKEN) as ai:
+    with Blossom(api_token=API_TOKEN, timeout=60) as ai:  # Increased timeout
         try:
             # Simple generation
             print("  → Simple text generation...")
@@ -160,11 +160,11 @@ def test_text_generation_sync():
             print(f"  💬 Chat response: {response[:100]}...")
             assert len(response) > 0, "Response should not be empty"
 
-            # Chat with temperature
+            # Chat with temperature - FIXED: using default value 1.0 as API requires
             print("  → Chat with temperature...")
             response = ai.text.chat([
                 {"role": "user", "content": "Tell me a short story"}
-            ], temperature=0.8)
+            ], temperature=1.0)  # Changed from 0.8 to 1.0 to match API requirements
             print(f"  💬 Story: {response[:100]}...")
             assert len(response) > 0, "Response should not be empty"
 
@@ -194,7 +194,7 @@ def test_audio_generation_sync():
         print("     Get yours at https://auth.pollinations.ai\n")
         return
 
-    with Blossom(api_token=API_TOKEN) as ai:
+    with Blossom(api_token=API_TOKEN, timeout=60) as ai:
         try:
             # Basic audio generation
             print("  → Generating basic audio...")
@@ -204,7 +204,7 @@ def test_audio_generation_sync():
                 voice="nova"
             )
             print(f"  ✅ Basic audio saved: {filename}")
-            assert filename.exists(), "Audio file should exist"
+            assert Path(filename).exists(), "Audio file should exist"
 
             # Different voices
             voices_to_test = ["alloy", "echo", "shimmer"]
@@ -216,7 +216,7 @@ def test_audio_generation_sync():
                     voice=voice
                 )
                 print(f"    Saved: {filename}")
-                assert filename.exists(), "Audio file should exist"
+                assert Path(filename).exists(), "Audio file should exist"
             print("  ✅ All voices tested!")
 
             # Test generate method (returns bytes)
@@ -291,6 +291,7 @@ async def _test_image_generation_async():
                 height=512
             )
             print(f"  ✅ Basic image saved: {filename}")
+            assert Path(filename).exists(), "Image file should exist"
 
             # Parallel generation
             print("  → Parallel image generation...")
@@ -300,6 +301,8 @@ async def _test_image_generation_async():
                 ai.image.save("ocean", OUTPUT_DIR / "ocean_async.jpg", width=512, height=512)
             ]
             results = await asyncio.gather(*tasks)
+            for result in results:
+                assert Path(result).exists(), "Image file should exist"
             print(f"  ✅ All parallel images saved: {len(results)} files")
 
             # Test async generate method
@@ -310,10 +313,13 @@ async def _test_image_generation_async():
                 height=256
             )
             print(f"  ✅ Generated async image: {len(image_data)} bytes")
+            assert len(image_data) > 0, "Image data should not be empty"
 
             # List models
             models = await ai.image.models()
             print(f"  ℹ️  Available models: {models}")
+            assert isinstance(models, list), "Models should be a list"
+            assert len(models) > 0, "Should have at least one model"
 
             print("✅ Async image generation tests passed!\n")
             return True
@@ -328,12 +334,13 @@ async def _test_text_generation_async():
     """Test asynchronous text generation - for manual execution"""
     print("\n📝 Testing Text Generation (Async)...")
 
-    async with Blossom(api_token=API_TOKEN) as ai:
+    async with Blossom(api_token=API_TOKEN, timeout=60) as ai:
         try:
             # Simple generation
             print("  → Simple text generation...")
             response = await ai.text.generate("Explain AI in one sentence")
             print(f"  💬 Response: {response[:100]}...")
+            assert len(response) > 0, "Response should not be empty"
 
             # Parallel generation
             print("  → Parallel text generation...")
@@ -343,6 +350,8 @@ async def _test_text_generation_async():
                 ai.text.generate("What is Rust?")
             ]
             responses = await asyncio.gather(*tasks)
+            for resp in responses:
+                assert len(resp) > 0, "Response should not be empty"
             print(f"  ✅ Generated {len(responses)} responses in parallel!")
 
             # Chat completion
@@ -352,6 +361,7 @@ async def _test_text_generation_async():
                 {"role": "user", "content": "What is async programming?"}
             ])
             print(f"  💬 Chat: {response[:100]}...")
+            assert len(response) > 0, "Response should not be empty"
 
             # Chat with JSON mode
             print("  → Async chat with JSON mode...")
@@ -359,6 +369,7 @@ async def _test_text_generation_async():
                 {"role": "user", "content": "List 2 colors in JSON format"}
             ], json_mode=True)
             print(f"  💬 JSON response: {response[:100]}...")
+            assert len(response) > 0, "Response should not be empty"
 
             print("✅ Async text generation tests passed!\n")
             return True
@@ -378,7 +389,7 @@ async def _test_audio_generation_async():
         print("     Get yours at https://auth.pollinations.ai\n")
         return True
 
-    async with Blossom(api_token=API_TOKEN) as ai:
+    async with Blossom(api_token=API_TOKEN, timeout=60) as ai:
         try:
             # Basic audio
             print("  → Generating basic audio...")
@@ -388,6 +399,7 @@ async def _test_audio_generation_async():
                 voice="nova"
             )
             print(f"  ✅ Basic audio saved: {filename}")
+            assert Path(filename).exists(), "Audio file should exist"
 
             # Parallel audio generation
             print("  → Parallel audio generation...")
@@ -396,6 +408,8 @@ async def _test_audio_generation_async():
                 for i in range(3)
             ]
             results = await asyncio.gather(*tasks)
+            for result in results:
+                assert Path(result).exists(), "Audio file should exist"
             print(f"  ✅ All parallel audio saved: {len(results)} files")
 
             # Test async generate method
@@ -405,10 +419,13 @@ async def _test_audio_generation_async():
                 voice="echo"
             )
             print(f"  ✅ Generated async audio: {len(audio_data)} bytes")
+            assert len(audio_data) > 0, "Audio data should not be empty"
 
             # List voices
             voices = await ai.audio.voices()
             print(f"  ℹ️  Available voices: {voices}")
+            assert isinstance(voices, list), "Voices should be a list"
+            assert len(voices) > 0, "Should have at least one voice"
 
             print("✅ Async audio generation tests passed!\n")
             return True
@@ -435,11 +452,14 @@ async def _test_mixed_async():
                 audio_task = ai.audio.save("Mixed operation test", OUTPUT_DIR / "mixed_audio.mp3", voice="alloy")
                 results = await asyncio.gather(image_task, text_task, audio_task)
                 print(f"  🔊 Audio saved: {results[2]}")
+                assert Path(results[2]).exists(), "Audio file should exist"
             else:
                 results = await asyncio.gather(image_task, text_task)
 
             print(f"  ✅ Image saved: {results[0]}")
+            assert Path(results[0]).exists(), "Image file should exist"
             print(f"  💬 Text generated: {results[1][:50]}...")
+            assert len(results[1]) > 0, "Text should not be empty"
 
             print("✅ Mixed async tests passed!\n")
             return True

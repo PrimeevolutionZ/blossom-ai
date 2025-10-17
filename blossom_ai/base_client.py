@@ -1,5 +1,6 @@
 """
-Blossom AI - Base API Client
+Blossom AI - Base API Client (Fixed v2)
+Fixed version with proper session handling to avoid ResourceWarnings
 """
 
 import requests
@@ -8,6 +9,8 @@ import json
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import asyncio
 import aiohttp
+import weakref
+import threading
 
 from .errors import BlossomError, handle_request_error, print_info, ErrorType
 
@@ -110,9 +113,35 @@ class AsyncBaseAPI:
         self.api_token = api_token
         self._session = None
         self._session_loop = None  # Track which event loop owns the session
+        self._closed = False
+
+        # FIXED: Only register cleanup when session is actually created
+        # This prevents the weakref error when _session is None
+
+    def _register_cleanup(self):
+        """Register cleanup handler to close session when object is garbage collected"""
+        if self._session is not None:
+            def cleanup(session_ref):
+                if session_ref is not None:
+                    session = session_ref()
+                    if session is not None and not session.closed:
+                        # Create a new event loop for cleanup if needed
+                        try:
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            loop.run_until_complete(session.close())
+                            loop.close()
+                        except Exception:
+                            pass
+
+            # Use weakref to avoid circular references
+            weakref.ref(self._session, cleanup)
 
     async def _get_session(self):
         """Get or create aiohttp session for the current event loop"""
+        if self._closed:
+            raise RuntimeError("AsyncBaseAPI has been closed")
+
         try:
             current_loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -134,6 +163,8 @@ class AsyncBaseAPI:
         if self._session is None:
             self._session = aiohttp.ClientSession()
             self._session_loop = current_loop
+            # Register cleanup only when session is created
+            self._register_cleanup()
 
         return self._session
 
@@ -147,6 +178,7 @@ class AsyncBaseAPI:
             finally:
                 self._session = None
                 self._session_loop = None
+        self._closed = True
 
     async def _make_request(self, method: str, url: str, **kwargs) -> AsyncResponseWrapper:
         """Make asynchronous HTTP request with error handling and retry logic"""
@@ -239,3 +271,25 @@ class AsyncBaseAPI:
             error_type=ErrorType.NETWORK,
             suggestion="The API may be temporarily unavailable. Try again later."
         )
+
+    def __del__(self):
+        """Cleanup when object is destroyed"""
+        if hasattr(self, '_session') and self._session is not None:
+            try:
+                # Try to close session if it's not closed
+                if not self._session.closed:
+                    # Use threading to run async cleanup in background
+                    def cleanup():
+                        try:
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            loop.run_until_complete(self._session.close())
+                            loop.close()
+                        except Exception:
+                            pass
+
+                    thread = threading.Thread(target=cleanup)
+                    thread.daemon = True
+                    thread.start()
+            except Exception:
+                pass

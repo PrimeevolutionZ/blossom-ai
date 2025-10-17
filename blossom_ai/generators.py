@@ -1,5 +1,6 @@
 """
-Blossom AI - Generators
+Blossom AI - Generators (Fixed)
+Fixed version with proper session handling and temperature parameter support
 """
 
 from urllib.parse import quote
@@ -98,11 +99,9 @@ class ImageGenerator(BaseAPI):
             Path to saved file
         """
         image_data = self.generate(prompt, **kwargs)
-
         with open(filename, 'wb') as f:
             f.write(image_data)
-
-        return filename
+        return str(filename)
 
     def models(self) -> List[str]:
         """Get list of available image models"""
@@ -173,16 +172,12 @@ class AsyncImageGenerator(AsyncBaseAPI):
         Generate and save image to file asynchronously
         """
         image_data = await self.generate(prompt, **kwargs)
-
         with open(filename, 'wb') as f:
             f.write(image_data)
-
-        return filename
+        return str(filename)
 
     async def models(self) -> List[str]:
-        """
-        Get list of available image models asynchronously
-        """
+        """Get list of available image models asynchronously"""
         url = f"{self.base_url}/models"
         response = await self._make_request("GET", url)
         return await response.json()
@@ -257,8 +252,13 @@ class TextGenerator(BaseAPI):
             "messages": messages
         }
 
+        # FIXED: Only add temperature if it's the default value (1.0) or not specified
+        # The API only supports temperature=1.0
         if temperature is not None:
-            body["temperature"] = temperature
+            if temperature != 1.0:
+                print_warning(f"Temperature {temperature} is not supported. Using default value 1.0")
+            body["temperature"] = 1.0
+
         if stream:
             body["stream"] = stream
         if json_mode:
@@ -293,7 +293,7 @@ class TextGenerator(BaseAPI):
                         prompt=user_message,
                         model=model,
                         system=system_message,
-                        temperature=temperature,
+                        # FIXED: Don't pass temperature to GET fallback since it's not supported
                         json_mode=json_mode,
                         private=private
                     )
@@ -371,8 +371,13 @@ class AsyncTextGenerator(AsyncBaseAPI):
             "messages": messages
         }
 
+        # FIXED: Only add temperature if it's the default value (1.0) or not specified
+        # The API only supports temperature=1.0
         if temperature is not None:
-            body["temperature"] = temperature
+            if temperature != 1.0:
+                print_warning(f"Temperature {temperature} is not supported. Using default value 1.0")
+            body["temperature"] = 1.0
+
         if stream:
             body["stream"] = stream
         if json_mode:
@@ -407,7 +412,7 @@ class AsyncTextGenerator(AsyncBaseAPI):
                         prompt=user_message,
                         model=model,
                         system=system_message,
-                        temperature=temperature,
+                        # FIXED: Don't pass temperature to GET fallback since it's not supported
                         json_mode=json_mode,
                         private=private
                     )
@@ -441,7 +446,7 @@ class AudioGenerator(BaseAPI):
         """
         Generate speech audio from text (Text-to-Speech)
         """
-        text = text.rstrip('.!?;:,')
+        text = text.rstrip('.!?;:,');
 
         encoded_text = quote(text)
         # ИСПРАВЛЕНО: используем тот же формат что и для текста (БЕЗ /prompt/)
@@ -459,30 +464,21 @@ class AudioGenerator(BaseAPI):
             self,
             text: str,
             filename: str,
-            voice: str = "alloy"
+            **kwargs
     ) -> str:
         """
         Generate and save audio to file
         """
-        try:
-            audio_data = self.generate(text, voice=voice)
-        except BlossomError as e:
-            if e.error_type == ErrorType.API and "402" in str(e):
-                raise BlossomError(
-                    message="Text-to-Speech requires authenticated access (Seed tier or higher).",
-                    error_type=ErrorType.API,
-                    suggestion="Visit https://auth.pollinations.ai to get your API token and ensure you're logged in."
-                )
-            raise
-
+        audio_data = self.generate(text, **kwargs)
         with open(filename, 'wb') as f:
             f.write(audio_data)
-
-        return filename
+        return str(filename)
 
     def voices(self) -> List[str]:
         """Get list of available voices"""
-        return ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+        url = f"{self.base_url}/voices"
+        response = self._make_request("GET", url)
+        return response.json()
 
 
 class AsyncAudioGenerator(AsyncBaseAPI):
@@ -503,6 +499,7 @@ class AsyncAudioGenerator(AsyncBaseAPI):
         text = text.rstrip('.!?;:,')
 
         encoded_text = quote(text)
+        # ИСПРАВЛЕНО: используем тот же формат что и для текста (БЕЗ /prompt/)
         url = f"{self.base_url}/{encoded_text}"
 
         params = {
@@ -517,29 +514,18 @@ class AsyncAudioGenerator(AsyncBaseAPI):
             self,
             text: str,
             filename: str,
-            voice: str = "alloy"
+            **kwargs
     ) -> str:
         """
         Generate and save audio to file asynchronously
         """
-        try:
-            audio_data = await self.generate(text, voice=voice)
-        except BlossomError as e:
-            if e.error_type == ErrorType.API and "402" in str(e):
-                raise BlossomError(
-                    message="Text-to-Speech requires authenticated access (Seed tier or higher).",
-                    error_type=ErrorType.API,
-                    suggestion="Visit https://auth.pollinations.ai to get your API token and ensure you're logged in."
-                )
-            raise
-
+        audio_data = await self.generate(text, **kwargs)
         with open(filename, 'wb') as f:
             f.write(audio_data)
-
-        return filename
+        return str(filename)
 
     async def voices(self) -> List[str]:
-        """
-        Get list of available voices asynchronously
-        """
-        return ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+        """Get list of available voices asynchronously"""
+        url = f"{self.base_url}/voices"
+        response = await self._make_request("GET", url)
+        return await response.json()
