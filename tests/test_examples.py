@@ -34,7 +34,7 @@ except ImportError:
 # ==============================================================================
 
 # Set your API token here or pass as environment variable
-API_TOKEN = "nwMWyfBzIpPQRdkr"  # Get yours at https://auth.pollinations.ai
+API_TOKEN = "Yoru-API-Token-Here"  # Get yours at https://auth.pollinations.ai
 
 # Test output directory
 OUTPUT_DIR = Path("test_output")

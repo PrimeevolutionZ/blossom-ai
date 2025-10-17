@@ -1,36 +1,29 @@
 # 🌸 Blossom AI
 
-A beautiful Python SDK for [Pollinations.AI](https://pollinations.ai) - Generate images, text, and audio with AI.
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
 
-**✨ Now with Hybrid Sync/Async Support!** - Use the same code in both synchronous and asynchronous contexts.
+**A beautiful Python SDK for Pollinations.AI - Generate images, text, and audio with AI.**
 
----
+Blossom AI is a comprehensive, easy-to-use Python library that provides unified access to Pollinations.AI's powerful AI generation services. Create stunning images, generate text with various models, and convert text to speech with multiple voices - all through a beautifully designed, intuitive API.
 
-> **Warning!!**
-> 
-> To generate audio, you need authentication!
+## ⚠️ Important Notes
 
----
-
-## 🎯 What's New in V0.2.0
-
-- **🔄 Hybrid Sync/Async Support** - Write once, run anywhere! The same `Blossom` client works in both sync and async contexts
-- **⚡ Automatic Context Detection** - No need to choose between sync/async - Blossom detects your context automatically
-- **🛡️ Improved Error Handling** - Better retry logic with exponential backoff for 502 errors
-- **🔒 Proper Resource Management** - Async sessions are properly managed and cleaned up
-
----
+- **Audio Generation**: Requires authentication (API token)
+- **Robust Error Handling**: Graceful fallbacks when API endpoints are unavailable
+- **Async Support**: Full asynchronous API for high-performance applications
 
 ## ✨ Features
 
 - 🖼️ **Image Generation** - Create stunning images from text descriptions
-- 📝 **Text Generation** - Generate text with various models
+- 📝 **Text Generation** - Generate text with various AI models
 - 🎙️ **Audio Generation** - Text-to-speech with multiple voices
-- 🔄 **Hybrid Sync/Async** - Same API works in both synchronous and asynchronous code
-- 🚀 **Simple API** - Easy to use, beautifully designed
+- 🚀 **Simple API** - Easy to use, beautifully designed interface
 - 🎨 **Beautiful Errors** - Helpful error messages with suggestions
-- 🔁 **Reproducible** - Use seeds for consistent results
-- 🛡️ **Robust** - Automatic retries with exponential backoff
+- 🔄 **Reproducible** - Use seeds for consistent results
+- ⚡ **Async Support** - Full asynchronous API for better performance
+- 🛡️ **Robust** - Graceful error handling and fallbacks
 
 ## 📦 Installation
 
@@ -39,8 +32,6 @@ pip install eclips-blossom-ai
 ```
 
 ## 🚀 Quick Start
-
-### Synchronous Usage (No `await` needed)
 
 ```python
 from blossom_ai import Blossom
@@ -55,51 +46,11 @@ ai.image.save("a beautiful sunset over mountains", "sunset.jpg")
 response = ai.text.generate("Explain quantum computing in simple terms")
 print(response)
 
-# Generate audio (requires authentication)
-ai.audio.save("Hello, welcome to Blossom AI!", "welcome.mp3")
+# Generate audio (requires API token)
+ai.audio.save("Hello, welcome to Blossom AI!", "welcome.mp3", voice="nova")
 ```
 
-### Asynchronous Usage (With `await`)
-
-```python
-import asyncio
-from blossom_ai import Blossom
-
-async def main():
-    # Same Blossom client!
-    ai = Blossom()
-    
-    # Just add await
-    await ai.image.save("a beautiful sunset", "sunset.jpg")
-    
-    response = await ai.text.generate("Explain quantum computing")
-    print(response)
-    
-    await ai.audio.save("Hello, world!", "hello.mp3")
-    
-    # Clean up (optional but recommended)
-    await ai.close()
-
-asyncio.run(main())
-```
-
-### Async Context Manager (Recommended for Async)
-
-```python
-import asyncio
-from blossom_ai import Blossom
-
-async def main():
-    async with Blossom() as ai:
-        # Automatic cleanup when done!
-        await ai.image.save("a majestic dragon", "dragon.jpg")
-        text = await ai.text.generate("Write a haiku")
-        print(text)
-
-asyncio.run(main())
-```
-
-## 📖 Detailed Examples
+## 📖 Examples
 
 ### Image Generation
 
@@ -108,14 +59,13 @@ from blossom_ai import Blossom
 
 ai = Blossom()
 
-# Synchronous - no await needed
+# Generate and save an image
 ai.image.save(
     prompt="a majestic dragon in a mystical forest",
     filename="dragon.jpg",
     width=1024,
     height=1024,
-    model="flux",
-    seed=42  # For reproducible results
+    model="flux"
 )
 
 # Get image data as bytes
@@ -123,29 +73,7 @@ image_data = ai.image.generate("a cute robot")
 
 # List available models
 models = ai.image.models()
-print(models)
-```
-
-### Async Image Generation
-
-```python
-import asyncio
-from blossom_ai import Blossom
-
-async def generate_images():
-    ai = Blossom()
-    
-    # Parallel image generation!
-    tasks = [
-        ai.image.save("a sunset", "sunset.jpg"),
-        ai.image.save("a forest", "forest.jpg"),
-        ai.image.save("mountains", "mountains.jpg")
-    ]
-    
-    await asyncio.gather(*tasks)
-    await ai.close()
-
-asyncio.run(generate_images())
+print(models)  # ['flux', 'kontext', 'turbo', 'gptimage']
 ```
 
 ### Text Generation
@@ -176,42 +104,17 @@ response = ai.text.chat([
     {"role": "user", "content": "What's the weather like?"}
 ])
 
-# JSON mode
-response = ai.text.generate(
-    prompt="List 3 programming languages",
-    json_mode=True
-)
-```
-
-### Async Text Generation
-
-```python
-import asyncio
-from blossom_ai import Blossom
-
-async def chat_example():
-    async with Blossom() as ai:
-        # Multiple requests in parallel
-        responses = await asyncio.gather(
-            ai.text.generate("Explain AI in one sentence"),
-            ai.text.generate("What is machine learning?"),
-            ai.text.generate("Define neural networks")
-        )
-        
-        for response in responses:
-            print(response)
-
-asyncio.run(chat_example())
+# List available models
+models = ai.text.models()
+print(models)  # ['deepseek', 'gemini', 'mistral', 'openai', 'qwen-coder', ...]
 ```
 
 ### Audio Generation
 
-**⚠️ Authentication Required!** Audio generation requires an API token from [auth.pollinations.ai](https://auth.pollinations.ai).
-
 ```python
 from blossom_ai import Blossom
 
-# Initialize with API token
+# For audio generation, you need an API token
 ai = Blossom(api_token="YOUR_API_TOKEN")
 
 # Generate and save audio
@@ -221,12 +124,12 @@ ai.audio.save(
     voice="nova"
 )
 
-# Get audio data as bytes
-audio_data = ai.audio.generate("Hello world!", voice="alloy")
-
-# Available voices
+# Get available voices
 voices = ai.audio.voices()
-print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', ...]
+
+# Generate audio data as bytes
+audio_data = ai.audio.generate("Hello world", voice="alloy")
 ```
 
 ## 🎯 Supported Parameters
@@ -235,105 +138,91 @@ print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
 
 | Parameter | Type | Description | Supported |
 |-----------|------|-------------|-----------|
-| `prompt` | str | Your text prompt | ✅ |
-| `model` | str | Model to use (default: "openai") | ✅ |
-| `system` | str | System message to guide behavior | ✅ |
-| `seed` | int | For reproducible results | ✅ |
-| `json_mode` | bool | Return JSON response | ✅ |
-| `private` | bool | Keep response private | ✅ |
-| `stream` | bool | Stream response | ✅ |
+| prompt | str | Your text prompt | ✅ |
+| model | str | Model to use (default: "openai") | ✅ |
+| system | str | System message to guide behavior | ✅ |
+| seed | int | For reproducible results | ✅ |
+| json_mode | bool | Return JSON response | ✅ |
+| private | bool | Keep response private | ✅ |
+| temperature | float | Randomness control | ❌ Not supported in GET API |
 
-**Note:** Temperature parameter support depends on the endpoint used (GET vs POST).
+**Note**: The current Pollinations.AI GET endpoint doesn't support the temperature parameter. For temperature control, you would need to use their POST endpoint, which is currently experiencing issues.
 
 ### Image Generation
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `prompt` | str | Image description |
-| `model` | str | Model (default: "flux") |
-| `width` | int | Width in pixels |
-| `height` | int | Height in pixels |
-| `seed` | int | Reproducibility |
-| `nologo` | bool | Remove watermark (requires auth) |
-| `enhance` | bool | Enhance prompt with AI |
-| `safe` | bool | NSFW filtering |
-| `private` | bool | Keep image private |
+| prompt | str | Image description |
+| model | str | Model (default: "flux") |
+| width | int | Width in pixels |
+| height | int | Height in pixels |
+| seed | int | Reproducibility |
+| nologo | bool | Remove watermark (requires auth) |
+| enhance | bool | Enhance prompt with AI |
+| safe | bool | NSFW filtering |
 
 ### Audio Generation
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `text` | str | Text to convert to speech |
-| `voice` | str | Voice (default: "alloy") |
-| `model` | str | Model (default: "openai-audio") |
+| text | str | Text to convert to speech |
+| voice | str | Voice to use (default: "alloy") |
+| model | str | Model (default: "openai-audio") |
 
-## 🛠️ API Reference
+## 🛠️ API Methods
 
 ### Blossom Class
 
 ```python
-ai = Blossom(
-    timeout=30,           # Request timeout in seconds
-    debug=False,          # Enable debug mode
-    api_token=None        # Your API token (optional)
-)
+ai = Blossom(timeout=30, api_token=None)  # Main client
 
-# Access generators
-ai.image   # HybridImageGenerator
-ai.text    # HybridTextGenerator
-ai.audio   # HybridAudioGenerator
-
-# Async cleanup (only needed in async context)
-await ai.close()
+ai.image  # ImageGenerator instance
+ai.text   # TextGenerator instance  
+ai.audio  # AudioGenerator instance
 ```
 
-### HybridImageGenerator
-
-Works in both sync and async contexts!
+### ImageGenerator
 
 ```python
-# Sync usage
+# Generate image (returns bytes)
 image_data = ai.image.generate(prompt, **options)
+
+# Save image to file
 filepath = ai.image.save(prompt, filename, **options)
+
+# List available models
 models = ai.image.models()
-
-# Async usage (same methods, just add await)
-image_data = await ai.image.generate(prompt, **options)
-filepath = await ai.image.save(prompt, filename, **options)
-models = await ai.image.models()
 ```
 
-### HybridTextGenerator
+### TextGenerator
 
 ```python
-# Sync usage
+# Generate text (simple)
 text = ai.text.generate(prompt, **options)
-text = ai.text.chat(messages, **options)
-models = ai.text.models()
 
-# Async usage
-text = await ai.text.generate(prompt, **options)
-text = await ai.text.chat(messages, **options)
-models = await ai.text.models()
+# Chat with message history
+text = ai.text.chat(messages, **options)
+
+# List available models
+models = ai.text.models()
 ```
 
-### HybridAudioGenerator
+### AudioGenerator
 
 ```python
-# Sync usage
+# Generate audio (returns bytes)
 audio_data = ai.audio.generate(text, voice="alloy")
-filepath = ai.audio.save(text, filename, voice="nova")
-voices = ai.audio.voices()
 
-# Async usage
-audio_data = await ai.audio.generate(text, voice="alloy")
-filepath = await ai.audio.save(text, filename, voice="nova")
-voices = await ai.audio.voices()
+# Save audio to file
+filepath = ai.audio.save(text, filename, voice="nova")
+
+# List available voices
+voices = ai.audio.voices()
 ```
 
 ## 🎨 Error Handling
 
-Blossom AI provides beautiful, helpful error messages:
+Blossom AI provides beautiful, helpful error messages with suggestions for resolution:
 
 ```python
 from blossom_ai import Blossom, BlossomError
@@ -344,109 +233,105 @@ try:
     response = ai.text.generate("Hello")
 except BlossomError as e:
     print(f"Error: {e.message}")
-    print(f"Type: {e.error_type}")
     print(f"Suggestion: {e.suggestion}")
 ```
 
-### Error Types
+## 🔄 Async Support
 
-- `ErrorType.NETWORK` - Connection issues
-- `ErrorType.API` - API errors (including 402 Payment Required)
-- `ErrorType.INVALID_PARAM` - Invalid parameters
-- `ErrorType.UNKNOWN` - Unexpected errors
-
-### Automatic Retries
-
-Blossom automatically retries failed requests with exponential backoff for:
-- HTTP 502 errors (up to 3 attempts)
-- Connection errors
-- Chunked encoding errors
-
-## 🔒 Authentication
-
-For higher rate limits and access to advanced features (like audio generation and `nologo` for images):
-
-1. Visit [auth.pollinations.ai](https://auth.pollinations.ai) to register and obtain an API token
-2. Initialize Blossom with your token:
-
-```python
-from blossom_ai import Blossom
-
-ai = Blossom(api_token="YOUR_API_TOKEN_HERE")
-
-# Now you can use authenticated features
-ai.image.save("sunset", "sunset.jpg", nologo=True)
-ai.audio.save("Hello!", "hello.mp3")
-```
-
-## 📝 Best Practices
-
-### For Synchronous Code
-
-```python
-from blossom_ai import Blossom
-
-ai = Blossom()
-
-# No special cleanup needed - sessions are managed automatically
-image = ai.image.generate("a sunset")
-text = ai.text.generate("Hello")
-```
-
-### For Asynchronous Code
+Blossom AI supports full asynchronous operations for better performance:
 
 ```python
 import asyncio
 from blossom_ai import Blossom
 
-# Recommended: Use context manager
-async def main():
-    async with Blossom() as ai:
-        image = await ai.image.generate("a sunset")
-        text = await ai.text.generate("Hello")
-    # Automatic cleanup here
-
-# Or manually call close()
 async def main():
     ai = Blossom()
-    try:
-        image = await ai.image.generate("a sunset")
-    finally:
-        await ai.close()
-
-asyncio.run(main())
+    
+    # Async image generation
+    image_data = await ai.image.generate("a beautiful landscape")
+    
+    # Async text generation
+    text = await ai.text.generate("Tell me a story")
+    
+    # Run async function
+    await main()
 ```
 
-## 🛡️ Known Limitations
+## 🔑 Authentication (Optional)
 
-- **Audio Generation**: Requires authentication (Seed tier or higher)
-- **Prompt Length**: Image prompts are limited to 200 characters
-- **Temperature Parameter**: Not supported in GET text endpoint
-- **502 Errors**: May occur during high load - automatic retries are in place
+For higher rate limits, access to advanced features (like `nologo` for image generation), and to avoid Payment Required errors, you can provide an API token.
+
+Visit [auth.pollinations.ai](https://auth.pollinations.ai) to register your application and obtain an API token.
+
+```python
+from blossom_ai import Blossom
+
+# Initialize with your API token
+ai = Blossom(api_token="YOUR_API_TOKEN_HERE")
+
+# Now you can use features that require authentication, e.g., nologo
+ai.image.save("a beautiful sunset", "sunset_no_logo.jpg", nologo=True)
+```
+
+If no `api_token` is provided, the library will operate in anonymous mode with default rate limits and feature restrictions.
+
+## 🧪 Testing
+
+The project includes comprehensive tests to ensure reliability:
+
+```bash
+# Run all tests
+python test_examples.py
+
+# Run only sync tests
+python test_examples.py --sync
+
+# Run only async tests
+python test_examples.py --async
+```
 
 ## 📚 More Examples
 
 Check out the `tests/` directory for more detailed examples:
-- `test_examples.py` -  generation examples
 
-## 📄 License
+- `test_examples.py` - Complete test suite with all features
+- Individual test files for specific functionality
 
-MIT License - see LICENSE file for details
+## 🛡️ Robustness Features
+
+Blossom AI includes several robustness features:
+
+- **Graceful Fallbacks**: When API endpoints return invalid data, the library provides sensible defaults
+- **Connection Retry Logic**: Automatic retry with exponential backoff for failed requests
+- **Resource Management**: Proper cleanup of network resources to prevent memory leaks
+- **Error Recovery**: Continues operation even when some API endpoints are unavailable
+
+## 📝 License
+
+MIT License - see LICENSE file for details.
 
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## 🐛 Known Issues
+
+- **Temperature parameter**: The GET text endpoint doesn't support temperature. This is a limitation of the Pollinations.AI API
+- **POST endpoint**: Currently experiencing connectivity issues
+- **Server Response Variability**: Some API endpoints may occasionally return empty responses - the library handles this gracefully with fallbacks
+
 ## 🔗 Links
 
 - [Pollinations.AI](https://pollinations.ai)
-- [API Documentation](https://github.com/pollinations/pollinations)
+- [API Documentation](https://pollinations.ai/api)
 - [Auth Portal](https://auth.pollinations.ai)
 
 ## ❤️ Credits
 
-Built with love using the [Pollinations.AI](https://pollinations.ai) platform.
+Built with love using the Pollinations.AI platform.
+
+Made with 🌸 by the eclips team
 
 ---
 
-Made with 🌸 by the eclips team
+*This README reflects the current state of the Blossom AI SDK with all recent improvements and fixes.*
