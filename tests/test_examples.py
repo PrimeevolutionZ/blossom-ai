@@ -1,22 +1,26 @@
 """
-🌸 Blossom AI - Unified Test Suite (Fixed)
+🌸 Blossom AI - Unified Test Suite (with Streaming)
 Run all examples in one place!
 
 Usage:
     # Run all tests
-    python test_examples_fixed.py
+    python test_examples.py
 
     # Run only sync tests
-    python test_examples_fixed.py --sync
+    python test_examples.py --sync
 
     # Run only async tests
-    python test_examples_fixed.py --async
+    python test_examples.py --async
+
+    # Run only streaming tests
+    python test_examples.py --streaming
 """
 
 import asyncio
 import sys
 import argparse
 from pathlib import Path
+import time
 
 # Import from the current package
 try:
@@ -26,7 +30,7 @@ except ImportError:
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent))
-    from blossom_ai import Blossom,BlossomError, ErrorType
+    from blossom_ai import Blossom, BlossomError, ErrorType
 
 
 # ==============================================================================
@@ -34,7 +38,7 @@ except ImportError:
 # ==============================================================================
 
 # Set your API token here or pass as environment variable
-API_TOKEN = "Yoru-API-Token-Here"  # Get yours at https://auth.pollinations.ai
+API_TOKEN = "Your-API-Token-Here"  # Get yours at https://auth.pollinations.ai
 
 # Test output directory
 OUTPUT_DIR = Path("test_output")
@@ -118,7 +122,7 @@ def test_text_generation_sync():
     """Test synchronous text generation"""
     print("\n📝 Testing Text Generation (Sync)...")
 
-    with Blossom(api_token=API_TOKEN, timeout=60) as ai:  # Increased timeout
+    with Blossom(api_token=API_TOKEN, timeout=60) as ai:
         try:
             # Simple generation
             print("  → Simple text generation...")
@@ -140,9 +144,8 @@ def test_text_generation_sync():
             response1 = ai.text.generate("Random creative idea", seed=42)
             response2 = ai.text.generate("Random creative idea", seed=42)
             print(f"  ✅ Seeds match: {response1 == response2}")
-            # Note: Sometimes API might not guarantee exact reproducibility
 
-            # JSON mode - fixed to include 'json' in prompt
+            # JSON mode
             print("  → JSON mode generation...")
             response = ai.text.generate(
                 prompt="List 3 programming languages with their use cases in JSON format",
@@ -160,11 +163,11 @@ def test_text_generation_sync():
             print(f"  💬 Chat response: {response[:100]}...")
             assert len(response) > 0, "Response should not be empty"
 
-            # Chat with temperature - FIXED: using default value 1.0 as API requires
+            # Chat with temperature
             print("  → Chat with temperature...")
             response = ai.text.chat([
                 {"role": "user", "content": "Tell me a short story"}
-            ], temperature=1.0)  # Changed from 0.8 to 1.0 to match API requirements
+            ], temperature=1.0)
             print(f"  💬 Story: {response[:100]}...")
             assert len(response) > 0, "Response should not be empty"
 
@@ -245,6 +248,107 @@ def test_audio_generation_sync():
             raise
 
 
+def test_streaming_sync():
+    """Test synchronous streaming"""
+    print("\n🌊 Testing Streaming (Sync)...")
+
+    with Blossom(api_token=API_TOKEN, timeout=60) as ai:
+        try:
+            # Basic streaming
+            print("  → Testing basic streaming...")
+            print("  💬 Streaming output: ", end='', flush=True)
+
+            chunks_received = 0
+            full_response = ""
+
+            for chunk in ai.text.generate(
+                "Count from 1 to 5 with explanations",
+                stream=True
+            ):
+                print(chunk, end='', flush=True)
+                full_response += chunk
+                chunks_received += 1
+
+            print()  # New line after streaming
+            print(f"  ✅ Received {chunks_received} chunks")
+            print(f"  ✅ Total length: {len(full_response)} chars")
+            assert chunks_received > 0, "Should receive at least one chunk"
+            assert len(full_response) > 0, "Response should not be empty"
+
+            # Streaming with system message
+            print("\n  → Testing streaming with system message...")
+            print("  💬 Streaming haiku: ", end='', flush=True)
+
+            chunks = []
+            for chunk in ai.text.generate(
+                prompt="Write a haiku about rivers",
+                system="You are a poet",
+                stream=True
+            ):
+                print(chunk, end='', flush=True)
+                chunks.append(chunk)
+
+            print()
+            full_text = ''.join(chunks)
+            print(f"  ✅ Complete haiku: {len(full_text)} chars")
+            assert len(chunks) > 0, "Should receive chunks"
+
+            # Streaming chat
+            print("\n  → Testing streaming chat...")
+            print("  💬 Chat streaming: ", end='', flush=True)
+
+            messages = [
+                {"role": "system", "content": "You are a helpful assistant"},
+                {"role": "user", "content": "Explain what is Python in 2 sentences"}
+            ]
+
+            chat_chunks = 0
+            for chunk in ai.text.chat(messages, stream=True):
+                print(chunk, end='', flush=True)
+                chat_chunks += 1
+
+            print()
+            print(f"  ✅ Chat received {chat_chunks} chunks")
+            assert chat_chunks > 0, "Should receive chat chunks"
+
+            # Test streaming collection
+            print("\n  → Testing streaming collection...")
+            collected_chunks = []
+            for chunk in ai.text.generate("Say hello", stream=True):
+                collected_chunks.append(chunk)
+
+            full = ''.join(collected_chunks)
+            print(f"  ✅ Collected: '{full}' from {len(collected_chunks)} chunks")
+            assert len(full) > 0, "Collected text should not be empty"
+
+            # Test streaming to file
+            print("\n  → Testing streaming to file...")
+            output_file = OUTPUT_DIR / "streaming_output.txt"
+
+            with open(output_file, 'w', encoding='utf-8') as f:
+                for chunk in ai.text.generate(
+                    "Write a short paragraph about AI",
+                    stream=True
+                ):
+                    f.write(chunk)
+                    f.flush()
+
+            assert output_file.exists(), "Output file should exist"
+            content = output_file.read_text(encoding='utf-8')
+            print(f"  ✅ Saved {len(content)} chars to file")
+            assert len(content) > 0, "File should have content"
+
+            print("\n✅ Streaming tests passed!\n")
+
+        except BlossomError as e:
+            print(f"\n❌ Error: {e.message}")
+            print(f"   Suggestion: {e.suggestion}\n")
+            raise
+        except Exception as e:
+            print(f"\n❌ Unexpected error: {e}\n")
+            raise
+
+
 def test_error_handling_sync():
     """Test error handling"""
     print("\n🛡️  Testing Error Handling (Sync)...")
@@ -273,11 +377,11 @@ def test_error_handling_sync():
 
 
 # ==============================================================================
-# ASYNCHRONOUS TESTS (for manual running, not pytest)
+# ASYNCHRONOUS TESTS
 # ==============================================================================
 
 async def _test_image_generation_async():
-    """Test asynchronous image generation - for manual execution"""
+    """Test asynchronous image generation"""
     print("\n🖼️  Testing Image Generation (Async)...")
 
     async with Blossom(api_token=API_TOKEN, timeout=60) as ai:
@@ -331,7 +435,7 @@ async def _test_image_generation_async():
 
 
 async def _test_text_generation_async():
-    """Test asynchronous text generation - for manual execution"""
+    """Test asynchronous text generation"""
     print("\n📝 Testing Text Generation (Async)...")
 
     async with Blossom(api_token=API_TOKEN, timeout=60) as ai:
@@ -381,7 +485,7 @@ async def _test_text_generation_async():
 
 
 async def _test_audio_generation_async():
-    """Test asynchronous audio generation - for manual execution"""
+    """Test asynchronous audio generation"""
     print("\n🎙️  Testing Audio Generation (Async)...")
 
     if not API_TOKEN:
@@ -436,8 +540,132 @@ async def _test_audio_generation_async():
             return False
 
 
+async def _test_streaming_async():
+    """Test asynchronous streaming"""
+    print("\n🌊 Testing Streaming (Async)...")
+
+    async with Blossom(api_token=API_TOKEN, timeout=60) as ai:
+        try:
+            # Basic async streaming
+            print("  → Testing basic async streaming...")
+            print("  💬 Async streaming: ", end='', flush=True)
+
+            chunks_received = 0
+            full_response = ""
+
+            async for chunk in await ai.text.generate(
+                "Count from 1 to 3",
+                stream=True
+            ):
+                print(chunk, end='', flush=True)
+                full_response += chunk
+                chunks_received += 1
+
+            print()
+            print(f"  ✅ Received {chunks_received} chunks")
+            print(f"  ✅ Total length: {len(full_response)} chars")
+            assert chunks_received > 0, "Should receive chunks"
+            assert len(full_response) > 0, "Response should not be empty"
+
+            # Async streaming chat
+            print("\n  → Testing async streaming chat...")
+            print("  💬 Chat streaming: ", end='', flush=True)
+
+            messages = [
+                {"role": "user", "content": "Say hello in 3 different languages"}
+            ]
+
+            chat_chunks = 0
+            async for chunk in await ai.text.chat(messages, stream=True):
+                print(chunk, end='', flush=True)
+                chat_chunks += 1
+
+            print()
+            print(f"  ✅ Received {chat_chunks} chunks")
+            assert chat_chunks > 0, "Should receive chat chunks"
+
+            # Parallel streaming (collect results)
+            print("\n  → Testing parallel async streaming...")
+
+            async def collect_stream(prompt):
+                chunks = []
+                async for chunk in await ai.text.generate(prompt, stream=True):
+                    chunks.append(chunk)
+                return ''.join(chunks)
+
+            results = await asyncio.gather(
+                collect_stream("Say 'Hello'"),
+                collect_stream("Say 'World'"),
+                collect_stream("Say 'Python'")
+            )
+
+            print(f"  ✅ Collected {len(results)} parallel streams")
+            for i, result in enumerate(results):
+                print(f"    Stream {i+1}: {len(result)} chars")
+                assert len(result) > 0, "Stream result should not be empty"
+
+            # Async streaming with timeout
+            print("\n  → Testing async streaming with timeout...")
+            try:
+                start_time = time.time()
+                chunks = 0
+
+                async with asyncio.timeout(3):  # 3 second timeout
+                    async for chunk in await ai.text.generate(
+                        "Write a very short sentence",
+                        stream=True
+                    ):
+                        chunks += 1
+
+                elapsed = time.time() - start_time
+                print(f"  ✅ Completed in {elapsed:.2f}s with {chunks} chunks")
+
+            except asyncio.TimeoutError:
+                print(f"  ⚠️  Timeout reached (this is OK for testing)")
+
+            # Async streaming to file
+            print("\n  → Testing async streaming to file...")
+            output_file = OUTPUT_DIR / "async_streaming_output.txt"
+
+            async with asyncio.create_task(ai.text.generate(
+                "Write a sentence about programming",
+                stream=True
+            )) as stream_task:
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    async for chunk in await stream_task:
+                        f.write(chunk)
+                        f.flush()
+
+            # Fallback simple method
+            with open(output_file, 'w', encoding='utf-8') as f:
+                async for chunk in await ai.text.generate(
+                    "Write about async programming",
+                    stream=True
+                ):
+                    f.write(chunk)
+                    f.flush()
+
+            assert output_file.exists(), "Output file should exist"
+            content = output_file.read_text(encoding='utf-8')
+            print(f"  ✅ Saved {len(content)} chars to async file")
+            assert len(content) > 0, "File should have content"
+
+            print("\n✅ Async streaming tests passed!\n")
+            return True
+
+        except BlossomError as e:
+            print(f"\n❌ Error: {e.message}")
+            print(f"   Suggestion: {e.suggestion}\n")
+            return False
+        except Exception as e:
+            print(f"\n❌ Unexpected error: {e}\n")
+            import traceback
+            traceback.print_exc()
+            return False
+
+
 async def _test_mixed_async():
-    """Test mixed async operations - for manual execution"""
+    """Test mixed async operations"""
     print("\n🔀 Testing Mixed Async Operations...")
 
     async with Blossom(api_token=API_TOKEN, timeout=60) as ai:
@@ -471,7 +699,7 @@ async def _test_mixed_async():
 
 
 # ==============================================================================
-# TEST RUNNER (for manual execution)
+# TEST RUNNERS
 # ==============================================================================
 
 def run_sync_tests():
@@ -509,6 +737,23 @@ def run_sync_tests():
     return results
 
 
+def run_streaming_tests():
+    """Run synchronous streaming tests"""
+    print("\n" + "=" * 70)
+    print("🌸 BLOSSOM AI - STREAMING TESTS (SYNC)")
+    print("=" * 70)
+
+    results = []
+
+    try:
+        test_streaming_sync()
+        results.append(("Streaming (Sync)", True))
+    except Exception:
+        results.append(("Streaming (Sync)", False))
+
+    return results
+
+
 async def run_async_tests():
     """Run all asynchronous tests"""
     print("\n" + "=" * 70)
@@ -520,32 +765,41 @@ async def run_async_tests():
     results.append(("Image Generation (Async)", await _test_image_generation_async()))
     results.append(("Text Generation (Async)", await _test_text_generation_async()))
     results.append(("Audio Generation (Async)", await _test_audio_generation_async()))
+    results.append(("Streaming (Async)", await _test_streaming_async()))
     results.append(("Mixed Operations (Async)", await _test_mixed_async()))
 
     return results
 
 
-def print_summary(sync_results, async_results):
+def print_summary(sync_results, streaming_results, async_results):
     """Print test summary"""
     print("\n" + "=" * 70)
     print("📊 TEST SUMMARY")
     print("=" * 70)
 
-    all_results = sync_results + async_results
+    all_results = sync_results + streaming_results + async_results
 
     total = len(all_results)
     passed = sum(1 for _, result in all_results if result)
     failed = total - passed
 
-    print("\nSynchronous Tests:")
-    for name, result in sync_results:
-        status = "✅ PASSED" if result else "❌ FAILED"
-        print(f"  {status} - {name}")
+    if sync_results:
+        print("\nSynchronous Tests:")
+        for name, result in sync_results:
+            status = "✅ PASSED" if result else "❌ FAILED"
+            print(f"  {status} - {name}")
 
-    print("\nAsynchronous Tests:")
-    for name, result in async_results:
-        status = "✅ PASSED" if result else "❌ FAILED"
-        print(f"  {status} - {name}")
+    if streaming_results:
+        print("\nStreaming Tests:")
+        for name, result in streaming_results:
+            status = "✅ PASSED" if result else "❌ FAILED"
+            print(f"  {status} - {name}")
+
+    if async_results:
+        print("\nAsynchronous Tests:")
+        for name, result in async_results:
+            status = "✅ PASSED" if result else "❌ FAILED"
+            print(f"  {status} - {name}")
 
     print(f"\n{'=' * 70}")
     print(f"Total: {total} | Passed: {passed} | Failed: {failed}")
@@ -564,6 +818,7 @@ def main():
     parser = argparse.ArgumentParser(description="Blossom AI Test Suite")
     parser.add_argument("--sync", action="store_true", help="Run only sync tests")
     parser.add_argument("--async", dest="run_async", action="store_true", help="Run only async tests")
+    parser.add_argument("--streaming", action="store_true", help="Run only streaming tests")
     parser.add_argument("--token", type=str, help="API token for authentication")
 
     args = parser.parse_args()
@@ -581,10 +836,15 @@ def main():
         print("   Get your token at: https://auth.pollinations.ai")
 
     sync_results = []
+    streaming_results = []
     async_results = []
 
     try:
-        if args.run_async:
+        if args.streaming:
+            # Run only streaming tests
+            streaming_results = run_streaming_tests()
+            async_results = asyncio.run(run_async_tests())  # Includes async streaming
+        elif args.run_async:
             # Run only async tests
             async_results = asyncio.run(run_async_tests())
         elif args.sync:
@@ -593,10 +853,11 @@ def main():
         else:
             # Run all tests
             sync_results = run_sync_tests()
+            streaming_results = run_streaming_tests()
             async_results = asyncio.run(run_async_tests())
 
         # Print summary
-        success = print_summary(sync_results, async_results)
+        success = print_summary(sync_results, streaming_results, async_results)
 
         sys.exit(0 if success else 1)
 

@@ -8,20 +8,14 @@
 
 Blossom AI is a comprehensive, easy-to-use Python library that provides unified access to Pollinations.AI's powerful AI generation services. Create stunning images, generate text with various models, and convert text to speech with multiple voices - all through a beautifully designed, intuitive API.
 
-## ✨ What's New in v0.2.1
-
-- 🔄 **Unified Sync/Async API** - Same code works in both sync and async contexts automatically
-- 🏗️ **Refactored Architecture** - Cleaner base classes with `SyncGenerator` and `AsyncGenerator`
-- 🛡️ **Enhanced Error Handling** - Structured errors with `ErrorContext` and specific error types
-- 🔐 **Centralized Session Management** - Better resource management with `SessionManager`
-- 🎯 **Dynamic Model Discovery** - Models automatically update from API responses
-- ⚡ **Improved Retry Logic** - Exponential backoff with configurable retry strategies
-- 🧹 **Better Resource Cleanup** - Proper cleanup with context managers and weakref
+## ✨ What's New in v0.2.2
+- 🌊 **Streaming Support** - Real-time text generation with streaming responses
 
 ## ⚠️ Important Notes
 
 - **Audio Generation**: Requires authentication (API token)
 - **Hybrid API**: Automatically detects sync/async context - no need for separate imports
+- **Streaming**: Works in both sync and async contexts with iterators
 - **Robust Error Handling**: Graceful fallbacks when API endpoints are unavailable
 - **Resource Management**: Use context managers for proper cleanup
 
@@ -29,6 +23,7 @@ Blossom AI is a comprehensive, easy-to-use Python library that provides unified 
 
 - 🖼️ **Image Generation** - Create stunning images from text descriptions
 - 📝 **Text Generation** - Generate text with various AI models
+- 🌊 **Streaming** - Real-time text generation with streaming responses (NEW!)
 - 🎙️ **Audio Generation** - Text-to-speech with multiple voices
 - 🚀 **Unified API** - Same code works in sync and async contexts
 - 🎨 **Beautiful Errors** - Helpful error messages with actionable suggestions
@@ -58,9 +53,123 @@ ai.image.save("a beautiful sunset over mountains", "sunset.jpg")
 response = ai.text.generate("Explain quantum computing in simple terms")
 print(response)
 
+# Stream text in real-time (NEW!)
+for chunk in ai.text.generate("Tell me a story", stream=True):
+    print(chunk, end='', flush=True)
+
 # Generate audio (requires API token)
 ai = Blossom(api_token="YOUR_TOKEN")
 ai.audio.save("Hello, welcome to Blossom AI!", "welcome.mp3", voice="nova")
+```
+
+## 🌊 Streaming Support (NEW!)
+
+Get responses in real-time as they're generated:
+
+### Synchronous Streaming
+
+```python
+from blossom_ai import Blossom
+
+ai = Blossom()
+
+# Simple streaming
+for chunk in ai.text.generate("Write a poem about AI", stream=True):
+    print(chunk, end='', flush=True)
+
+# Chat streaming
+messages = [
+    {"role": "system", "content": "You are a helpful assistant"},
+    {"role": "user", "content": "Explain Python"}
+]
+for chunk in ai.text.chat(messages, stream=True):
+    print(chunk, end='', flush=True)
+
+# Collect full response from stream
+chunks = []
+for chunk in ai.text.generate("Hello", stream=True):
+    chunks.append(chunk)
+full_response = ''.join(chunks)
+```
+
+### Asynchronous Streaming
+
+```python
+import asyncio
+from blossom_ai import Blossom
+
+async def stream_example():
+    ai = Blossom()
+    
+    # Async streaming
+    async for chunk in await ai.text.generate("Tell me a story", stream=True):
+        print(chunk, end='', flush=True)
+    
+    # Async chat streaming
+    messages = [{"role": "user", "content": "Hello!"}]
+    async for chunk in await ai.text.chat(messages, stream=True):
+        print(chunk, end='', flush=True)
+
+asyncio.run(stream_example())
+```
+
+### Parallel Async Streaming
+
+```python
+import asyncio
+from blossom_ai import Blossom
+
+async def collect_stream(ai, prompt):
+    """Collect all chunks from a stream"""
+    chunks = []
+    async for chunk in await ai.text.generate(prompt, stream=True):
+        chunks.append(chunk)
+    return ''.join(chunks)
+
+async def parallel_streams():
+    ai = Blossom()
+    
+    # Run multiple streams in parallel
+    results = await asyncio.gather(
+        collect_stream(ai, "What is Python?"),
+        collect_stream(ai, "What is JavaScript?"),
+        collect_stream(ai, "What is Rust?")
+    )
+    
+    for i, result in enumerate(results, 1):
+        print(f"Stream {i}: {result}\n")
+
+asyncio.run(parallel_streams())
+```
+
+### Streaming to File
+
+```python
+from blossom_ai import Blossom
+
+ai = Blossom()
+
+# Write stream directly to file
+with open('output.txt', 'w', encoding='utf-8') as f:
+    for chunk in ai.text.generate("Write an article", stream=True):
+        f.write(chunk)
+        f.flush()  # Ensure real-time writing
+```
+
+### Streaming with Processing
+
+```python
+from blossom_ai import Blossom
+
+ai = Blossom()
+
+# Process chunks on-the-fly
+word_count = 0
+for chunk in ai.text.generate("Write a paragraph", stream=True):
+    print(chunk, end='', flush=True)
+    word_count += len(chunk.split())
+
+print(f"\nTotal words: {word_count}")
 ```
 
 ## 🔄 Unified Sync/Async API
@@ -145,15 +254,24 @@ response = ai.text.generate(
 
 # JSON mode
 response = ai.text.generate(
-    prompt="List 3 colors",
+    prompt="List 3 colors in JSON format",
     json_mode=True
 )
+
+# Streaming (NEW!)
+for chunk in ai.text.generate("Tell a story", stream=True):
+    print(chunk, end='', flush=True)
 
 # Chat with message history
 response = ai.text.chat([
     {"role": "system", "content": "You are a helpful assistant"},
     {"role": "user", "content": "What's the weather like?"}
 ])
+
+# Chat with streaming (NEW!)
+messages = [{"role": "user", "content": "Explain AI"}]
+for chunk in ai.text.chat(messages, stream=True):
+    print(chunk, end='', flush=True)
 
 # List available models (dynamically updated)
 models = ai.text.models()
@@ -214,6 +332,7 @@ print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', ...]
 | temperature | float | None | ⚠️ Not supported in current API |
 | json_mode | bool | False | Force JSON output |
 | private | bool | False | Keep response private |
+| **stream** | **bool** | **False** | **Stream response in real-time (NEW!)** |
 
 ### Text Chat
 
@@ -222,7 +341,7 @@ print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', ...]
 | messages | list | - | Chat message history (required) |
 | model | str | "openai" | Model to use |
 | temperature | float | 1.0 | Fixed at 1.0 (API limitation) |
-| stream | bool | False | Stream response |
+| **stream** | **bool** | **False** | **Stream response in real-time (NEW!)** |
 | json_mode | bool | False | Force JSON output |
 | private | bool | False | Keep response private |
 
@@ -247,7 +366,7 @@ ai = Blossom(
 
 # Generators (work in sync and async)
 ai.image   # Image generation
-ai.text    # Text generation
+ai.text    # Text generation (with streaming!)
 ai.audio   # Audio generation (requires token)
 ```
 
@@ -281,11 +400,19 @@ models = ai.image.models()  # Returns list of model names
 ### Text Generator Methods
 
 ```python
-# Generate text
+# Generate text (returns str or Iterator[str] if stream=True)
 text = ai.text.generate(prompt, **options)
 
-# Chat with message history
+# Generate with streaming
+for chunk in ai.text.generate(prompt, stream=True):
+    print(chunk, end='')
+
+# Chat with message history (returns str or Iterator[str] if stream=True)
 text = ai.text.chat(messages, **options)
+
+# Chat with streaming
+for chunk in ai.text.chat(messages, stream=True):
+    print(chunk, end='')
 
 # List available models
 models = ai.text.models()  # Returns list of model names
@@ -361,7 +488,7 @@ except BlossomError as e:
 - **RateLimitError** - Too many requests (429)
 - **BlossomError** - Base error class for all errors
 
-## 🔒 Authentication
+## 🔑 Authentication
 
 For higher rate limits and advanced features, get an API token:
 
@@ -394,6 +521,10 @@ async def generate_content():
     text = await ai.text.generate("story")
     audio = await ai.audio.generate("speech")
     
+    # Streaming with async
+    async for chunk in await ai.text.generate("poem", stream=True):
+        print(chunk, end='')
+    
     # Context manager support
     async with Blossom() as ai:
         result = await ai.text.generate("Hello")
@@ -417,6 +548,12 @@ python test_examples.py --sync
 
 # Run only async tests
 python test_examples.py --async
+
+# Run only streaming tests (NEW!)
+python test_examples.py --streaming
+
+# With API token
+python test_examples.py --token YOUR_TOKEN
 ```
 
 ## 🛡️ Robustness Features
@@ -433,6 +570,12 @@ Blossom AI includes several robustness features:
 - Proper cleanup with context managers
 - Weakref-based cleanup to prevent memory leaks
 - Thread-safe async session handling across event loops
+
+### Streaming Support
+- Server-Sent Events (SSE) parsing
+- Works in both sync and async contexts
+- Proper error handling during streaming
+- Resource cleanup even if stream is interrupted
 
 ### Error Recovery
 - Graceful fallbacks when API endpoints are unavailable
@@ -460,6 +603,25 @@ ai = Blossom(timeout=60)  # 60 seconds
 ai = Blossom(debug=True)
 ```
 
+### Streaming with Timeout
+
+```python
+import asyncio
+from blossom_ai import Blossom
+
+async def stream_with_timeout():
+    ai = Blossom()
+    
+    try:
+        async with asyncio.timeout(5):  # 5 second timeout
+            async for chunk in await ai.text.generate("Long story", stream=True):
+                print(chunk, end='')
+    except asyncio.TimeoutError:
+        print("\n⚠️ Stream timed out")
+
+asyncio.run(stream_with_timeout())
+```
+
 ### Resource Cleanup
 
 ```python
@@ -474,7 +636,7 @@ async with Blossom() as ai:
     pass
 ```
 
-## 🏗️ Architecture
+## 🗂️ Architecture
 
 Blossom AI uses a clean, modular architecture:
 
@@ -482,9 +644,10 @@ Blossom AI uses a clean, modular architecture:
 - **Session Managers** - Centralized session lifecycle management
 - **Dynamic Models** - Models that update from API at runtime
 - **Hybrid Generators** - Automatic sync/async detection
+- **Streaming Support** - SSE parsing with Iterator/AsyncIterator
 - **Structured Errors** - Rich error context with suggestions
 
-## 📝 License
+## 📄 License
 
 MIT License - see LICENSE file for details.
 
@@ -500,17 +663,18 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📋 Changelog
 
-### v0.2.1 (Current)
+### v0.2.2 (Current)
+- 🌊 **NEW**: Streaming support for text generation (sync & async)
+
+
+### v0.2.1
 - ✨ Unified sync/async API with hybrid generators
-- 🏗️ Refactored architecture with base classes
+- 🗂️ Refactored architecture with base classes
 - 🛡️ Enhanced error handling with structured errors
-- 🔐 Centralized session management
+- 📦 Centralized session management
 - 🎯 Dynamic model discovery from API
 - ⚡ Improved retry logic with tenacity
 - 🧹 Better resource cleanup with weakref
-
-### v0.1.x
-- Initial release with basic functionality
 
 ## 🔗 Links
 
@@ -527,4 +691,4 @@ Made with 🌸 by the eclips team
 
 ---
 
-*This README reflects v0.2.1 with the latest refactored architecture and improvements.*
+*This README reflects v0.2.2 with streaming support and the latest refactored architecture.*

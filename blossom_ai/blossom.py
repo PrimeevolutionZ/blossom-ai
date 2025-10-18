@@ -1,6 +1,6 @@
 import asyncio
 import inspect
-from typing import Optional
+from typing import Optional, Iterator, AsyncIterator, Union
 
 from .generators import (
     ImageGenerator, AsyncImageGenerator,
@@ -21,14 +21,10 @@ def _is_running_in_async_loop() -> bool:
 def _run_async_from_sync(coro):
     """Runs a coroutine from synchronous code using asyncio.run()"""
     if _is_running_in_async_loop():
-        # Если мы внутри async контекста, нельзя использовать asyncio.run
         raise RuntimeError(
             "Cannot run async code from sync when an event loop is already running. "
             "Consider using `await` or ensuring the call is from a truly synchronous context."
         )
-
-    # Всегда используем asyncio.run() для изоляции
-    # Это создает новый event loop, выполняет корутину и закрывает loop
     return asyncio.run(coro)
 
 
@@ -45,10 +41,21 @@ class HybridGenerator:
             # We are in an async context, return the coroutine
             return getattr(self._async, method_name)(*args, **kwargs)
         else:
-            # We are in a sync context, run the coroutine and block
-            async_method = getattr(self._async, method_name)
-            coro = async_method(*args, **kwargs)
-            return _run_async_from_sync(coro)
+            # We are in a sync context
+            # Check if the sync method returns an iterator (for streaming)
+            sync_method = getattr(self._sync, method_name)
+            result = sync_method(*args, **kwargs)
+
+            # If it's a generator/iterator, return it directly
+            if inspect.isgenerator(result) or isinstance(result, Iterator):
+                return result
+
+            # If it's a coroutine, run it
+            if inspect.iscoroutine(result):
+                return _run_async_from_sync(result)
+
+            # Otherwise, just return the result
+            return result
 
 
 class HybridImageGenerator(HybridGenerator):
@@ -67,10 +74,26 @@ class HybridImageGenerator(HybridGenerator):
 class HybridTextGenerator(HybridGenerator):
     """Hybrid text generator."""
 
-    def generate(self, prompt: str, **kwargs) -> str:
+    def generate(self, prompt: str, **kwargs) -> Union[str, Iterator[str]]:
+        """
+        Generate text from prompt.
+
+        Returns:
+            str if stream=False (default)
+            Iterator[str] if stream=True (sync context)
+            Coroutine[AsyncIterator[str]] if stream=True (async context)
+        """
         return self._call("generate", prompt, **kwargs)
 
-    def chat(self, messages: list, **kwargs) -> str:
+    def chat(self, messages: list, **kwargs) -> Union[str, Iterator[str]]:
+        """
+        Chat completion.
+
+        Returns:
+            str if stream=False (default)
+            Iterator[str] if stream=True (sync context)
+            Coroutine[AsyncIterator[str]] if stream=True (async context)
+        """
         return self._call("chat", messages, **kwargs)
 
     def models(self) -> list:

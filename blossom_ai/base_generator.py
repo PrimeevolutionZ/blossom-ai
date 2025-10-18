@@ -1,5 +1,5 @@
 """
-Blossom AI - Base Generator Classes
+Blossom AI - Base Generator Classes (с поддержкой streaming)
 Unified base classes for all generators with retry logic and error handling
 """
 
@@ -86,11 +86,13 @@ class SyncGenerator(BaseGenerator):
         method: str,
         url: str,
         params: Optional[Dict] = None,
+        stream: bool = False,  # НОВЫЙ ПАРАМЕТР для streaming
         **kwargs
     ) -> requests.Response:
-        """Make HTTP request with retry logic"""
+        """Make HTTP request with retry logic and streaming support"""
         try:
             kwargs.setdefault("timeout", self.timeout)
+            kwargs['stream'] = stream  # Передаем stream в requests
 
             # Add auth
             if params is None:
@@ -102,7 +104,16 @@ class SyncGenerator(BaseGenerator):
             kwargs['headers'] = headers
 
             response = self.session.request(method, url, params=params, **kwargs)
-            response.raise_for_status()
+
+            # Для streaming не делаем raise_for_status сразу
+            # Это позволит обработать ошибки в streaming контексте
+            if not stream:
+                response.raise_for_status()
+            else:
+                # Для streaming проверяем статус, но не читаем тело
+                if response.status_code >= 400:
+                    response.raise_for_status()
+
             return response
 
         except requests.exceptions.HTTPError as e:
@@ -196,9 +207,16 @@ class AsyncGenerator(BaseGenerator):
         url: str,
         params: Optional[Dict] = None,
         max_retries: int = 3,
+        stream: bool = False,  # НОВЫЙ ПАРАМЕТР для streaming
         **kwargs
-    ) -> bytes:
-        """Make async HTTP request with retry logic"""
+    ):
+        """
+        Make async HTTP request with retry logic
+
+        Returns:
+            bytes if stream=False
+            aiohttp.ClientResponse if stream=True (caller must handle closing)
+        """
         session = await self._get_session()
 
         retry_count = 0
@@ -217,6 +235,42 @@ class AsyncGenerator(BaseGenerator):
                 params = self._add_auth_params(params, method)
                 headers.update(self._get_auth_headers(method))
 
+                # Для streaming не используем context manager
+                # Возвращаем response объект, чтобы caller мог читать stream
+                if stream:
+                    response = await session.request(
+                        method,
+                        url,
+                        headers=headers,
+                        params=params,
+                        timeout=timeout,
+                        **kwargs
+                    )
+
+                    # Проверяем статус
+                    if response.status >= 400:
+                        await response.read()  # Читаем тело для ошибки
+                        await response.close()
+
+                        if response.status == 402:
+                            raise BlossomError(
+                                message="Payment Required",
+                                error_type=ErrorType.API,
+                                suggestion="Visit https://auth.pollinations.ai to upgrade."
+                            )
+
+                        raise aiohttp.ClientResponseError(
+                            request_info=response.request_info,
+                            history=response.history,
+                            status=response.status,
+                            message=f"HTTP {response.status}"
+                        )
+
+                    # Возвращаем response для streaming
+                    # ВАЖНО: caller должен закрыть response!
+                    return response
+
+                # Обычный запрос (не streaming)
                 async with session.request(
                     method,
                     url,

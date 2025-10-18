@@ -1,9 +1,8 @@
 """
-Blossom AI - Generators (Refactored)
-Unified generator classes using base classes and dynamic models
+Blossom AI - Generators (с поддержкой streaming)
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Iterator, Union
 import json
 
 from .base_generator import SyncGenerator, AsyncGenerator, ModelAwareGenerator
@@ -15,7 +14,40 @@ from .models import (
 
 
 # ============================================================================
-# IMAGE GENERATOR
+# STREAMING UTILITIES
+# ============================================================================
+
+class StreamChunk:
+    """Представляет chunk из streaming ответа"""
+    def __init__(self, content: str, done: bool = False):
+        self.content = content
+        self.done = done
+
+    def __str__(self):
+        return self.content
+
+    def __repr__(self):
+        return f"StreamChunk(content={self.content!r}, done={self.done})"
+
+
+def _parse_sse_line(line: str) -> Optional[dict]:
+    """Парсит SSE строку"""
+    if not line.strip():
+        return None
+
+    if line.startswith('data: '):
+        data_str = line[6:].strip()
+        if data_str == '[DONE]':
+            return {'done': True}
+        try:
+            return json.loads(data_str)
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+# ============================================================================
+# IMAGE GENERATOR (без изменений)
 # ============================================================================
 
 class ImageGenerator(SyncGenerator, ModelAwareGenerator):
@@ -28,7 +60,6 @@ class ImageGenerator(SyncGenerator, ModelAwareGenerator):
         ModelAwareGenerator.__init__(self, ImageModel, DEFAULT_IMAGE_MODELS)
 
     def _validate_prompt(self, prompt: str) -> None:
-        """Validate image prompt"""
         if len(prompt) > self.MAX_PROMPT_LENGTH:
             raise BlossomError(
                 message=f"Prompt exceeds maximum length of {self.MAX_PROMPT_LENGTH} characters",
@@ -48,25 +79,7 @@ class ImageGenerator(SyncGenerator, ModelAwareGenerator):
         enhance: bool = False,
         safe: bool = False
     ) -> bytes:
-        """
-        Generate an image from a text prompt
-
-        Args:
-            prompt: Text description of the image
-            model: Model to use (default: flux)
-            width: Image width in pixels
-            height: Image height in pixels
-            seed: Seed for reproducible results
-            nologo: Remove Pollinations logo
-            private: Keep image private
-            enhance: Enhance prompt with LLM
-            safe: Enable strict NSFW filtering
-
-        Returns:
-            Image data as bytes
-        """
         self._validate_prompt(prompt)
-
         encoded_prompt = self._encode_prompt(prompt)
         url = self._build_url(f"prompt/{encoded_prompt}")
 
@@ -91,14 +104,12 @@ class ImageGenerator(SyncGenerator, ModelAwareGenerator):
         return response.content
 
     def save(self, prompt: str, filename: str, **kwargs) -> str:
-        """Generate and save image to file"""
         image_data = self.generate(prompt, **kwargs)
         with open(filename, 'wb') as f:
             f.write(image_data)
         return str(filename)
 
     def models(self) -> list:
-        """Get list of available image models"""
         if self._models_cache is None:
             models = self._fetch_list("models", self._fallback_models)
             self._update_known_models(models)
@@ -115,7 +126,6 @@ class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
         ModelAwareGenerator.__init__(self, ImageModel, DEFAULT_IMAGE_MODELS)
 
     def _validate_prompt(self, prompt: str) -> None:
-        """Validate image prompt"""
         if len(prompt) > self.MAX_PROMPT_LENGTH:
             raise BlossomError(
                 message=f"Prompt exceeds maximum length of {self.MAX_PROMPT_LENGTH} characters",
@@ -135,9 +145,7 @@ class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
         enhance: bool = False,
         safe: bool = False
     ) -> bytes:
-        """Generate an image from a text prompt asynchronously"""
         self._validate_prompt(prompt)
-
         encoded_prompt = self._encode_prompt(prompt)
         url = self._build_url(f"prompt/{encoded_prompt}")
 
@@ -161,14 +169,12 @@ class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
         return await self._make_request("GET", url, params=params)
 
     async def save(self, prompt: str, filename: str, **kwargs) -> str:
-        """Generate and save image to file asynchronously"""
         image_data = await self.generate(prompt, **kwargs)
         with open(filename, 'wb') as f:
             f.write(image_data)
         return str(filename)
 
     async def models(self) -> list:
-        """Get list of available image models asynchronously"""
         if self._models_cache is None:
             models = await self._fetch_list("models", self._fallback_models)
             self._update_known_models(models)
@@ -176,11 +182,11 @@ class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
 
 
 # ============================================================================
-# TEXT GENERATOR
+# TEXT GENERATOR (С ПОДДЕРЖКОЙ STREAMING)
 # ============================================================================
 
 class TextGenerator(SyncGenerator, ModelAwareGenerator):
-    """Generate text using Pollinations.AI (Synchronous)"""
+    """Generate text using Pollinations.AI (Synchronous) with streaming support"""
 
     MAX_PROMPT_LENGTH = 10000
 
@@ -189,7 +195,6 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
         ModelAwareGenerator.__init__(self, TextModel, DEFAULT_TEXT_MODELS)
 
     def _validate_prompt(self, prompt: str) -> None:
-        """Validate text prompt"""
         if len(prompt) > self.MAX_PROMPT_LENGTH:
             raise BlossomError(
                 message=f"Prompt exceeds maximum length of {self.MAX_PROMPT_LENGTH} characters",
@@ -205,25 +210,19 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
         seed: Optional[int] = None,
         temperature: Optional[float] = None,
         json_mode: bool = False,
-        private: bool = False
-    ) -> str:
+        private: bool = False,
+        stream: bool = False
+    ) -> Union[str, Iterator[str]]:
         """
         Generate text from a prompt
 
         Args:
-            prompt: Text prompt to generate from
-            model: Model to use
-            system: System message
-            seed: Seed for reproducible results
-            temperature: Sampling temperature
-            json_mode: Force JSON output
-            private: Keep generation private
+            stream: If True, returns an iterator that yields text chunks in real-time
 
         Returns:
-            Generated text
+            str if stream=False, Iterator[str] if stream=True
         """
         self._validate_prompt(prompt)
-
         encoded_prompt = self._encode_prompt(prompt)
         url = self._build_url(encoded_prompt)
 
@@ -239,9 +238,41 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
             params["json"] = "true"
         if private:
             params["private"] = "true"
+        if stream:
+            params["stream"] = "true"
 
-        response = self._make_request("GET", url, params=params)
-        return response.text
+        response = self._make_request("GET", url, params=params, stream=stream)
+
+        if stream:
+            return self._stream_response(response)
+        else:
+            return response.text
+
+    def _stream_response(self, response) -> Iterator[str]:
+        """
+        Обрабатывает streaming ответ (SSE)
+        Yields текстовые chunks по мере их получения
+        """
+        try:
+            for line in response.iter_lines(decode_unicode=True):
+                if not line or not line.strip():
+                    continue
+
+                parsed = _parse_sse_line(line)
+                if parsed is None:
+                    continue
+
+                if parsed.get('done'):
+                    break
+
+                # Извлекаем content из OpenAI формата
+                if 'choices' in parsed and len(parsed['choices']) > 0:
+                    delta = parsed['choices'][0].get('delta', {})
+                    content = delta.get('content', '')
+                    if content:
+                        yield content
+        finally:
+            response.close()
 
     def chat(
         self,
@@ -251,22 +282,28 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
         stream: bool = False,
         json_mode: bool = False,
         private: bool = False
-    ) -> str:
-        """Chat completion using OpenAI-compatible endpoint"""
+    ) -> Union[str, Iterator[str]]:
+        """
+        Chat completion using OpenAI-compatible endpoint
+
+        Args:
+            stream: If True, returns an iterator that yields text chunks
+
+        Returns:
+            str if stream=False, Iterator[str] if stream=True
+        """
         url = self._build_url("openai")
 
         body = {
             "model": self._validate_model(model),
-            "messages": messages
+            "messages": messages,
+            "stream": stream
         }
 
-        # API only supports temperature=1.0
         if temperature is not None and temperature != 1.0:
             print_warning(f"Temperature {temperature} not supported. Using default 1.0")
         body["temperature"] = 1.0
 
-        if stream:
-            body["stream"] = stream
         if json_mode:
             body["response_format"] = {"type": "json_object"}
         if private:
@@ -277,13 +314,18 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
                 "POST",
                 url,
                 json=body,
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
+                stream=stream
             )
-            result = response.json()
-            return result["choices"][0]["message"]["content"]
+
+            if stream:
+                return self._stream_response(response)
+            else:
+                result = response.json()
+                return result["choices"][0]["message"]["content"]
 
         except Exception:
-            # Fallback to GET method
+            # Fallback to GET method (без streaming)
             user_msg = next((m["content"] for m in messages if m.get("role") == "user"), None)
             system_msg = next((m["content"] for m in messages if m.get("role") == "system"), None)
 
@@ -293,12 +335,12 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
                     model=model,
                     system=system_msg,
                     json_mode=json_mode,
-                    private=private
+                    private=private,
+                    stream=False  # Fallback без streaming
                 )
             raise
 
     def models(self) -> List[str]:
-        """Get list of available text models"""
         if self._models_cache is None:
             models = self._fetch_list("models", self._fallback_models)
             self._update_known_models(models)
@@ -306,7 +348,7 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
 
 
 class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
-    """Generate text using Pollinations.AI (Asynchronous)"""
+    """Generate text using Pollinations.AI (Asynchronous) with streaming support"""
 
     MAX_PROMPT_LENGTH = 10000
 
@@ -315,7 +357,6 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
         ModelAwareGenerator.__init__(self, TextModel, DEFAULT_TEXT_MODELS)
 
     def _validate_prompt(self, prompt: str) -> None:
-        """Validate text prompt"""
         if len(prompt) > self.MAX_PROMPT_LENGTH:
             raise BlossomError(
                 message=f"Prompt exceeds maximum length of {self.MAX_PROMPT_LENGTH} characters",
@@ -331,11 +372,17 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
         seed: Optional[int] = None,
         temperature: Optional[float] = None,
         json_mode: bool = False,
-        private: bool = False
-    ) -> str:
-        """Generate text from a prompt asynchronously"""
-        self._validate_prompt(prompt)
+        private: bool = False,
+        stream: bool = False
+    ):
+        """
+        Generate text from a prompt
 
+        Returns:
+            str if stream=False
+            AsyncIterator[str] if stream=True
+        """
+        self._validate_prompt(prompt)
         encoded_prompt = self._encode_prompt(prompt)
         url = self._build_url(encoded_prompt)
 
@@ -351,9 +398,49 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
             params["json"] = "true"
         if private:
             params["private"] = "true"
+        if stream:
+            params["stream"] = "true"
 
-        data = await self._make_request("GET", url, params=params)
-        return data.decode('utf-8')
+        if stream:
+            return self._stream_response(url, params)
+        else:
+            data = await self._make_request("GET", url, params=params)
+            return data.decode('utf-8')
+
+    async def _stream_response(self, url: str, params: dict):
+        """
+        Async generator для streaming ответа
+        """
+        session = await self._get_session()
+
+        # Добавляем auth
+        params = self._add_auth_params(params, 'GET')
+        headers = self._get_auth_headers('GET')
+
+        async with session.get(url, params=params, headers=headers) as response:
+            if response.status >= 400:
+                raise BlossomError(
+                    message=f"HTTP {response.status}",
+                    error_type=ErrorType.API
+                )
+
+            async for line in response.content:
+                line_str = line.decode('utf-8').strip()
+                if not line_str:
+                    continue
+
+                parsed = _parse_sse_line(line_str)
+                if parsed is None:
+                    continue
+
+                if parsed.get('done'):
+                    break
+
+                if 'choices' in parsed and len(parsed['choices']) > 0:
+                    delta = parsed['choices'][0].get('delta', {})
+                    content = delta.get('content', '')
+                    if content:
+                        yield content
 
     async def chat(
         self,
@@ -363,53 +450,92 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
         stream: bool = False,
         json_mode: bool = False,
         private: bool = False
-    ) -> str:
-        """Chat completion asynchronously"""
+    ):
+        """
+        Chat completion
+
+        Returns:
+            str if stream=False
+            AsyncIterator[str] if stream=True
+        """
         url = self._build_url("openai")
 
         body = {
             "model": self._validate_model(model),
-            "messages": messages
+            "messages": messages,
+            "stream": stream
         }
 
         if temperature is not None and temperature != 1.0:
             print_warning(f"Temperature {temperature} not supported. Using default 1.0")
         body["temperature"] = 1.0
 
-        if stream:
-            body["stream"] = stream
         if json_mode:
             body["response_format"] = {"type": "json_object"}
         if private:
             body["private"] = private
 
-        try:
-            data = await self._make_request(
-                "POST",
-                url,
-                json=body,
-                headers={"Content-Type": "application/json"}
-            )
-            result = json.loads(data.decode('utf-8'))
-            return result["choices"][0]["message"]["content"]
-
-        except Exception:
-            # Fallback to GET
-            user_msg = next((m["content"] for m in messages if m.get("role") == "user"), None)
-            system_msg = next((m["content"] for m in messages if m.get("role") == "system"), None)
-
-            if user_msg:
-                return await self.generate(
-                    prompt=user_msg,
-                    model=model,
-                    system=system_msg,
-                    json_mode=json_mode,
-                    private=private
+        if stream:
+            return self._stream_chat_response(url, body)
+        else:
+            try:
+                data = await self._make_request(
+                    "POST",
+                    url,
+                    json=body,
+                    headers={"Content-Type": "application/json"}
                 )
-            raise
+                result = json.loads(data.decode('utf-8'))
+                return result["choices"][0]["message"]["content"]
+            except Exception:
+                # Fallback to GET
+                user_msg = next((m["content"] for m in messages if m.get("role") == "user"), None)
+                system_msg = next((m["content"] for m in messages if m.get("role") == "system"), None)
+
+                if user_msg:
+                    return await self.generate(
+                        prompt=user_msg,
+                        model=model,
+                        system=system_msg,
+                        json_mode=json_mode,
+                        private=private,
+                        stream=False
+                    )
+                raise
+
+    async def _stream_chat_response(self, url: str, body: dict):
+        """Async generator для streaming chat ответа"""
+        session = await self._get_session()
+
+        headers = {"Content-Type": "application/json"}
+        headers.update(self._get_auth_headers('POST'))
+
+        async with session.post(url, json=body, headers=headers) as response:
+            if response.status >= 400:
+                raise BlossomError(
+                    message=f"HTTP {response.status}",
+                    error_type=ErrorType.API
+                )
+
+            async for line in response.content:
+                line_str = line.decode('utf-8').strip()
+                if not line_str:
+                    continue
+
+                parsed = _parse_sse_line(line_str)
+                if parsed is None:
+                    continue
+
+                if parsed.get('done'):
+                    break
+
+                if 'choices' in parsed and len(parsed['choices']) > 0:
+                    delta = parsed['choices'][0].get('delta', {})
+                    content = delta.get('content', '')
+                    if content:
+                        yield content
 
     async def models(self) -> List[str]:
-        """Get list of available text models asynchronously"""
         if self._models_cache is None:
             models = await self._fetch_list("models", self._fallback_models)
             self._update_known_models(models)
@@ -417,7 +543,7 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
 
 
 # ============================================================================
-# AUDIO GENERATOR
+# AUDIO GENERATOR (без изменений)
 # ============================================================================
 
 class AudioGenerator(SyncGenerator, ModelAwareGenerator):
@@ -428,7 +554,6 @@ class AudioGenerator(SyncGenerator, ModelAwareGenerator):
         ModelAwareGenerator.__init__(self, Voice, DEFAULT_VOICES)
 
     def _validate_prompt(self, prompt: str) -> None:
-        """Audio doesn't have strict prompt validation"""
         pass
 
     def generate(
@@ -437,28 +562,25 @@ class AudioGenerator(SyncGenerator, ModelAwareGenerator):
         voice: str = "alloy",
         model: str = "openai-audio"
     ) -> bytes:
-        """Generate speech audio from text (Text-to-Speech)"""
         text = text.rstrip('.!?;:,')
         encoded_text = self._encode_prompt(text)
         url = self._build_url(encoded_text)
 
         params = {
             "model": model,
-            "voice": self._validate_model(voice)  # Voice validation through model aware
+            "voice": self._validate_model(voice)
         }
 
         response = self._make_request("GET", url, params=params)
         return response.content
 
     def save(self, text: str, filename: str, **kwargs) -> str:
-        """Generate and save audio to file"""
         audio_data = self.generate(text, **kwargs)
         with open(filename, 'wb') as f:
             f.write(audio_data)
         return str(filename)
 
     def voices(self) -> List[str]:
-        """Get list of available voices"""
         if self._models_cache is None:
             voices = self._fetch_list("voices", self._fallback_models)
             self._update_known_models(voices)
@@ -473,7 +595,6 @@ class AsyncAudioGenerator(AsyncGenerator, ModelAwareGenerator):
         ModelAwareGenerator.__init__(self, Voice, DEFAULT_VOICES)
 
     def _validate_prompt(self, prompt: str) -> None:
-        """Audio doesn't have strict prompt validation"""
         pass
 
     async def generate(
@@ -482,7 +603,6 @@ class AsyncAudioGenerator(AsyncGenerator, ModelAwareGenerator):
         voice: str = "alloy",
         model: str = "openai-audio"
     ) -> bytes:
-        """Generate speech audio from text asynchronously"""
         text = text.rstrip('.!?;:,')
         encoded_text = self._encode_prompt(text)
         url = self._build_url(encoded_text)
@@ -495,14 +615,12 @@ class AsyncAudioGenerator(AsyncGenerator, ModelAwareGenerator):
         return await self._make_request("GET", url, params=params)
 
     async def save(self, text: str, filename: str, **kwargs) -> str:
-        """Generate and save audio to file asynchronously"""
         audio_data = await self.generate(text, **kwargs)
         with open(filename, 'wb') as f:
             f.write(audio_data)
         return str(filename)
 
     async def voices(self) -> List[str]:
-        """Get list of available voices asynchronously"""
         if self._models_cache is None:
             voices = await self._fetch_list("voices", self._fallback_models)
             self._update_known_models(voices)
