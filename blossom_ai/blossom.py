@@ -141,7 +141,14 @@ class Blossom:
     def _cleanup_sync(self):
         """Clean up sync session resources"""
         for gen in self._sync_generators:
-            if hasattr(gen, 'session') and gen.session:
+            # New generators use _session_manager
+            if hasattr(gen, '_session_manager'):
+                try:
+                    gen._session_manager.close()
+                except Exception:
+                    pass
+            # Fallback for old-style generators
+            elif hasattr(gen, 'session'):
                 try:
                     gen.session.close()
                 except Exception:
@@ -150,9 +157,16 @@ class Blossom:
     async def close(self):
         """Closes all async generator sessions."""
         for gen in self._async_generators:
-            if hasattr(gen, "_close_session") and inspect.iscoroutinefunction(gen._close_session):
+            # New generators use _session_manager
+            if hasattr(gen, '_session_manager'):
                 try:
-                    await gen._close_session()
+                    await gen._session_manager.close()
+                except Exception:
+                    pass
+            # Fallback for old-style close method
+            elif hasattr(gen, "close") and inspect.iscoroutinefunction(gen.close):
+                try:
+                    await gen.close()
                 except Exception:
                     pass
 
