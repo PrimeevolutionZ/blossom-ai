@@ -15,7 +15,7 @@ from .errors import (
 )
 from .models import ImageModel, TextModel, Voice
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 __all__ = [
     # Main client
