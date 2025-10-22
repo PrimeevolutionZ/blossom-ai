@@ -9,7 +9,7 @@
 Blossom AI is a comprehensive, easy-to-use Python library that provides unified access to Pollinations.AI's powerful AI generation services. Create stunning images, generate text with various models, and convert text to speech with multiple voices - all through a beautifully designed, intuitive API.
 
 ## ✨ What's New in v0.2.3
-- 📦 **Modular Architecture** - Cleaner imports with `core` and `generators` modules
+- 📦 **Update from ME :D ** - I have changed the internal architecture of the package, which will make it possible to better maintain and expand the package. this is not a mandatory update. Nothing has changed for the user.
 - 🔧 **Improved Code Organization** - Better maintainability and extensibility
 ## ⚠️ Important Notes
 
