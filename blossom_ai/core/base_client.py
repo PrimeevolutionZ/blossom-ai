@@ -4,7 +4,7 @@ Fixed version with proper session handling to avoid ResourceWarnings
 """
 
 import requests
-from typing import Optional, Dict, Any
+from typing import Optional
 import json
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import asyncio
@@ -12,7 +12,7 @@ import aiohttp
 import weakref
 import threading
 
-from .errors import BlossomError, handle_request_error, print_info, ErrorType
+from blossom_ai.core.errors import BlossomError, handle_request_error, print_info, ErrorType
 
 
 class BaseAPI:

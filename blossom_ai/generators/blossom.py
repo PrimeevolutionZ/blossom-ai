@@ -2,7 +2,7 @@ import asyncio
 import inspect
 from typing import Optional, Iterator, AsyncIterator, Union
 
-from .generators import (
+from blossom_ai.generators.generators import (
     ImageGenerator, AsyncImageGenerator,
     TextGenerator, AsyncTextGenerator,
     AudioGenerator, AsyncAudioGenerator
@@ -38,23 +38,17 @@ class HybridGenerator:
     def _call(self, method_name: str, *args, **kwargs):
         """Dynamically calls the sync or async version of a method."""
         if _is_running_in_async_loop():
-            # We are in an async context, return the coroutine
             return getattr(self._async, method_name)(*args, **kwargs)
         else:
-            # We are in a sync context
-            # Check if the sync method returns an iterator (for streaming)
             sync_method = getattr(self._sync, method_name)
             result = sync_method(*args, **kwargs)
 
-            # If it's a generator/iterator, return it directly
             if inspect.isgenerator(result) or isinstance(result, Iterator):
                 return result
 
-            # If it's a coroutine, run it
             if inspect.iscoroutine(result):
                 return _run_async_from_sync(result)
 
-            # Otherwise, just return the result
             return result
 
 
@@ -75,25 +69,9 @@ class HybridTextGenerator(HybridGenerator):
     """Hybrid text generator."""
 
     def generate(self, prompt: str, **kwargs) -> Union[str, Iterator[str]]:
-        """
-        Generate text from prompt.
-
-        Returns:
-            str if stream=False (default)
-            Iterator[str] if stream=True (sync context)
-            Coroutine[AsyncIterator[str]] if stream=True (async context)
-        """
         return self._call("generate", prompt, **kwargs)
 
     def chat(self, messages: list, **kwargs) -> Union[str, Iterator[str]]:
-        """
-        Chat completion.
-
-        Returns:
-            str if stream=False (default)
-            Iterator[str] if stream=True (sync context)
-            Coroutine[AsyncIterator[str]] if stream=True (async context)
-        """
         return self._call("chat", messages, **kwargs)
 
     def models(self) -> list:
@@ -117,7 +95,6 @@ class Blossom:
     """Universal Blossom AI client for both sync and async use."""
 
     def __init__(self, timeout: int = 30, debug: bool = False, api_token: Optional[str] = None):
-        # Create both sync and async generators
         sync_image = ImageGenerator(timeout=timeout, api_token=api_token)
         async_image = AsyncImageGenerator(timeout=timeout, api_token=api_token)
 
@@ -127,7 +104,6 @@ class Blossom:
         sync_audio = AudioGenerator(timeout=timeout, api_token=api_token)
         async_audio = AsyncAudioGenerator(timeout=timeout, api_token=api_token)
 
-        # Create hybrid wrappers
         self.image = HybridImageGenerator(sync_image, async_image)
         self.text = HybridTextGenerator(sync_text, async_text)
         self.audio = HybridAudioGenerator(sync_audio, async_audio)
@@ -146,16 +122,13 @@ class Blossom:
         return False
 
     def __enter__(self):
-        """Sync context manager support"""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Sync context manager support"""
         self._cleanup_sync()
         return False
 
     def __del__(self):
-        """Cleanup when object is destroyed"""
         try:
             self._cleanup_sync()
         except Exception:
@@ -164,13 +137,11 @@ class Blossom:
     def _cleanup_sync(self):
         """Clean up sync session resources"""
         for gen in self._sync_generators:
-            # New generators use _session_manager
             if hasattr(gen, '_session_manager'):
                 try:
                     gen._session_manager.close()
                 except Exception:
                     pass
-            # Fallback for old-style generators
             elif hasattr(gen, 'session'):
                 try:
                     gen.session.close()
@@ -180,13 +151,11 @@ class Blossom:
     async def close(self):
         """Closes all async generator sessions."""
         for gen in self._async_generators:
-            # New generators use _session_manager
             if hasattr(gen, '_session_manager'):
                 try:
                     await gen._session_manager.close()
                 except Exception:
                     pass
-            # Fallback for old-style close method
             elif hasattr(gen, "close") and inspect.iscoroutinefunction(gen.close):
                 try:
                     await gen.close()

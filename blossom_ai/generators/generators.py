@@ -1,13 +1,13 @@
 """
-Blossom AI - Generators (с поддержкой streaming)
+Blossom AI - Generators
 """
 
 from typing import Optional, List, Dict, Any, Iterator, Union
 import json
 
-from .base_generator import SyncGenerator, AsyncGenerator, ModelAwareGenerator
-from .errors import BlossomError, ErrorType, print_warning
-from .models import (
+from blossom_ai.generators.base_generator import SyncGenerator, AsyncGenerator, ModelAwareGenerator
+from blossom_ai.core.errors import BlossomError, ErrorType, print_warning
+from blossom_ai.core.models import (
     ImageModel, TextModel, Voice,
     DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS, DEFAULT_VOICES
 )

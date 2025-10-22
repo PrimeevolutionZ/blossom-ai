@@ -13,10 +13,9 @@ import requests
 import aiohttp
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-from .session_manager import SyncSessionManager, AsyncSessionManager
-from .errors import BlossomError, ErrorType, handle_request_error, print_info, print_warning
-from .models import DynamicModel
-
+from blossom_ai.core.session_manager import SyncSessionManager, AsyncSessionManager
+from blossom_ai.core.errors import BlossomError, ErrorType, handle_request_error, print_info, print_warning
+from blossom_ai.core.models import DynamicModel
 
 class BaseGenerator(ABC):
     """Abstract base class for all generators"""

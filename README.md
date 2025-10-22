@@ -8,9 +8,9 @@
 
 Blossom AI is a comprehensive, easy-to-use Python library that provides unified access to Pollinations.AI's powerful AI generation services. Create stunning images, generate text with various models, and convert text to speech with multiple voices - all through a beautifully designed, intuitive API.
 
-## ✨ What's New in v0.2.2
-- 🌊 **Streaming Support** - Real-time text generation with streaming responses
-
+## ✨ What's New in v0.2.3
+- 📦 **Modular Architecture** - Cleaner imports with `core` and `generators` modules
+- 🔧 **Improved Code Organization** - Better maintainability and extensibility
 ## ⚠️ Important Notes
 
 - **Audio Generation**: Requires authentication (API token)
@@ -23,7 +23,7 @@ Blossom AI is a comprehensive, easy-to-use Python library that provides unified 
 
 - 🖼️ **Image Generation** - Create stunning images from text descriptions
 - 📝 **Text Generation** - Generate text with various AI models
-- 🌊 **Streaming** - Real-time text generation with streaming responses (NEW!)
+- 🌊 **Streaming** - Real-time text generation with streaming responses
 - 🎙️ **Audio Generation** - Text-to-speech with multiple voices
 - 🚀 **Unified API** - Same code works in sync and async contexts
 - 🎨 **Beautiful Errors** - Helpful error messages with actionable suggestions
@@ -53,7 +53,7 @@ ai.image.save("a beautiful sunset over mountains", "sunset.jpg")
 response = ai.text.generate("Explain quantum computing in simple terms")
 print(response)
 
-# Stream text in real-time (NEW!)
+# Stream text in real-time
 for chunk in ai.text.generate("Tell me a story", stream=True):
     print(chunk, end='', flush=True)
 
@@ -62,7 +62,7 @@ ai = Blossom(api_token="YOUR_TOKEN")
 ai.audio.save("Hello, welcome to Blossom AI!", "welcome.mp3", voice="nova")
 ```
 
-## 🌊 Streaming Support (NEW!)
+## 🌊 Streaming Support
 
 Get responses in real-time as they're generated:
 
@@ -172,7 +172,7 @@ for chunk in ai.text.generate("Write a paragraph", stream=True):
 print(f"\nTotal words: {word_count}")
 ```
 
-## 🔄 Unified Sync/Async API
+## 📄 Unified Sync/Async API
 
 The same API works seamlessly in both synchronous and asynchronous contexts:
 
@@ -258,7 +258,7 @@ response = ai.text.generate(
     json_mode=True
 )
 
-# Streaming (NEW!)
+# Streaming
 for chunk in ai.text.generate("Tell a story", stream=True):
     print(chunk, end='', flush=True)
 
@@ -268,7 +268,7 @@ response = ai.text.chat([
     {"role": "user", "content": "What's the weather like?"}
 ])
 
-# Chat with streaming (NEW!)
+# Chat with streaming
 messages = [{"role": "user", "content": "Explain AI"}]
 for chunk in ai.text.chat(messages, stream=True):
     print(chunk, end='', flush=True)
@@ -332,7 +332,7 @@ print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', ...]
 | temperature | float | None | ⚠️ Not supported in current API |
 | json_mode | bool | False | Force JSON output |
 | private | bool | False | Keep response private |
-| **stream** | **bool** | **False** | **Stream response in real-time (NEW!)** |
+| stream | bool | False | Stream response in real-time |
 
 ### Text Chat
 
@@ -341,7 +341,7 @@ print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', ...]
 | messages | list | - | Chat message history (required) |
 | model | str | "openai" | Model to use |
 | temperature | float | 1.0 | Fixed at 1.0 (API limitation) |
-| **stream** | **bool** | **False** | **Stream response in real-time (NEW!)** |
+| stream | bool | False | Stream response in real-time |
 | json_mode | bool | False | Force JSON output |
 | private | bool | False | Keep response private |
 
@@ -488,7 +488,7 @@ except BlossomError as e:
 - **RateLimitError** - Too many requests (429)
 - **BlossomError** - Base error class for all errors
 
-## 🔑 Authentication
+## 🔐 Authentication
 
 For higher rate limits and advanced features, get an API token:
 
@@ -505,7 +505,7 @@ ai.audio.save("Hello", "hello.mp3")  # Audio requires token
 
 Get your API token at [auth.pollinations.ai](https://auth.pollinations.ai)
 
-## 🔄 Async Usage
+## 📄 Async Usage
 
 The same API works in async contexts automatically:
 
@@ -549,7 +549,7 @@ python test_examples.py --sync
 # Run only async tests
 python test_examples.py --async
 
-# Run only streaming tests (NEW!)
+# Run only streaming tests
 python test_examples.py --streaming
 
 # With API token
@@ -635,11 +635,7 @@ async with Blossom() as ai:
     # Resources auto-cleaned
     pass
 ```
-
-## 🗂️ Architecture
-
-Blossom AI uses a clean, modular architecture:
-
+### Key Components:
 - **Base Generators** - `SyncGenerator` and `AsyncGenerator` base classes
 - **Session Managers** - Centralized session lifecycle management
 - **Dynamic Models** - Models that update from API at runtime
@@ -663,18 +659,16 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📋 Changelog
 
-### v0.2.2 (Current)
+### v0.2.3 (Current)
+- 📦 **Modular architecture**: Reorganized into `core` and `generators` modules
+- 🔧 **Better imports**: Cleaner, more intuitive import structure
+- 🛠️ **Improved maintainability**: Easier to extend and customize
+- 📚 **Better code organization**: Separation of concerns between core and generators
+
+### v0.2.2
 - 🌊 **NEW**: Streaming support for text generation (sync & async)
-
-
-### v0.2.1
-- ✨ Unified sync/async API with hybrid generators
-- 🗂️ Refactored architecture with base classes
-- 🛡️ Enhanced error handling with structured errors
-- 📦 Centralized session management
-- 🎯 Dynamic model discovery from API
-- ⚡ Improved retry logic with tenacity
-- 🧹 Better resource cleanup with weakref
+- 🎯 **SSE parsing**: Server-Sent Events for real-time responses
+- ⚡ **Iterators**: Both sync Iterator and async AsyncIterator support
 
 ## 🔗 Links
 
@@ -691,4 +685,4 @@ Made with 🌸 by the eclips team
 
 ---
 
-*This README reflects v0.2.2 with streaming support and the latest refactored architecture.*
+*This README reflects v0.2.3 with modular architecture and streaming support.*

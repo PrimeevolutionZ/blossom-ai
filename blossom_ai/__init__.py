@@ -1,9 +1,10 @@
-"""
-Blossom AI - Python Client
-"""
 
-from .blossom import Blossom
-from .errors import (
+# Main client from generators
+from .generators import Blossom
+
+# Core components
+from .core import (
+    # Errors
     BlossomError,
     ErrorType,
     ErrorContext,
@@ -12,8 +13,22 @@ from .errors import (
     AuthenticationError,
     ValidationError,
     RateLimitError,
+
+    # Models
+    ImageModel,
+    TextModel,
+    Voice,
 )
-from .models import ImageModel, TextModel, Voice
+
+# generators (pro using )
+from .generators import (
+    ImageGenerator,
+    AsyncImageGenerator,
+    TextGenerator,
+    AsyncTextGenerator,
+    AudioGenerator,
+    AsyncAudioGenerator,
+)
 
 __version__ = "0.2.3"
 
@@ -21,20 +36,26 @@ __all__ = [
     # Main client
     "Blossom",
 
-    # Base errors
+    # Errors
     "BlossomError",
     "ErrorType",
     "ErrorContext",
-
-    # Specific errors
     "NetworkError",
     "APIError",
     "AuthenticationError",
     "ValidationError",
     "RateLimitError",
 
-    # Models (optional, for autocomplete)
+    # Models
     "ImageModel",
     "TextModel",
     "Voice",
+
+    # Generators
+    "ImageGenerator",
+    "AsyncImageGenerator",
+    "TextGenerator",
+    "AsyncTextGenerator",
+    "AudioGenerator",
+    "AsyncAudioGenerator",
 ]
