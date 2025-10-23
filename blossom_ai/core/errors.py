@@ -1,5 +1,5 @@
 """
-Blossom AI - Error Handling (Refactored)
+Blossom AI - Error Handling (Enhanced)
 Enhanced error handling with context and better diagnostics
 """
 
@@ -21,6 +21,7 @@ class ErrorType:
     INVALID_PARAM = "INVALID_PARAMETER"
     AUTH = "AUTHENTICATION_ERROR"
     RATE_LIMIT = "RATE_LIMIT_ERROR"
+    STREAM = "STREAM_ERROR"
     UNKNOWN = "UNKNOWN_ERROR"
 
 
@@ -35,6 +36,7 @@ class ErrorContext:
     url: Optional[str] = None
     method: Optional[str] = None
     status_code: Optional[int] = None
+    request_id: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:
@@ -47,6 +49,9 @@ class ErrorContext:
 
         if self.status_code:
             parts.append(f"status={self.status_code}")
+
+        if self.request_id:
+            parts.append(f"request_id={self.request_id}")
 
         if self.metadata:
             meta_str = ", ".join(f"{k}={v}" for k, v in self.metadata.items())
@@ -68,13 +73,15 @@ class BlossomError(Exception):
             error_type: str = ErrorType.UNKNOWN,
             suggestion: Optional[str] = None,
             context: Optional[ErrorContext] = None,
-            original_error: Optional[Exception] = None
+            original_error: Optional[Exception] = None,
+            retry_after: Optional[int] = None
     ):
         self.message = message
         self.error_type = error_type
         self.suggestion = suggestion
         self.context = context
         self.original_error = original_error
+        self.retry_after = retry_after
 
         # Build error message
         error_parts = [f"[{error_type}] {message}"]
@@ -84,6 +91,9 @@ class BlossomError(Exception):
 
         if suggestion:
             error_parts.append(f"Suggestion: {suggestion}")
+
+        if retry_after:
+            error_parts.append(f"Retry after: {retry_after}s")
 
         if original_error:
             error_parts.append(f"Original: {type(original_error).__name__}: {str(original_error)}")
@@ -132,8 +142,15 @@ class ValidationError(BlossomError):
 class RateLimitError(BlossomError):
     """Rate limit errors"""
 
+    def __init__(self, message: str, retry_after: Optional[int] = None, **kwargs):
+        super().__init__(message, error_type=ErrorType.RATE_LIMIT, retry_after=retry_after, **kwargs)
+
+
+class StreamError(BlossomError):
+    """Streaming-related errors"""
+
     def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.RATE_LIMIT, **kwargs)
+        super().__init__(message, error_type=ErrorType.STREAM, **kwargs)
 
 
 # ============================================================================
@@ -174,7 +191,8 @@ def handle_request_error(
         e: Exception,
         operation: str,
         url: Optional[str] = None,
-        method: Optional[str] = None
+        method: Optional[str] = None,
+        request_id: Optional[str] = None
 ) -> BlossomError:
     """
     Convert request exceptions to BlossomError
@@ -184,6 +202,7 @@ def handle_request_error(
         operation: Description of the operation
         url: Request URL if available
         method: HTTP method if available
+        request_id: Request ID for tracing
 
     Returns:
         BlossomError with appropriate context
@@ -191,7 +210,8 @@ def handle_request_error(
     context = ErrorContext(
         operation=operation,
         url=url,
-        method=method
+        method=method,
+        request_id=request_id
     )
 
     # Handle aiohttp client errors
@@ -208,10 +228,19 @@ def handle_request_error(
                 )
 
             if e.status == 429:
+                # Try to extract retry-after header
+                retry_after = None
+                if hasattr(e, 'headers') and 'Retry-After' in e.headers:
+                    try:
+                        retry_after = int(e.headers['Retry-After'])
+                    except (ValueError, TypeError):
+                        retry_after = 60
+
                 return RateLimitError(
                     message=f"Rate limit exceeded: {e.message}",
                     context=context,
-                    suggestion="Please wait before making more requests",
+                    retry_after=retry_after or 60,
+                    suggestion=f"Please wait {retry_after or 60} seconds before making more requests",
                     original_error=e
                 )
 
@@ -242,10 +271,19 @@ def handle_request_error(
             )
 
         if e.response.status_code == 429:
+            # Extract Retry-After header
+            retry_after = None
+            if 'Retry-After' in e.response.headers:
+                try:
+                    retry_after = int(e.response.headers['Retry-After'])
+                except (ValueError, TypeError):
+                    retry_after = 60
+
             return RateLimitError(
                 message="Rate limit exceeded",
                 context=context,
-                suggestion="Please wait before making more requests",
+                retry_after=retry_after or 60,
+                suggestion=f"Please wait {retry_after or 60} seconds before making more requests",
                 original_error=e
             )
 

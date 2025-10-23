@@ -1,6 +1,6 @@
 """
-Blossom AI - Session Manager
-Centralized session lifecycle management for sync and async HTTP clients
+Blossom AI - Session Manager (Enhanced)
+Enhanced session lifecycle management with better error handling
 """
 
 import asyncio
@@ -24,6 +24,14 @@ class SyncSessionManager:
 
         if self._session is None:
             self._session = requests.Session()
+            # Set reasonable defaults
+            adapter = requests.adapters.HTTPAdapter(
+                pool_connections=10,
+                pool_maxsize=20,
+                max_retries=0  # We handle retries ourselves
+            )
+            self._session.mount('http://', adapter)
+            self._session.mount('https://', adapter)
 
         return self._session
 
@@ -77,14 +85,35 @@ class AsyncSessionManager:
             # Check if session exists and is valid
             if loop_id in self._sessions:
                 session = self._sessions[loop_id]
-                if not session.closed:
-                    return session
-                else:
-                    # Remove closed session
-                    del self._sessions[loop_id]
+                try:
+                    # Verify session is actually usable
+                    if not session.closed and session.connector is not None:
+                        return session
+                except Exception:
+                    pass
 
-            # Create new session
-            session = aiohttp.ClientSession()
+                # Remove broken session
+                del self._sessions[loop_id]
+
+            # Create new session with optimized settings
+            connector = aiohttp.TCPConnector(
+                limit=100,  # Total connection limit
+                limit_per_host=30,  # Per-host limit
+                ttl_dns_cache=300,  # DNS cache TTL in seconds
+                enable_cleanup_closed=True
+            )
+
+            timeout = aiohttp.ClientTimeout(
+                total=None,  # We handle timeout per-request
+                connect=30,
+                sock_read=30
+            )
+
+            session = aiohttp.ClientSession(
+                connector=connector,
+                timeout=timeout
+            )
+
             self._sessions[loop_id] = session
 
             # Register cleanup on first session creation
@@ -109,20 +138,23 @@ class AsyncSessionManager:
                 async def close_all():
                     for session in list(sessions_dict.values()):
                         if not session.closed:
-                            await session.close()
+                            try:
+                                await session.close()
+                            except Exception:
+                                pass
 
                 loop.run_until_complete(close_all())
                 loop.close()
             except Exception:
                 pass
 
-        # Use weakref.finalize on self, not on dict
+        # Use weakref.finalize on self
         weakref.finalize(self, cleanup, None)
 
     async def close(self):
         """Close all sessions"""
         async with self._lock:
-            for session in self._sessions.values():
+            for loop_id, session in list(self._sessions.items()):
                 if not session.closed:
                     try:
                         await session.close()
@@ -141,6 +173,5 @@ class AsyncSessionManager:
 
     def __del__(self):
         """Cleanup on destruction"""
-        # Don't create threads during interpreter shutdown
         # weakref.finalize will handle cleanup if possible
         pass

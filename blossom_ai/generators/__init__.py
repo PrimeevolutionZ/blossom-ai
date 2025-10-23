@@ -9,6 +9,7 @@ from .generators import (
     AsyncTextGenerator,
     AudioGenerator,
     AsyncAudioGenerator,
+    StreamChunk,
 )
 
 from .blossom import Blossom
@@ -20,5 +21,6 @@ __all__ = [
     "AsyncTextGenerator",
     "AudioGenerator",
     "AsyncAudioGenerator",
+    "StreamChunk",
     "Blossom",
 ]

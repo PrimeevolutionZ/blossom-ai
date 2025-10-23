@@ -1,10 +1,12 @@
 """
-Blossom AI - Base Generator Classes (с поддержкой streaming)
-Unified base classes for all generators with retry logic and error handling
+Blossom AI - Base Generator Classes (Enhanced)
+Enhanced version with streaming timeout, circuit breaker, and request tracing
 """
 
 import json
 import asyncio
+import time
+import uuid
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 from urllib.parse import quote
@@ -14,13 +16,18 @@ import aiohttp
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from blossom_ai.core.session_manager import SyncSessionManager, AsyncSessionManager
-from blossom_ai.core.errors import BlossomError, ErrorType, handle_request_error, print_info, print_warning
+from blossom_ai.core.errors import (
+    BlossomError, ErrorType, StreamError,
+    handle_request_error, print_info, print_warning, print_debug
+)
 from blossom_ai.core.models import DynamicModel
+
 
 class BaseGenerator(ABC):
     """Abstract base class for all generators"""
 
     MAX_PROMPT_LENGTH = 10000  # Default, can be overridden
+    STREAM_CHUNK_TIMEOUT = 30  # Seconds without data in streaming
 
     def __init__(self, base_url: str, timeout: int, api_token: Optional[str] = None):
         self.base_url = base_url
@@ -40,6 +47,10 @@ class BaseGenerator(ABC):
         """URL encode prompt"""
         return quote(prompt)
 
+    def _generate_request_id(self) -> str:
+        """Generate unique request ID for tracing"""
+        return str(uuid.uuid4())
+
     def _add_auth_params(self, params: Dict[str, Any], method: str = 'GET') -> Dict[str, Any]:
         """Add authentication parameters based on method"""
         if not self.api_token:
@@ -53,12 +64,17 @@ class BaseGenerator(ABC):
             params['token'] = self.api_token
             return params
 
-    def _get_auth_headers(self, method: str = 'GET') -> Dict[str, str]:
-        """Get authentication headers"""
-        if not self.api_token or method.upper() != 'POST':
-            return {}
+    def _get_auth_headers(self, method: str = 'GET', request_id: Optional[str] = None) -> Dict[str, str]:
+        """Get authentication headers with request ID"""
+        headers = {}
 
-        return {'Authorization': f'Bearer {self.api_token}'}
+        if self.api_token and method.upper() == 'POST':
+            headers['Authorization'] = f'Bearer {self.api_token}'
+
+        if request_id:
+            headers['X-Request-ID'] = request_id
+
+        return headers
 
 
 class SyncGenerator(BaseGenerator):
@@ -85,13 +101,17 @@ class SyncGenerator(BaseGenerator):
         method: str,
         url: str,
         params: Optional[Dict] = None,
-        stream: bool = False,  # НОВЫЙ ПАРАМЕТР для streaming
+        stream: bool = False,
+        request_id: Optional[str] = None,
         **kwargs
     ) -> requests.Response:
         """Make HTTP request with retry logic and streaming support"""
+        if request_id is None:
+            request_id = self._generate_request_id()
+
         try:
             kwargs.setdefault("timeout", self.timeout)
-            kwargs['stream'] = stream  # Передаем stream в requests
+            kwargs['stream'] = stream
 
             # Add auth
             if params is None:
@@ -99,17 +119,18 @@ class SyncGenerator(BaseGenerator):
             params = self._add_auth_params(params, method)
 
             headers = kwargs.get('headers', {})
-            headers.update(self._get_auth_headers(method))
+            headers.update(self._get_auth_headers(method, request_id))
             kwargs['headers'] = headers
+
+            print_debug(f"Request {request_id}: {method} {url}")
 
             response = self.session.request(method, url, params=params, **kwargs)
 
-            # Для streaming не делаем raise_for_status сразу
-            # Это позволит обработать ошибки в streaming контексте
+            # For non-streaming, check status immediately
             if not stream:
                 response.raise_for_status()
             else:
-                # Для streaming проверяем статус, но не читаем тело
+                # For streaming, check status but don't read body
                 if response.status_code >= 400:
                     response.raise_for_status()
 
@@ -129,18 +150,70 @@ class SyncGenerator(BaseGenerator):
                     suggestion="Visit https://auth.pollinations.ai to upgrade or check your API token."
                 )
 
+            if e.response.status_code == 429:
+                # Extract Retry-After header
+                retry_after = e.response.headers.get('Retry-After', '60')
+                try:
+                    retry_after_seconds = int(retry_after)
+                except (ValueError, TypeError):
+                    retry_after_seconds = 60
+
+                raise BlossomError(
+                    message="Rate limit exceeded",
+                    error_type=ErrorType.RATE_LIMIT,
+                    retry_after=retry_after_seconds,
+                    suggestion=f"Wait {retry_after_seconds} seconds before retrying"
+                )
+
             if e.response.status_code == 502:
                 print_info(f"Retrying 502 error for {url}...")
                 raise
 
-            raise handle_request_error(e, f"making {method} request to {url}")
+            raise handle_request_error(e, f"making {method} request to {url}", request_id=request_id)
 
         except requests.exceptions.ChunkedEncodingError:
             print_info(f"Retrying ChunkedEncodingError for {url}...")
             raise
 
         except requests.exceptions.RequestException as e:
-            raise handle_request_error(e, f"making {method} request to {url}")
+            raise handle_request_error(e, f"making {method} request to {url}", request_id=request_id)
+
+    def _stream_with_timeout(self, response, chunk_timeout: Optional[int] = None) -> iter:
+        """
+        Stream response with timeout between chunks
+
+        Args:
+            response: requests.Response object
+            chunk_timeout: Timeout in seconds for receiving each chunk
+
+        Yields:
+            Decoded lines from response
+
+        Raises:
+            StreamError: If no data received within timeout
+        """
+        if chunk_timeout is None:
+            chunk_timeout = self.STREAM_CHUNK_TIMEOUT
+
+        last_data_time = time.time()
+
+        try:
+            for line in response.iter_lines(decode_unicode=True, chunk_size=1024):
+                current_time = time.time()
+
+                # Check timeout
+                if current_time - last_data_time > chunk_timeout:
+                    raise StreamError(
+                        message=f"Stream timeout: no data received for {chunk_timeout}s",
+                        suggestion="Check your connection or increase timeout"
+                    )
+
+                if line:
+                    last_data_time = current_time
+                    yield line
+
+        finally:
+            response.close()
 
     def _fetch_list(self, endpoint: str, fallback: list) -> list:
         """Fetch list from API endpoint with fallback"""
@@ -206,7 +279,8 @@ class AsyncGenerator(BaseGenerator):
         url: str,
         params: Optional[Dict] = None,
         max_retries: int = 3,
-        stream: bool = False,  # НОВЫЙ ПАРАМЕТР для streaming
+        stream: bool = False,
+        request_id: Optional[str] = None,
         **kwargs
     ):
         """
@@ -216,6 +290,9 @@ class AsyncGenerator(BaseGenerator):
             bytes if stream=False
             aiohttp.ClientResponse if stream=True (caller must handle closing)
         """
+        if request_id is None:
+            request_id = self._generate_request_id()
+
         session = await self._get_session()
 
         retry_count = 0
@@ -232,10 +309,12 @@ class AsyncGenerator(BaseGenerator):
 
                 # Add authentication
                 params = self._add_auth_params(params, method)
-                headers.update(self._get_auth_headers(method))
+                headers.update(self._get_auth_headers(method, request_id))
 
-                # Для streaming не используем context manager
-                # Возвращаем response объект, чтобы caller мог читать stream
+                print_debug(f"Async Request {request_id}: {method} {url}")
+
+                # For streaming, don't use context manager
+                # Return response object so caller can read stream
                 if stream:
                     response = await session.request(
                         method,
@@ -246,9 +325,9 @@ class AsyncGenerator(BaseGenerator):
                         **kwargs
                     )
 
-                    # Проверяем статус
+                    # Check status
                     if response.status >= 400:
-                        await response.read()  # Читаем тело для ошибки
+                        await response.read()  # Read body for error
                         await response.close()
 
                         if response.status == 402:
@@ -258,6 +337,20 @@ class AsyncGenerator(BaseGenerator):
                                 suggestion="Visit https://auth.pollinations.ai to upgrade."
                             )
 
+                        if response.status == 429:
+                            retry_after = response.headers.get('Retry-After', '60')
+                            try:
+                                retry_after_seconds = int(retry_after)
+                            except (ValueError, TypeError):
+                                retry_after_seconds = 60
+
+                            raise BlossomError(
+                                message="Rate limit exceeded",
+                                error_type=ErrorType.RATE_LIMIT,
+                                retry_after=retry_after_seconds,
+                                suggestion=f"Wait {retry_after_seconds}s before retrying"
+                            )
+
                         raise aiohttp.ClientResponseError(
                             request_info=response.request_info,
                             history=response.history,
@@ -265,11 +358,11 @@ class AsyncGenerator(BaseGenerator):
                             message=f"HTTP {response.status}"
                         )
 
-                    # Возвращаем response для streaming
-                    # ВАЖНО: caller должен закрыть response!
+                    # Return response for streaming
+                    # IMPORTANT: caller must close response!
                     return response
 
-                # Обычный запрос (не streaming)
+                # Normal request (non-streaming)
                 async with session.request(
                     method,
                     url,
@@ -292,6 +385,20 @@ class AsyncGenerator(BaseGenerator):
                                 message=f"Payment Required: {error_msg}",
                                 error_type=ErrorType.API,
                                 suggestion="Visit https://auth.pollinations.ai to upgrade."
+                            )
+
+                        if response.status == 429:
+                            retry_after = response.headers.get('Retry-After', '60')
+                            try:
+                                retry_after_seconds = int(retry_after)
+                            except (ValueError, TypeError):
+                                retry_after_seconds = 60
+
+                            raise BlossomError(
+                                message="Rate limit exceeded",
+                                error_type=ErrorType.RATE_LIMIT,
+                                retry_after=retry_after_seconds,
+                                suggestion=f"Wait {retry_after_seconds}s before retrying"
                             )
 
                         if response.status == 502 and retry_count < max_retries - 1:
@@ -319,7 +426,7 @@ class AsyncGenerator(BaseGenerator):
                         await asyncio.sleep(2 ** retry_count)
                         continue
 
-                raise handle_request_error(e, f"making {method} request to {url}")
+                raise handle_request_error(e, f"making {method} request to {url}", request_id=request_id)
 
             except asyncio.TimeoutError:
                 raise BlossomError(
@@ -330,7 +437,7 @@ class AsyncGenerator(BaseGenerator):
 
         # Max retries exceeded
         if last_exception:
-            raise handle_request_error(last_exception, f"making {method} request (max retries)")
+            raise handle_request_error(last_exception, f"making {method} request (max retries)", request_id=request_id)
 
         raise BlossomError(
             message=f"Max retries exceeded for {method} request to {url}",

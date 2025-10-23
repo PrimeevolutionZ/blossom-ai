@@ -2,20 +2,39 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
+[![Version](https://img.shields.io/badge/version-0.2.4-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
 
 **A beautiful Python SDK for Pollinations.AI - Generate images, text, and audio with AI.**
 
 Blossom AI is a comprehensive, easy-to-use Python library that provides unified access to Pollinations.AI's powerful AI generation services. Create stunning images, generate text with various models, and convert text to speech with multiple voices - all through a beautifully designed, intuitive API.
 
-## ✨ What's New in v0.2.3
-- 📦 **Update from ME :D ** - I have changed the internal architecture of the package, which will make it possible to better maintain and expand the package. this is not a mandatory update. Nothing has changed for the user.
-- 🔧 **Improved Code Organization** - Better maintainability and extensibility
+## ✨ What's New in v0.2.4
+
+### 🔥 Enhanced Streaming & Error Handling
+
+- **🛡️ Stream Timeout Protection**: Automatic timeout detection prevents infinite hangs during streaming (30s default)
+- **⏱️ Rate Limit Intelligence**: Smart `Retry-After` header parsing with automatic retry suggestions
+- **🔍 Request Tracing**: Unique request IDs for better debugging and error tracking
+- **🧹 Improved Cleanup**: Guaranteed resource cleanup even if streams are interrupted
+- **⚡ Better Error Messages**: Enhanced error context with request IDs and retry information
+- **🔧 Connection Pool Optimization**: Better session management for high-load scenarios
+- **test_examples.py updated**
+### New Error Type
+- **StreamError**: Dedicated error type for streaming-specific issues with helpful suggestions
+
+### Enhanced Error Information
+All errors now include:
+- Request ID for tracing
+- Retry-After time for rate limits
+- Stream timeout information
+- Better suggestions for recovery
+
 ## ⚠️ Important Notes
 
 - **Audio Generation**: Requires authentication (API token)
 - **Hybrid API**: Automatically detects sync/async context - no need for separate imports
 - **Streaming**: Works in both sync and async contexts with iterators
+- **Stream Timeout**: Default 30 seconds between chunks - automatically raises error if no data
 - **Robust Error Handling**: Graceful fallbacks when API endpoints are unavailable
 - **Resource Management**: Use context managers for proper cleanup
 
@@ -23,14 +42,15 @@ Blossom AI is a comprehensive, easy-to-use Python library that provides unified 
 
 - 🖼️ **Image Generation** - Create stunning images from text descriptions
 - 📝 **Text Generation** - Generate text with various AI models
-- 🌊 **Streaming** - Real-time text generation with streaming responses
+- 🌊 **Streaming** - Real-time text generation with timeout protection
 - 🎙️ **Audio Generation** - Text-to-speech with multiple voices
 - 🚀 **Unified API** - Same code works in sync and async contexts
 - 🎨 **Beautiful Errors** - Helpful error messages with actionable suggestions
 - 🔄 **Reproducible** - Use seeds for consistent results
 - ⚡ **Smart Async** - Automatically switches between sync/async modes
-- 🛡️ **Robust** - Graceful error handling with fallbacks
+- 🛡️ **Robust** - Graceful error handling with fallbacks and timeout protection
 - 🧹 **Clean** - Proper resource management and cleanup
+- 🔍 **Traceable** - Request IDs for debugging
 
 ## 📦 Installation
 
@@ -53,7 +73,7 @@ ai.image.save("a beautiful sunset over mountains", "sunset.jpg")
 response = ai.text.generate("Explain quantum computing in simple terms")
 print(response)
 
-# Stream text in real-time
+# Stream text in real-time (with automatic timeout protection)
 for chunk in ai.text.generate("Tell me a story", stream=True):
     print(chunk, end='', flush=True)
 
@@ -64,7 +84,7 @@ ai.audio.save("Hello, welcome to Blossom AI!", "welcome.mp3", voice="nova")
 
 ## 🌊 Streaming Support
 
-Get responses in real-time as they're generated:
+Get responses in real-time as they're generated, with built-in timeout protection:
 
 ### Synchronous Streaming
 
@@ -73,7 +93,7 @@ from blossom_ai import Blossom
 
 ai = Blossom()
 
-# Simple streaming
+# Simple streaming with automatic timeout protection
 for chunk in ai.text.generate("Write a poem about AI", stream=True):
     print(chunk, end='', flush=True)
 
@@ -101,7 +121,7 @@ from blossom_ai import Blossom
 async def stream_example():
     ai = Blossom()
     
-    # Async streaming
+    # Async streaming with timeout protection
     async for chunk in await ai.text.generate("Tell me a story", stream=True):
         print(chunk, end='', flush=True)
     
@@ -170,6 +190,23 @@ for chunk in ai.text.generate("Write a paragraph", stream=True):
     word_count += len(chunk.split())
 
 print(f"\nTotal words: {word_count}")
+```
+
+### Handling Stream Errors
+
+```python
+from blossom_ai import Blossom, StreamError
+
+ai = Blossom()
+
+try:
+    for chunk in ai.text.generate("Long content", stream=True):
+        print(chunk, end='', flush=True)
+except StreamError as e:
+    print(f"\n⚠️ Stream error: {e.message}")
+    print(f"Suggestion: {e.suggestion}")
+    # Output: "Stream timeout: no data for 30s"
+    # Suggestion: "Check connection or increase timeout"
 ```
 
 ## 📄 Unified Sync/Async API
@@ -258,7 +295,7 @@ response = ai.text.generate(
     json_mode=True
 )
 
-# Streaming
+# Streaming (with automatic timeout protection)
 for chunk in ai.text.generate("Tell a story", stream=True):
     print(chunk, end='', flush=True)
 
@@ -403,7 +440,7 @@ models = ai.image.models()  # Returns list of model names
 # Generate text (returns str or Iterator[str] if stream=True)
 text = ai.text.generate(prompt, **options)
 
-# Generate with streaming
+# Generate with streaming (automatic timeout protection)
 for chunk in ai.text.generate(prompt, stream=True):
     print(chunk, end='')
 
@@ -443,7 +480,8 @@ from blossom_ai import (
     APIError,
     AuthenticationError,
     ValidationError,
-    RateLimitError
+    RateLimitError,
+    StreamError  # NEW in v0.2.4
 )
 
 ai = Blossom()
@@ -465,16 +503,27 @@ except NetworkError as e:
     
 except RateLimitError as e:
     print(f"Too many requests: {e.message}")
+    if e.retry_after:
+        print(f"Retry after: {e.retry_after} seconds")
+    
+except StreamError as e:  # NEW in v0.2.4
+    print(f"Stream error: {e.message}")
+    print(f"Suggestion: {e.suggestion}")
+    # Example: "Stream timeout: no data for 30s"
     
 except APIError as e:
     print(f"API error: {e.message}")
-    print(f"Status: {e.context.status_code if e.context else 'unknown'}")
+    if e.context:
+        print(f"Status: {e.context.status_code}")
+        print(f"Request ID: {e.context.request_id}")
     
 except BlossomError as e:
     # Catch-all for any Blossom error
     print(f"Error type: {e.error_type}")
     print(f"Message: {e.message}")
     print(f"Suggestion: {e.suggestion}")
+    if e.context and e.context.request_id:
+        print(f"Request ID: {e.context.request_id}")  # For debugging
     if e.original_error:
         print(f"Original error: {e.original_error}")
 ```
@@ -485,10 +534,19 @@ except BlossomError as e:
 - **APIError** - HTTP errors from API (4xx, 5xx)
 - **AuthenticationError** - Invalid or missing API token (401)
 - **ValidationError** - Invalid parameters
-- **RateLimitError** - Too many requests (429)
+- **RateLimitError** - Too many requests (429) with `retry_after` info
+- **StreamError** - Streaming-specific errors (timeouts, interruptions) **NEW**
 - **BlossomError** - Base error class for all errors
 
-## 🔐 Authentication
+### Enhanced Error Context (v0.2.4)
+
+All errors now include:
+```python
+error.context.request_id  # Unique ID for tracing
+error.retry_after          # Seconds to wait (for RateLimitError)
+```
+
+## 📝 Authentication
 
 For higher rate limits and advanced features, get an API token:
 
@@ -521,7 +579,7 @@ async def generate_content():
     text = await ai.text.generate("story")
     audio = await ai.audio.generate("speech")
     
-    # Streaming with async
+    # Streaming with async (with timeout protection)
     async for chunk in await ai.text.generate("poem", stream=True):
         print(chunk, end='')
     
@@ -564,23 +622,26 @@ Blossom AI includes several robustness features:
 - Automatic retry with exponential backoff for failed requests
 - Configurable retry attempts (default: 3)
 - Smart retry only for retryable errors (502, timeouts)
+- **NEW**: Respects `Retry-After` header for rate limits
+
+### Streaming Protection (NEW in v0.2.4)
+- **Automatic timeout detection**: 30 seconds between chunks by default
+- **Graceful error handling**: Clear messages when streams timeout
+- **Resource cleanup**: Guaranteed cleanup even if stream is interrupted
+- **Request tracing**: Every stream has a unique request ID
 
 ### Resource Management
 - Centralized session management with `SessionManager`
 - Proper cleanup with context managers
 - Weakref-based cleanup to prevent memory leaks
 - Thread-safe async session handling across event loops
-
-### Streaming Support
-- Server-Sent Events (SSE) parsing
-- Works in both sync and async contexts
-- Proper error handling during streaming
-- Resource cleanup even if stream is interrupted
+- **NEW**: Optimized connection pool settings
 
 ### Error Recovery
 - Graceful fallbacks when API endpoints are unavailable
 - Dynamic model discovery with fallback to defaults
 - Continues operation even when some endpoints fail
+- **NEW**: Enhanced error messages with request IDs and retry information
 
 ### Dynamic Models
 - Models automatically update from API responses
@@ -599,7 +660,7 @@ ai = Blossom(timeout=60)  # 60 seconds
 ### Debug Mode
 
 ```python
-# Enable debug mode for detailed logging
+# Enable debug mode for detailed logging (includes request IDs)
 ai = Blossom(debug=True)
 ```
 
@@ -607,17 +668,18 @@ ai = Blossom(debug=True)
 
 ```python
 import asyncio
-from blossom_ai import Blossom
+from blossom_ai import Blossom, StreamError
 
 async def stream_with_timeout():
     ai = Blossom()
     
     try:
-        async with asyncio.timeout(5):  # 5 second timeout
-            async for chunk in await ai.text.generate("Long story", stream=True):
-                print(chunk, end='')
-    except asyncio.TimeoutError:
-        print("\n⚠️ Stream timed out")
+        # Built-in timeout protection (30s between chunks)
+        async for chunk in await ai.text.generate("Long story", stream=True):
+            print(chunk, end='')
+    except StreamError as e:
+        print(f"\n⚠️ {e.message}")
+        print(f"Suggestion: {e.suggestion}")
 
 asyncio.run(stream_with_timeout())
 ```
@@ -635,13 +697,34 @@ async with Blossom() as ai:
     # Resources auto-cleaned
     pass
 ```
+
+### Handling Rate Limits
+
+```python
+from blossom_ai import Blossom, RateLimitError
+import time
+
+ai = Blossom()
+
+try:
+    response = ai.text.generate("Hello")
+except RateLimitError as e:
+    print(f"Rate limited: {e.message}")
+    if e.retry_after:
+        print(f"Waiting {e.retry_after} seconds...")
+        time.sleep(e.retry_after)
+        # Retry request
+        response = ai.text.generate("Hello")
+```
+
 ### Key Components:
-- **Base Generators** - `SyncGenerator` and `AsyncGenerator` base classes
-- **Session Managers** - Centralized session lifecycle management
+- **Base Generators** - `SyncGenerator` and `AsyncGenerator` base classes with timeout protection
+- **Session Managers** - Centralized session lifecycle management with connection pooling
 - **Dynamic Models** - Models that update from API at runtime
 - **Hybrid Generators** - Automatic sync/async detection
-- **Streaming Support** - SSE parsing with Iterator/AsyncIterator
-- **Structured Errors** - Rich error context with suggestions
+- **Streaming Support** - SSE parsing with Iterator/AsyncIterator and timeout protection
+- **Structured Errors** - Rich error context with suggestions and request IDs
+- **Request Tracing** - Unique IDs for debugging and error correlation
 
 ## 📄 License
 
@@ -659,16 +742,21 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📋 Changelog
 
-### v0.2.3 (Current)
+### v0.2.4 (Current)
+- 🛡️ **Stream Timeout Protection**: Automatic detection and handling of streaming timeouts (30s default)
+- ⏱️ **Smart Rate Limiting**: `Retry-After` header parsing with intelligent retry suggestions
+- 🔍 **Request Tracing**: Unique request IDs for better debugging and error correlation
+- 🧹 **Enhanced Cleanup**: Guaranteed resource cleanup for interrupted streams
+- ⚡ **Better Error Messages**: Request IDs, retry information, and stream status in errors
+- 🔧 **Connection Optimization**: Improved session management for high-load scenarios
+- 📦 **New StreamError**: Dedicated error type for streaming-specific issues
+- 🎯 **Enhanced Error Context**: All errors include request_id and retry_after when applicable
+
+### v0.2.3
 - 📦 **Modular architecture**: Reorganized into `core` and `generators` modules
 - 🔧 **Better imports**: Cleaner, more intuitive import structure
 - 🛠️ **Improved maintainability**: Easier to extend and customize
 - 📚 **Better code organization**: Separation of concerns between core and generators
-
-### v0.2.2
-- 🌊 **NEW**: Streaming support for text generation (sync & async)
-- 🎯 **SSE parsing**: Server-Sent Events for real-time responses
-- ⚡ **Iterators**: Both sync Iterator and async AsyncIterator support
 
 ## 🔗 Links
 
@@ -685,4 +773,4 @@ Made with 🌸 by the eclips team
 
 ---
 
-*This README reflects v0.2.3 with modular architecture and streaming support.*
+*This README reflects v0.2.4 with enhanced streaming, error handling, and request tracing.*

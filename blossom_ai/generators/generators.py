@@ -1,12 +1,14 @@
 """
-Blossom AI - Generators
+Blossom AI - Generators (Enhanced)
+Enhanced with better streaming handling and error recovery
 """
 
 from typing import Optional, List, Dict, Any, Iterator, Union
 import json
+import asyncio
 
 from blossom_ai.generators.base_generator import SyncGenerator, AsyncGenerator, ModelAwareGenerator
-from blossom_ai.core.errors import BlossomError, ErrorType, print_warning
+from blossom_ai.core.errors import BlossomError, ErrorType, StreamError, print_warning, print_debug
 from blossom_ai.core.models import (
     ImageModel, TextModel, Voice,
     DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS, DEFAULT_VOICES
@@ -18,20 +20,21 @@ from blossom_ai.core.models import (
 # ============================================================================
 
 class StreamChunk:
-    """Представляет chunk из streaming ответа"""
-    def __init__(self, content: str, done: bool = False):
+    """Represents chunk from streaming response"""
+    def __init__(self, content: str, done: bool = False, error: Optional[str] = None):
         self.content = content
         self.done = done
+        self.error = error
 
     def __str__(self):
         return self.content
 
     def __repr__(self):
-        return f"StreamChunk(content={self.content!r}, done={self.done})"
+        return f"StreamChunk(content={self.content!r}, done={self.done}, error={self.error!r})"
 
 
 def _parse_sse_line(line: str) -> Optional[dict]:
-    """Парсит SSE строку"""
+    """Parse SSE line with better error handling"""
     if not line.strip():
         return None
 
@@ -41,13 +44,15 @@ def _parse_sse_line(line: str) -> Optional[dict]:
             return {'done': True}
         try:
             return json.loads(data_str)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            # Log invalid JSON for debugging
+            print_debug(f"Invalid SSE JSON: {data_str[:100]} | Error: {e}")
             return None
     return None
 
 
 # ============================================================================
-# IMAGE GENERATOR (без изменений)
+# IMAGE GENERATOR
 # ============================================================================
 
 class ImageGenerator(SyncGenerator, ModelAwareGenerator):
@@ -182,11 +187,11 @@ class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
 
 
 # ============================================================================
-# TEXT GENERATOR (С ПОДДЕРЖКОЙ STREAMING)
+# TEXT GENERATOR (ENHANCED STREAMING)
 # ============================================================================
 
 class TextGenerator(SyncGenerator, ModelAwareGenerator):
-    """Generate text using Pollinations.AI (Synchronous) with streaming support"""
+    """Generate text using Pollinations.AI (Synchronous) with enhanced streaming"""
 
     MAX_PROMPT_LENGTH = 10000
 
@@ -250,11 +255,11 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
 
     def _stream_response(self, response) -> Iterator[str]:
         """
-        Обрабатывает streaming ответ (SSE)
-        Yields текстовые chunks по мере их получения
+        Process streaming response (SSE) with timeout protection
+        Yields text chunks as they arrive
         """
         try:
-            for line in response.iter_lines(decode_unicode=True):
+            for line in self._stream_with_timeout(response):
                 if not line or not line.strip():
                     continue
 
@@ -265,14 +270,21 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
                 if parsed.get('done'):
                     break
 
-                # Извлекаем content из OpenAI формата
+                # Extract content from OpenAI format
                 if 'choices' in parsed and len(parsed['choices']) > 0:
                     delta = parsed['choices'][0].get('delta', {})
                     content = delta.get('content', '')
                     if content:
                         yield content
-        finally:
-            response.close()
+        except StreamError:
+            # Re-raise stream errors
+            raise
+        except Exception as e:
+            raise StreamError(
+                message=f"Error during streaming: {str(e)}",
+                suggestion="Try non-streaming mode or check your connection",
+                original_error=e
+            )
 
     def chat(
         self,
@@ -324,8 +336,9 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
                 result = response.json()
                 return result["choices"][0]["message"]["content"]
 
-        except Exception:
-            # Fallback to GET method (без streaming)
+        except Exception as e:
+            # Fallback to GET method (without streaming)
+            print_warning(f"Chat endpoint failed, falling back to GET method: {e}")
             user_msg = next((m["content"] for m in messages if m.get("role") == "user"), None)
             system_msg = next((m["content"] for m in messages if m.get("role") == "system"), None)
 
@@ -336,7 +349,7 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
                     system=system_msg,
                     json_mode=json_mode,
                     private=private,
-                    stream=False  # Fallback без streaming
+                    stream=False  # Fallback without streaming
                 )
             raise
 
@@ -348,7 +361,7 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
 
 
 class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
-    """Generate text using Pollinations.AI (Asynchronous) with streaming support"""
+    """Generate text using Pollinations.AI (Asynchronous) with enhanced streaming"""
 
     MAX_PROMPT_LENGTH = 10000
 
@@ -409,26 +422,30 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
 
     async def _stream_response(self, url: str, params: dict):
         """
-        Async generator для streaming ответа
+        Async generator for streaming response with timeout protection
         """
-        session = await self._get_session()
+        response = None
+        try:
+            response = await self._make_request("GET", url, params=params, stream=True)
 
-        # Добавляем auth
-        params = self._add_auth_params(params, 'GET')
-        headers = self._get_auth_headers('GET')
-
-        async with session.get(url, params=params, headers=headers) as response:
-            if response.status >= 400:
-                raise BlossomError(
-                    message=f"HTTP {response.status}",
-                    error_type=ErrorType.API
-                )
+            last_data_time = asyncio.get_event_loop().time()
+            chunk_timeout = self.STREAM_CHUNK_TIMEOUT
 
             async for line in response.content:
+                current_time = asyncio.get_event_loop().time()
+
+                # Check timeout
+                if current_time - last_data_time > chunk_timeout:
+                    raise StreamError(
+                        message=f"Stream timeout: no data for {chunk_timeout}s",
+                        suggestion="Check connection or increase timeout"
+                    )
+
                 line_str = line.decode('utf-8').strip()
                 if not line_str:
                     continue
 
+                last_data_time = current_time
                 parsed = _parse_sse_line(line_str)
                 if parsed is None:
                     continue
@@ -441,6 +458,18 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
                     content = delta.get('content', '')
                     if content:
                         yield content
+
+        except StreamError:
+            raise
+        except Exception as e:
+            raise StreamError(
+                message=f"Error during async streaming: {str(e)}",
+                suggestion="Try non-streaming mode or check your connection",
+                original_error=e
+            )
+        finally:
+            if response and not response.closed:
+                await response.close()
 
     async def chat(
         self,
@@ -487,8 +516,9 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
                 )
                 result = json.loads(data.decode('utf-8'))
                 return result["choices"][0]["message"]["content"]
-            except Exception:
+            except Exception as e:
                 # Fallback to GET
+                print_warning(f"Chat endpoint failed, falling back to GET method: {e}")
                 user_msg = next((m["content"] for m in messages if m.get("role") == "user"), None)
                 system_msg = next((m["content"] for m in messages if m.get("role") == "system"), None)
 
@@ -504,24 +534,35 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
                 raise
 
     async def _stream_chat_response(self, url: str, body: dict):
-        """Async generator для streaming chat ответа"""
-        session = await self._get_session()
+        """Async generator for streaming chat response with timeout"""
+        response = None
+        try:
+            response = await self._make_request(
+                "POST",
+                url,
+                json=body,
+                headers={"Content-Type": "application/json"},
+                stream=True
+            )
 
-        headers = {"Content-Type": "application/json"}
-        headers.update(self._get_auth_headers('POST'))
-
-        async with session.post(url, json=body, headers=headers) as response:
-            if response.status >= 400:
-                raise BlossomError(
-                    message=f"HTTP {response.status}",
-                    error_type=ErrorType.API
-                )
+            last_data_time = asyncio.get_event_loop().time()
+            chunk_timeout = self.STREAM_CHUNK_TIMEOUT
 
             async for line in response.content:
+                current_time = asyncio.get_event_loop().time()
+
+                # Check timeout
+                if current_time - last_data_time > chunk_timeout:
+                    raise StreamError(
+                        message=f"Stream timeout: no data for {chunk_timeout}s",
+                        suggestion="Check connection or increase timeout"
+                    )
+
                 line_str = line.decode('utf-8').strip()
                 if not line_str:
                     continue
 
+                last_data_time = current_time
                 parsed = _parse_sse_line(line_str)
                 if parsed is None:
                     continue
@@ -535,6 +576,18 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
                     if content:
                         yield content
 
+        except StreamError:
+            raise
+        except Exception as e:
+            raise StreamError(
+                message=f"Error during async chat streaming: {str(e)}",
+                suggestion="Try non-streaming mode or check your connection",
+                original_error=e
+            )
+        finally:
+            if response and not response.closed:
+                await response.close()
+
     async def models(self) -> List[str]:
         if self._models_cache is None:
             models = await self._fetch_list("models", self._fallback_models)
@@ -543,7 +596,7 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
 
 
 # ============================================================================
-# AUDIO GENERATOR (без изменений)
+# AUDIO GENERATOR
 # ============================================================================
 
 class AudioGenerator(SyncGenerator, ModelAwareGenerator):

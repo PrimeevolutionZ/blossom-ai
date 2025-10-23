@@ -11,6 +11,7 @@ from .errors import (
     AuthenticationError,
     ValidationError,
     RateLimitError,
+    StreamError,
 )
 
 from .models import (
@@ -32,6 +33,7 @@ __all__ = [
     "AuthenticationError",
     "ValidationError",
     "RateLimitError",
+    "StreamError",
 
     # Models
     "ImageModel",
