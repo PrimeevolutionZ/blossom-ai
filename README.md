@@ -53,16 +53,16 @@ with Blossom() as ai:
 
 ## 📚 Documentation
 
-- **[Installation & Setup](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/docs/INSTALLATION.md )**
-- **[Image Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/docs/IMAGE_GENERATION.md )**
-- **[Text Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/docs/TEXT_GENERATION.md )**
-- **[Audio Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/docs/AUDIO_GENERATION.md )**
-- **[Resource Management & Best Practices](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/docs/RESOURCE_MANAGEMENT.md )**
-- **[Discord Bot Tutorial](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/docs/DISCORD_BOT.md )**
-- **[Telegram Bot Tutorial](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/docs/TELEGRAM_BOT.md )**
-- **[Error Handling](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/docs/ERROR_HANDLING.md )**
-- **[API Reference](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/docs/API_REFERENCE.md )**
-- **[Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/docs/CHANGELOG.md )**
+- **[Installation & Setup](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INSTALLATION.md )**
+- **[Image Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/IMAGE_GENERATION.md )**
+- **[Text Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/TEXT_GENERATION.md )**
+- **[Audio Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/AUDIO_GENERATION.md )**
+- **[Resource Management & Best Practices](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/RESOURCE_MANAGEMENT.md )**
+- **[Discord Bot Tutorial](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/DISCORD_BOT.md )**
+- **[Telegram Bot Tutorial](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/TELEGRAM_BOT.md )**
+- **[Error Handling](https://github.com/PrimeevolutionZ/blossom-ai/blob/masterblossom_ai/docs/ERROR_HANDLING.md )**
+- **[API Reference](https://github.com/PrimeevolutionZ/blossom-ai/blob/masterblossom_ai/docs/API_REFERENCE.md )**
+- **[Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md )**
 
 
 ## 🤝 Contributing
