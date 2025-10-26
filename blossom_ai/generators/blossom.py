@@ -53,15 +53,55 @@ class HybridGenerator:
 
 
 class HybridImageGenerator(HybridGenerator):
-    """Hybrid image generator."""
+    """Hybrid image generator with URL generation support."""
 
     def generate(self, prompt: str, **kwargs) -> bytes:
+        """
+        Generate an image and return raw bytes
+
+        Args:
+            prompt: Text description of the image
+            **kwargs: Additional parameters (model, width, height, seed, etc.)
+
+        Returns:
+            bytes: Image data
+        """
         return self._call("generate", prompt, **kwargs)
 
+    def generate_url(self, prompt: str, **kwargs) -> str:
+        """
+        Generate image URL without downloading the image
+
+        Args:
+            prompt: Text description of the image
+            **kwargs: Additional parameters (model, width, height, seed, nologo, private, enhance, safe, referrer)
+
+        Returns:
+            str: URL of the generated image
+
+        Example:
+            >>> client = Blossom()
+            >>> url = client.image.generate_url("a beautiful sunset", seed=42, nologo=True)
+            >>> print(url)
+        """
+        return self._call("generate_url", prompt, **kwargs)
+
     def save(self, prompt: str, filename: str, **kwargs) -> str:
+        """
+        Generate and save image to file
+
+        Args:
+            prompt: Text description of the image
+            filename: Path where to save the image
+            **kwargs: Additional parameters
+
+        Returns:
+            str: Path to saved file
+        """
         return self._call("save", prompt, filename, **kwargs)
 
     def models(self) -> list:
+        """Get list of available image models"""
         return self._call("models")
 
 

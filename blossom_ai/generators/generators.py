@@ -1,9 +1,10 @@
 """
 Blossom AI - Generators (Enhanced)
-Enhanced with better streaming handling and error recovery
+Enhanced with better streaming handling, error recovery, and URL generation
 """
 
 from typing import Optional, List, Dict, Any, Iterator, Union
+from urllib.parse import urlencode
 import json
 import asyncio
 
@@ -108,6 +109,76 @@ class ImageGenerator(SyncGenerator, ModelAwareGenerator):
         response = self._make_request("GET", url, params=params)
         return response.content
 
+    def generate_url(
+        self,
+        prompt: str,
+        model: str = "flux",
+        width: int = 1024,
+        height: int = 1024,
+        seed: Optional[int] = None,
+        nologo: bool = False,
+        private: bool = False,
+        enhance: bool = False,
+        safe: bool = False,
+        referrer: Optional[str] = None
+    ) -> str:
+        """
+        Generate image URL without downloading the image
+
+        Args:
+            prompt: Text description of the image
+            model: Model to use for generation
+            width: Image width in pixels
+            height: Image height in pixels
+            seed: Random seed for reproducibility
+            nologo: Remove Pollinations watermark
+            private: Make generation private
+            enhance: Enhance prompt automatically
+            safe: Enable safety filter
+            referrer: Optional referrer parameter
+
+        Returns:
+            str: Full URL of the generated image
+
+        Example:
+            >>> gen = ImageGenerator()
+            >>> url = gen.generate_url("a beautiful sunset", seed=42)
+            >>> print(url)
+            https://image.pollinations.ai/prompt/a%20beautiful%20sunset?model=flux&...
+
+        Security Note:
+            API tokens are NEVER included in URLs for security reasons.
+            URLs can be safely shared publicly. If you need authenticated features,
+            use generate() or save() methods instead which download the image with authentication.
+        """
+        self._validate_prompt(prompt)
+        encoded_prompt = self._encode_prompt(prompt)
+        url = self._build_url(f"prompt/{encoded_prompt}")
+
+        params = {
+            "model": self._validate_model(model),
+            "width": width,
+            "height": height,
+        }
+
+        if seed is not None:
+            params["seed"] = seed
+        if nologo:
+            params["nologo"] = "true"
+        if private:
+            params["private"] = "true"
+        if enhance:
+            params["enhance"] = "true"
+        if safe:
+            params["safe"] = "true"
+        if referrer:
+            params["referrer"] = referrer
+
+        # Security: NEVER include tokens in URLs
+        # Tokens are only used in generate() and save() methods
+        query_string = urlencode(params)
+        return f"{url}?{query_string}"
+
     def save(self, prompt: str, filename: str, **kwargs) -> str:
         image_data = self.generate(prompt, **kwargs)
         with open(filename, 'wb') as f:
@@ -172,6 +243,75 @@ class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
             params["safe"] = "true"
 
         return await self._make_request("GET", url, params=params)
+
+    async def generate_url(
+        self,
+        prompt: str,
+        model: str = "flux",
+        width: int = 1024,
+        height: int = 1024,
+        seed: Optional[int] = None,
+        nologo: bool = False,
+        private: bool = False,
+        enhance: bool = False,
+        safe: bool = False,
+        referrer: Optional[str] = None
+    ) -> str:
+        """
+        Generate image URL without downloading the image (async version)
+
+        Args:
+            prompt: Text description of the image
+            model: Model to use for generation
+            width: Image width in pixels
+            height: Image height in pixels
+            seed: Random seed for reproducibility
+            nologo: Remove Pollinations watermark
+            private: Make generation private
+            enhance: Enhance prompt automatically
+            safe: Enable safety filter
+            referrer: Optional referrer parameter
+
+        Returns:
+            str: Full URL of the generated image
+
+        Example:
+            >>> gen = AsyncImageGenerator()
+            >>> url = await gen.generate_url("a beautiful sunset", seed=42)
+            >>> print(url)
+
+        Security Note:
+            API tokens are NEVER included in URLs for security reasons.
+            URLs can be safely shared publicly. If you need authenticated features,
+            use generate() or save() methods instead which download the image with authentication.
+        """
+        self._validate_prompt(prompt)
+        encoded_prompt = self._encode_prompt(prompt)
+        url = self._build_url(f"prompt/{encoded_prompt}")
+
+        params = {
+            "model": self._validate_model(model),
+            "width": width,
+            "height": height,
+        }
+
+        if seed is not None:
+            params["seed"] = seed
+        if nologo:
+            params["nologo"] = "true"
+        if private:
+            params["private"] = "true"
+        if enhance:
+            params["enhance"] = "true"
+        if safe:
+            params["safe"] = "true"
+        if referrer:
+            params["referrer"] = referrer
+
+
+        # Tokens are only used in generate() and save() methods
+        query_string = urlencode(params)
+        return f"{url}?{query_string}"
 
     async def save(self, prompt: str, filename: str, **kwargs) -> str:
         image_data = await self.generate(prompt, **kwargs)

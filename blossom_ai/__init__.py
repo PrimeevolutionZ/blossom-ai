@@ -2,7 +2,7 @@
 🌸 Blossom AI - Beautiful Python SDK for Pollinations.AI
 Generate images, text, and audio with AI
 
-Version: 0.2.4
+Version: 0.2.5
 """
 
 from blossom_ai.generators import (
@@ -34,7 +34,7 @@ from blossom_ai.core import (
     DEFAULT_VOICES,
 )
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 
 __all__ = [
     # Main client
