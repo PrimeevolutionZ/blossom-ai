@@ -2,69 +2,29 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.2.5-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
+[![Version](https://img.shields.io/badge/version-0.2.6-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
 
 **A beautiful Python SDK for Pollinations.AI - Generate images, text, and audio with AI.**
 
 Blossom AI is a comprehensive, easy-to-use Python library that provides unified access to Pollinations.AI's powerful AI generation services. Create stunning images, generate text with various models, and convert text to speech with multiple voices - all through a beautifully designed, intuitive API.
 
-## ✨ What's New in v0.2.5
+## ✨ What's New in v0.2.6
 
-### 🔗 URL Generation Support
+### 🧹 Enhanced Resource Management
+
+- **🔧 Fixed Session Cleanup**: No more `ResourceWarning` about unclosed sessions
+- **♻️ Automatic Cleanup**: Sessions properly closed at program exit via `atexit`
+- **🎯 Better Context Managers**: Improved `async with` support for proper resource handling
+- **🔒 Thread-Safe**: Safe cleanup even in complex async scenarios
+- **📊 Global Session Registry**: Centralized tracking of all active sessions
+
+### 🔗 URL Generation Support (v0.2.5)
 
 - **🌐 `generate_url()` Method**: Get direct image URLs without downloading bytes
 - **⚡ Lightning Fast**: No network overhead - instant URL generation
 - **🤖 Bot-Friendly**: Perfect for Discord, Telegram, and web integrations
 - **💾 Traffic Efficient**: Save bandwidth by sharing URLs instead of bytes
 - **🔒 Secure**: Tokens are never included in URLs - always safe to share
-
-### Why Use `generate_url()`?
-
-```python
-from blossom_ai import Blossom
-
-client = Blossom()
-
-# OLD WAY: Download image bytes (slow, uses bandwidth)
-image_bytes = client.image.generate("sunset")  # ~2-5 seconds
-# Then you need to upload to your server or send bytes...
-
-# NEW WAY: Get URL instantly (fast, no bandwidth)
-url = client.image.generate_url("sunset")  # <0.1 seconds
-# Share the URL directly - Pollinations hosts the image!
-print(url)  # https://image.pollinations.ai/prompt/sunset?model=flux&...
-```
-
-**Perfect for:**
-- 🤖 Discord/Telegram bots (embed URLs in messages)
-- 🌐 Web applications (use URLs in `<img>` tags)
-- 📱 Mobile apps (reduce data transfer)
-- 🔄 Parallel generation (create many URLs quickly)
-- 📊 Image galleries (no storage needed)
-
-## ⚠️ Important Notes
-
-- **Audio Generation**: Requires authentication (API token)
-- **Hybrid API**: Automatically detects sync/async context - no need for separate imports
-- **Streaming**: Works in both sync and async contexts with iterators
-- **Stream Timeout**: Default 30 seconds between chunks - automatically raises error if no data
-- **Robust Error Handling**: Graceful fallbacks when API endpoints are unavailable
-- **Resource Management**: Use context managers for proper cleanup
-
-## ✨ Features
-
-- 🖼️ **Image Generation** - Create stunning images from text descriptions
-- 🔗 **Image URL Generation** - Get direct links without downloading (NEW!)
-- 📝 **Text Generation** - Generate text with various AI models
-- 🌊 **Streaming** - Real-time text generation with timeout protection
-- 🎙️ **Audio Generation** - Text-to-speech with multiple voices
-- 🚀 **Unified API** - Same code works in sync and async contexts
-- 🎨 **Beautiful Errors** - Helpful error messages with actionable suggestions
-- 🔄 **Reproducible** - Use seeds for consistent results
-- ⚡ **Smart Async** - Automatically switches between sync/async modes
-- 🛡️ **Robust** - Graceful error handling with fallbacks and timeout protection
-- 🧹 **Clean** - Proper resource management and cleanup
-- 🔍 **Traceable** - Request IDs for debugging
 
 ## 📦 Installation
 
@@ -80,7 +40,7 @@ from blossom_ai import Blossom
 # Initialize
 ai = Blossom()
 
-# Generate an image URL (NEW in v0.2.5!)
+# Generate an image URL (Fast & Free!)
 url = ai.image.generate_url("a beautiful sunset over mountains")
 print(url)  # https://image.pollinations.ai/prompt/...
 
@@ -100,9 +60,137 @@ ai = Blossom(api_token="YOUR_TOKEN")
 ai.audio.save("Hello, welcome to Blossom AI!", "welcome.mp3", voice="nova")
 ```
 
-## 🔗 Image URL Generation (NEW!)
+## 🧹 Resource Management
 
-The new `generate_url()` method provides instant access to image URLs without downloading:
+Blossom AI automatically manages resources, but for best practices use context managers:
+
+### ✅ Recommended: Use Context Managers
+
+```python
+# Synchronous - automatic cleanup
+with Blossom() as ai:
+    url = ai.image.generate_url("sunset")
+    image = ai.image.generate("sunset")
+    # Resources automatically cleaned up on exit
+
+# Asynchronous - automatic cleanup
+async with Blossom() as ai:
+    url = await ai.image.generate_url("sunset")
+    image = await ai.image.generate("sunset")
+    # Async resources properly closed
+```
+
+### Manual Cleanup (if needed)
+
+```python
+# Async manual cleanup
+client = Blossom()
+try:
+    url = await client.image.generate_url("test")
+finally:
+    await client.close()  # Explicitly close async sessions
+
+# Sync - no manual cleanup needed (auto-closes on exit)
+client = Blossom()
+url = client.image.generate_url("test")
+# Sync sessions cleaned up automatically
+```
+
+### For Long-Running Applications
+
+```python
+import asyncio
+from blossom_ai import Blossom
+
+async def bot_command(prompt: str):
+    """Single command handler - use context manager"""
+    async with Blossom() as ai:
+        return await ai.image.generate_url(prompt)
+
+# ✅ Good: One event loop for all operations
+async def main():
+    results = []
+    for prompt in ["cat", "dog", "bird"]:
+        result = await bot_command(prompt)
+        results.append(result)
+
+asyncio.run(main())  # Single event loop
+
+# ❌ Avoid: Multiple asyncio.run() calls
+# This creates/destroys event loops repeatedly, leaving resources
+def bad_example():
+    asyncio.run(bot_command("cat"))   # Creates loop #1
+    asyncio.run(bot_command("dog"))   # Creates loop #2 - may leave resources
+    asyncio.run(bot_command("bird"))  # Creates loop #3 - may leave resources
+```
+
+### Testing Best Practices
+
+```python
+import asyncio
+from blossom_ai import Blossom
+
+# ✅ Recommended: Single async main function
+async def test_all():
+    """Run all async tests in one event loop"""
+    
+    # Test 1
+    async with Blossom() as ai:
+        url1 = await ai.image.generate_url("test1")
+        print(f"Test 1: {url1}")
+    
+    # Test 2
+    async with Blossom() as ai:
+        url2 = await ai.image.generate_url("test2")
+        print(f"Test 2: {url2}")
+    
+    # Test 3 - parallel generation
+    async with Blossom() as ai:
+        urls = await asyncio.gather(*[
+            ai.image.generate_url(f"test{i}")
+            for i in range(5)
+        ])
+        print(f"Parallel: {len(urls)} URLs generated")
+
+# Run all tests in one go
+if __name__ == "__main__":
+    print("=== Sync Tests ===")
+    with Blossom() as ai:
+        url = ai.image.generate_url("sync test")
+        print(f"Sync: {url}")
+    
+    print("\n=== Async Tests ===")
+    asyncio.run(test_all())  # One asyncio.run() for all async tests
+```
+
+## ⚠️ Important Notes
+
+- **Resource Management**: Always use context managers (`with`/`async with`) for proper cleanup
+- **Event Loops**: Avoid multiple `asyncio.run()` calls - use one event loop per application run
+- **Audio Generation**: Requires authentication (API token)
+- **Hybrid API**: Automatically detects sync/async context - no need for separate imports
+- **Streaming**: Works in both sync and async contexts with iterators
+- **Stream Timeout**: Default 30 seconds between chunks - automatically raises error if no data
+- **Robust Error Handling**: Graceful fallbacks when API endpoints are unavailable
+
+## ✨ Features
+
+- 🖼️ **Image Generation** - Create stunning images from text descriptions
+- 🔗 **Image URL Generation** - Get direct links without downloading (v0.2.5!)
+- 📝 **Text Generation** - Generate text with various AI models
+- 🌊 **Streaming** - Real-time text generation with timeout protection
+- 🎙️ **Audio Generation** - Text-to-speech with multiple voices
+- 🚀 **Unified API** - Same code works in sync and async contexts
+- 🎨 **Beautiful Errors** - Helpful error messages with actionable suggestions
+- 🔄 **Reproducible** - Use seeds for consistent results
+- ⚡ **Smart Async** - Automatically switches between sync/async modes
+- 🛡️ **Robust** - Graceful error handling with fallbacks and timeout protection
+- 🧹 **Clean** - Proper resource management and automatic cleanup
+- 🔍 **Traceable** - Request IDs for debugging
+
+## 🔗 Image URL Generation
+
+The `generate_url()` method provides instant access to image URLs without downloading:
 
 ### Basic Usage
 
@@ -143,7 +231,6 @@ print(url)  # https://image.pollinations.ai/prompt/...
 import discord
 from blossom_ai import Blossom
 
-client = Blossom()
 bot = discord.Client()
 
 @bot.event
@@ -151,12 +238,14 @@ async def on_message(message):
     if message.content.startswith('!imagine'):
         prompt = message.content[8:].strip()
         
-        # Generate URL instantly - no download needed!
-        url = await client.image.generate_url(
-            prompt,
-            nologo=True,
-            private=True
-        )
+        # Use context manager for proper cleanup
+        async with Blossom() as client:
+            # Generate URL instantly - no download needed!
+            url = await client.image.generate_url(
+                prompt,
+                nologo=True,
+                private=True
+            )
         
         # Discord will automatically show image preview
         await message.channel.send(url)
@@ -171,13 +260,13 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler
 from blossom_ai import Blossom
 
-client = Blossom()
-
 async def imagine(update: Update, context):
     prompt = ' '.join(context.args)
     
-    # Generate URL - fast and efficient
-    url = await client.image.generate_url(prompt, nologo=True)
+    # Use context manager for proper resource handling
+    async with Blossom() as client:
+        # Generate URL - fast and efficient
+        url = await client.image.generate_url(prompt, nologo=True)
     
     # Send image directly from URL
     await update.message.reply_photo(photo=url)
@@ -194,19 +283,20 @@ from flask import Flask, render_template, request
 from blossom_ai import Blossom
 
 app = Flask(__name__)
-client = Blossom()
 
 @app.route('/generate', methods=['POST'])
 def generate():
     prompt = request.form['prompt']
     
-    # Generate URL for web embedding
-    url = client.image.generate_url(
-        prompt,
-        width=512,
-        height=512,
-        nologo=True
-    )
+    # Sync context manager for Flask
+    with Blossom() as client:
+        # Generate URL for web embedding
+        url = client.image.generate_url(
+            prompt,
+            width=512,
+            height=512,
+            nologo=True
+        )
     
     return render_template('result.html', image_url=url)
 
@@ -221,8 +311,6 @@ import asyncio
 from blossom_ai import Blossom
 
 async def generate_gallery():
-    client = Blossom()
-    
     prompts = [
         "a red sunset",
         "a blue ocean",
@@ -230,17 +318,19 @@ async def generate_gallery():
         "a purple galaxy"
     ]
     
-    # Generate all URLs in parallel - super fast!
-    urls = await asyncio.gather(*[
-        client.image.generate_url(prompt, seed=i)
-        for i, prompt in enumerate(prompts)
-    ])
+    # Use context manager
+    async with Blossom() as client:
+        # Generate all URLs in parallel - super fast!
+        urls = await asyncio.gather(*[
+            client.image.generate_url(prompt, seed=i)
+            for i, prompt in enumerate(prompts)
+        ])
     
-    return urls
+    return dict(zip(prompts, urls))
 
 # Run it
-urls = asyncio.run(generate_gallery())
-for prompt, url in zip(prompts, urls):
+results = asyncio.run(generate_gallery())
+for prompt, url in results.items():
     print(f"{prompt}: {url}")
 ```
 
@@ -248,8 +338,6 @@ for prompt, url in zip(prompts, urls):
 
 ```python
 from blossom_ai import Blossom
-
-client = Blossom()
 
 def create_gallery(prompts):
     html = """
@@ -267,14 +355,16 @@ def create_gallery(prompts):
         <div class="gallery">
     """
     
-    for prompt in prompts:
-        url = client.image.generate_url(prompt, nologo=True)
-        html += f"""
-            <div>
-                <img src="{url}" alt="{prompt}">
-                <p>{prompt}</p>
-            </div>
-        """
+    # Use context manager
+    with Blossom() as client:
+        for prompt in prompts:
+            url = client.image.generate_url(prompt, nologo=True)
+            html += f"""
+                <div>
+                    <img src="{url}" alt="{prompt}">
+                    <p>{prompt}</p>
+                </div>
+            """
     
     html += """
         </div>
@@ -296,22 +386,21 @@ create_gallery(prompts)
 import time
 from blossom_ai import Blossom
 
-client = Blossom()
+with Blossom() as client:
+    # Method 1: URL generation (instant)
+    start = time.time()
+    url = client.image.generate_url("a cat", seed=42)
+    url_time = time.time() - start
+    print(f"URL generation: {url_time:.3f}s")
 
-# Method 1: URL generation (instant)
-start = time.time()
-url = client.image.generate_url("a cat", seed=42)
-url_time = time.time() - start
-print(f"URL generation: {url_time:.3f}s")
+    # Method 2: Download bytes (slower)
+    start = time.time()
+    image_bytes = client.image.generate("a cat", seed=42)
+    download_time = time.time() - start
+    print(f"Download: {download_time:.3f}s ({len(image_bytes)} bytes)")
 
-# Method 2: Download bytes (slower)
-start = time.time()
-image_bytes = client.image.generate("a cat", seed=42)
-download_time = time.time() - start
-print(f"Download: {download_time:.3f}s ({len(image_bytes)} bytes)")
-
-print(f"Speed improvement: {download_time / url_time:.1f}x faster!")
-# Typical output: 20-50x faster!
+    print(f"Speed improvement: {download_time / url_time:.1f}x faster!")
+    # Typical output: 20-50x faster!
 ```
 
 ### When to Use URL vs Download
@@ -340,25 +429,25 @@ Get responses in real-time as they're generated, with built-in timeout protectio
 ```python
 from blossom_ai import Blossom
 
-ai = Blossom()
+# Use context manager
+with Blossom() as ai:
+    # Simple streaming with automatic timeout protection
+    for chunk in ai.text.generate("Write a poem about AI", stream=True):
+        print(chunk, end='', flush=True)
 
-# Simple streaming with automatic timeout protection
-for chunk in ai.text.generate("Write a poem about AI", stream=True):
-    print(chunk, end='', flush=True)
+    # Chat streaming
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant"},
+        {"role": "user", "content": "Explain Python"}
+    ]
+    for chunk in ai.text.chat(messages, stream=True):
+        print(chunk, end='', flush=True)
 
-# Chat streaming
-messages = [
-    {"role": "system", "content": "You are a helpful assistant"},
-    {"role": "user", "content": "Explain Python"}
-]
-for chunk in ai.text.chat(messages, stream=True):
-    print(chunk, end='', flush=True)
-
-# Collect full response from stream
-chunks = []
-for chunk in ai.text.generate("Hello", stream=True):
-    chunks.append(chunk)
-full_response = ''.join(chunks)
+    # Collect full response from stream
+    chunks = []
+    for chunk in ai.text.generate("Hello", stream=True):
+        chunks.append(chunk)
+    full_response = ''.join(chunks)
 ```
 
 ### Asynchronous Streaming
@@ -368,16 +457,16 @@ import asyncio
 from blossom_ai import Blossom
 
 async def stream_example():
-    ai = Blossom()
-    
-    # Async streaming with timeout protection
-    async for chunk in await ai.text.generate("Tell me a story", stream=True):
-        print(chunk, end='', flush=True)
-    
-    # Async chat streaming
-    messages = [{"role": "user", "content": "Hello!"}]
-    async for chunk in await ai.text.chat(messages, stream=True):
-        print(chunk, end='', flush=True)
+    # Use async context manager
+    async with Blossom() as ai:
+        # Async streaming with timeout protection
+        async for chunk in await ai.text.generate("Tell me a story", stream=True):
+            print(chunk, end='', flush=True)
+        
+        # Async chat streaming
+        messages = [{"role": "user", "content": "Hello!"}]
+        async for chunk in await ai.text.chat(messages, stream=True):
+            print(chunk, end='', flush=True)
 
 asyncio.run(stream_example())
 ```
@@ -389,21 +478,20 @@ The same API works seamlessly in both synchronous and asynchronous contexts:
 ```python
 from blossom_ai import Blossom
 
-ai = Blossom()
-
 # Synchronous usage
-url = ai.image.generate_url("a cute robot")
-image_data = ai.image.generate("a cute robot")
-text = ai.text.generate("Hello world")
+with Blossom() as ai:
+    url = ai.image.generate_url("a cute robot")
+    image_data = ai.image.generate("a cute robot")
+    text = ai.text.generate("Hello world")
 
 # Asynchronous usage - same methods!
 import asyncio
 
 async def main():
-    ai = Blossom()
-    url = await ai.image.generate_url("a cute robot")  # NEW!
-    image_data = await ai.image.generate("a cute robot")
-    text = await ai.text.generate("Hello world")
+    async with Blossom() as ai:
+        url = await ai.image.generate_url("a cute robot")
+        image_data = await ai.image.generate("a cute robot")
+        text = await ai.text.generate("Hello world")
     
 asyncio.run(main())
 ```
@@ -417,39 +505,38 @@ asyncio.run(main())
 ```python
 from blossom_ai import Blossom
 
-ai = Blossom()
+with Blossom() as ai:
+    # NEW: Get URL without downloading
+    url = ai.image.generate_url(
+        prompt="a majestic dragon in a mystical forest",
+        width=1024,
+        height=1024,
+        model="flux",
+        seed=42
+    )
+    print(f"Image URL: {url}")
 
-# NEW: Get URL without downloading
-url = ai.image.generate_url(
-    prompt="a majestic dragon in a mystical forest",
-    width=1024,
-    height=1024,
-    model="flux",
-    seed=42
-)
-print(f"Image URL: {url}")
+    # Generate and save an image
+    ai.image.save(
+        prompt="a majestic dragon in a mystical forest",
+        filename="dragon.jpg",
+        width=1024,
+        height=1024,
+        model="flux"
+    )
 
-# Generate and save an image
-ai.image.save(
-    prompt="a majestic dragon in a mystical forest",
-    filename="dragon.jpg",
-    width=1024,
-    height=1024,
-    model="flux"
-)
+    # Get image data as bytes
+    image_data = ai.image.generate("a cute robot")
 
-# Get image data as bytes
-image_data = ai.image.generate("a cute robot")
+    # Use different models
+    image_data = ai.image.generate("futuristic city", model="turbo")
 
-# Use different models
-image_data = ai.image.generate("futuristic city", model="turbo")
+    # Reproducible results with seed
+    image_data = ai.image.generate("random art", seed=42)
 
-# Reproducible results with seed
-image_data = ai.image.generate("random art", seed=42)
-
-# List available models (dynamically fetched from API)
-models = ai.image.models()
-print(models)  # ['flux', 'kontext', 'turbo', 'gptimage', ...]
+    # List available models (dynamically fetched from API)
+    models = ai.image.models()
+    print(models)  # ['flux', 'kontext', 'turbo', 'gptimage', ...]
 ```
 
 ### Text Generation
@@ -457,47 +544,46 @@ print(models)  # ['flux', 'kontext', 'turbo', 'gptimage', ...]
 ```python
 from blossom_ai import Blossom
 
-ai = Blossom()
+with Blossom() as ai:
+    # Simple text generation
+    response = ai.text.generate("What is Python?")
 
-# Simple text generation
-response = ai.text.generate("What is Python?")
+    # With system message
+    response = ai.text.generate(
+        prompt="Write a haiku about coding",
+        system="You are a creative poet"
+    )
 
-# With system message
-response = ai.text.generate(
-    prompt="Write a haiku about coding",
-    system="You are a creative poet"
-)
+    # Reproducible results with seed
+    response = ai.text.generate(
+        prompt="Generate a random idea",
+        seed=42  # Same seed = same result
+    )
 
-# Reproducible results with seed
-response = ai.text.generate(
-    prompt="Generate a random idea",
-    seed=42  # Same seed = same result
-)
+    # JSON mode
+    response = ai.text.generate(
+        prompt="List 3 colors in JSON format",
+        json_mode=True
+    )
 
-# JSON mode
-response = ai.text.generate(
-    prompt="List 3 colors in JSON format",
-    json_mode=True
-)
+    # Streaming (with automatic timeout protection)
+    for chunk in ai.text.generate("Tell a story", stream=True):
+        print(chunk, end='', flush=True)
 
-# Streaming (with automatic timeout protection)
-for chunk in ai.text.generate("Tell a story", stream=True):
-    print(chunk, end='', flush=True)
+    # Chat with message history
+    response = ai.text.chat([
+        {"role": "system", "content": "You are a helpful assistant"},
+        {"role": "user", "content": "What's the weather like?"}
+    ])
 
-# Chat with message history
-response = ai.text.chat([
-    {"role": "system", "content": "You are a helpful assistant"},
-    {"role": "user", "content": "What's the weather like?"}
-])
+    # Chat with streaming
+    messages = [{"role": "user", "content": "Explain AI"}]
+    for chunk in ai.text.chat(messages, stream=True):
+        print(chunk, end='', flush=True)
 
-# Chat with streaming
-messages = [{"role": "user", "content": "Explain AI"}]
-for chunk in ai.text.chat(messages, stream=True):
-    print(chunk, end='', flush=True)
-
-# List available models (dynamically updated)
-models = ai.text.models()
-print(models)  # ['deepseek', 'gemini', 'mistral', 'openai', 'qwen-coder', ...]
+    # List available models (dynamically updated)
+    models = ai.text.models()
+    print(models)  # ['deepseek', 'gemini', 'mistral', 'openai', 'qwen-coder', ...]
 ```
 
 ### Audio Generation
@@ -506,25 +592,24 @@ print(models)  # ['deepseek', 'gemini', 'mistral', 'openai', 'qwen-coder', ...]
 from blossom_ai import Blossom
 
 # Audio generation requires an API token
-ai = Blossom(api_token="YOUR_API_TOKEN")
+with Blossom(api_token="YOUR_API_TOKEN") as ai:
+    # Generate and save audio
+    ai.audio.save(
+        text="Welcome to the future of AI",
+        filename="welcome.mp3",
+        voice="nova"
+    )
 
-# Generate and save audio
-ai.audio.save(
-    text="Welcome to the future of AI",
-    filename="welcome.mp3",
-    voice="nova"
-)
+    # Try different voices
+    ai.audio.save("Hello", "hello_alloy.mp3", voice="alloy")
+    ai.audio.save("Hello", "hello_echo.mp3", voice="echo")
 
-# Try different voices
-ai.audio.save("Hello", "hello_alloy.mp3", voice="alloy")
-ai.audio.save("Hello", "hello_echo.mp3", voice="echo")
+    # Get audio data as bytes
+    audio_data = ai.audio.generate("Hello world", voice="shimmer")
 
-# Get audio data as bytes
-audio_data = ai.audio.generate("Hello world", voice="shimmer")
-
-# List available voices (dynamically updated)
-voices = ai.audio.voices()
-print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', ...]
+    # List available voices (dynamically updated)
+    voices = ai.audio.voices()
+    print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', ...]
 ```
 
 ## 🎯 Supported Parameters
@@ -544,7 +629,7 @@ print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', ...]
 | safe | bool | False | Enable NSFW filtering |
 | referrer | str | None | Optional referrer parameter |
 
-### Image URL Generation (NEW!)
+### Image URL Generation
 
 Same parameters as Image Generation, but returns URL string instead of bytes.
 
@@ -615,12 +700,12 @@ ai.audio   # Audio generation (requires token)
 ### Context Manager Support
 
 ```python
-# Synchronous context manager
+# Synchronous context manager (recommended)
 with Blossom() as ai:
     result = ai.text.generate("Hello")
     # Resources automatically cleaned up
 
-# Asynchronous context manager
+# Asynchronous context manager (recommended)
 async with Blossom() as ai:
     result = await ai.text.generate("Hello")
     # Resources automatically cleaned up
@@ -629,7 +714,7 @@ async with Blossom() as ai:
 ### Image Generator Methods
 
 ```python
-# NEW: Generate image URL (returns str)
+# Generate image URL (returns str)
 url = ai.image.generate_url(prompt, **options)
 
 # Generate image (returns bytes)
@@ -692,10 +777,10 @@ from blossom_ai import (
     StreamError
 )
 
-ai = Blossom()
-
 try:
-    response = ai.text.generate("Hello")
+    with Blossom() as ai:
+        response = ai.text.generate("Hello")
+        
 except AuthenticationError as e:
     print(f"Auth failed: {e.message}")
     print(f"Suggestion: {e.suggestion}")
@@ -754,17 +839,16 @@ For higher rate limits and advanced features, get an API token:
 from blossom_ai import Blossom
 
 # With authentication
-ai = Blossom(api_token="YOUR_API_TOKEN")
+with Blossom(api_token="YOUR_API_TOKEN") as ai:
+    # Use token for downloading images with premium features
+    image_bytes = ai.image.generate("sunset", nologo=True)  # Token used here
+    ai.image.save("sunset", "sunset.jpg", nologo=True)      # Token used here
+    ai.audio.save("Hello", "hello.mp3")                     # Token required
 
-# Use token for downloading images with premium features
-image_bytes = ai.image.generate("sunset", nologo=True)  # Token used here
-ai.image.save("sunset", "sunset.jpg", nologo=True)      # Token used here
-ai.audio.save("Hello", "hello.mp3")                     # Token required
-
-# Generate URLs (always safe - no token in URL)
-url = ai.image.generate_url("sunset", nologo=True)
-print(url)  # https://image.pollinations.ai/...&nologo=true
-# ✅ Safe to share - no token exposed!
+    # Generate URLs (always safe - no token in URL)
+    url = ai.image.generate_url("sunset", nologo=True)
+    print(url)  # https://image.pollinations.ai/...&nologo=true
+    # ✅ Safe to share - no token exposed!
 ```
 
 **When to use token:**
@@ -782,14 +866,13 @@ Get your API token at [auth.pollinations.ai](https://auth.pollinations.ai)
 `generate_url()` is designed to be **always secure**:
 
 ```python
-ai = Blossom(api_token="YOUR_SECRET_TOKEN")
+with Blossom(api_token="YOUR_SECRET_TOKEN") as ai:
+    # ✅ URLs NEVER contain your token
+    url = ai.image.generate_url("landscape")
+    # Safe to share publicly - token not exposed
 
-# ✅ URLs NEVER contain your token
-url = ai.image.generate_url("landscape")
-# Safe to share publicly - token not exposed
-
-# The URL works for everyone, no authentication needed
-print(url)  # https://image.pollinations.ai/prompt/landscape?model=flux&...
+    # The URL works for everyone, no authentication needed
+    print(url)  # https://image.pollinations.ai/prompt/landscape?model=flux&...
 ```
 
 ### When You Need Authentication
@@ -797,13 +880,14 @@ print(url)  # https://image.pollinations.ai/prompt/landscape?model=flux&...
 Use `generate()` or `save()` for authenticated features:
 
 ```python
-# ✅ Token used securely (not exposed in URLs)
-image_bytes = ai.image.generate("cat", nologo=True)
-# Token sent in request headers, never in public URLs
+with Blossom(api_token="YOUR_TOKEN") as ai:
+    # ✅ Token used securely (not exposed in URLs)
+    image_bytes = ai.image.generate("cat", nologo=True)
+    # Token sent in request headers, never in public URLs
 
-# Save to file with authentication
-ai.image.save("cat", "cat.jpg", nologo=True)
-# Token used internally, file saved locally
+    # Save to file with authentication
+    ai.image.save("cat", "cat.jpg", nologo=True)
+    # Token used internally, file saved locally
 ```
 
 ### Best Practices
@@ -811,26 +895,28 @@ ai.image.save("cat", "cat.jpg", nologo=True)
 **For Public Bots (Discord, Telegram):**
 ```python
 # Option 1: Share URL (fast, no token exposure)
-url = ai.image.generate_url(prompt)
-await ctx.send(url)
+async with Blossom() as ai:
+    url = await ai.image.generate_url(prompt)
+    await ctx.send(url)
 
 # Option 2: Download and upload (with auth features)
-image = await ai.image.generate(prompt, nologo=True)
-await ctx.send(file=discord.File(io.BytesIO(image), 'image.png'))
+async with Blossom(api_token="TOKEN") as ai:
+    image = await ai.image.generate(prompt, nologo=True)
+    await ctx.send(file=discord.File(io.BytesIO(image), 'image.png'))
 ```
 
 **For Web Applications:**
 ```python
 # ✅ Safe: URL in HTML (no token)
-url = ai.image.generate_url(prompt)
-return f'<img src="{url}">'
+with Blossom() as ai:
+    url = ai.image.generate_url(prompt)
+    return f'<img src="{url}">'
 
 # ✅ Safe: Download server-side (token not exposed)
-image = ai.image.generate(prompt, nologo=True)
-# Process/store image server-side
+with Blossom(api_token="TOKEN") as ai:
+    image = ai.image.generate(prompt, nologo=True)
+    # Process/store image server-side
 ```
-
-
 
 ## 🔄 Async Usage
 
@@ -841,23 +927,19 @@ import asyncio
 from blossom_ai import Blossom
 
 async def generate_content():
-    ai = Blossom()
-    
-    # All methods work with await
-    url = await ai.image.generate_url("landscape")  # NEW!
-    image = await ai.image.generate("landscape")
-    text = await ai.text.generate("story")
-    audio = await ai.audio.generate("speech")
-    
-    # Streaming with async (with timeout protection)
-    async for chunk in await ai.text.generate("poem", stream=True):
-        print(chunk, end='')
-    
-    # Context manager support
+    # Use async context manager for proper cleanup
     async with Blossom() as ai:
-        result = await ai.text.generate("Hello")
-    
-    return url, image, text, audio
+        # All methods work with await
+        url = await ai.image.generate_url("landscape")
+        image = await ai.image.generate("landscape")
+        text = await ai.text.generate("story")
+        audio = await ai.audio.generate("speech")
+        
+        # Streaming with async (with timeout protection)
+        async for chunk in await ai.text.generate("poem", stream=True):
+            print(chunk, end='')
+        
+        return url, image, text, audio
 
 # Run async function
 asyncio.run(generate_content())
@@ -902,8 +984,9 @@ Blossom AI includes several robustness features:
 
 ### Resource Management
 - Centralized session management with `SessionManager`
-- Proper cleanup with context managers
-- Weakref-based cleanup to prevent memory leaks
+- Proper cleanup with context managers (`with`/`async with`)
+- Global session registry for tracking all active sessions
+- `atexit` cleanup to ensure no resources are left open
 - Thread-safe async session handling across event loops
 - Optimized connection pool settings
 
@@ -924,14 +1007,16 @@ Blossom AI includes several robustness features:
 
 ```python
 # Set custom timeout for slow connections
-ai = Blossom(timeout=60)  # 60 seconds
+with Blossom(timeout=60) as ai:  # 60 seconds
+    response = ai.text.generate("Long query...")
 ```
 
 ### Debug Mode
 
 ```python
 # Enable debug mode for detailed logging (includes request IDs)
-ai = Blossom(debug=True)
+with Blossom(debug=True) as ai:
+    response = ai.text.generate("Hello")
 ```
 
 ### Handling Rate Limits
@@ -940,27 +1025,28 @@ ai = Blossom(debug=True)
 from blossom_ai import Blossom, RateLimitError
 import time
 
-ai = Blossom()
-
-try:
-    response = ai.text.generate("Hello")
-except RateLimitError as e:
-    print(f"Rate limited: {e.message}")
-    if e.retry_after:
-        print(f"Waiting {e.retry_after} seconds...")
-        time.sleep(e.retry_after)
-        # Retry request
+with Blossom() as ai:
+    try:
         response = ai.text.generate("Hello")
+    except RateLimitError as e:
+        print(f"Rate limited: {e.message}")
+        if e.retry_after:
+            print(f"Waiting {e.retry_after} seconds...")
+            time.sleep(e.retry_after)
+            # Retry request
+            response = ai.text.generate("Hello")
 ```
 
-## 🏗️ Architecture
+## 🗝️ Architecture
 
 ### Key Components:
 - **Base Generators** - `SyncGenerator` and `AsyncGenerator` base classes with timeout protection
 - **Session Managers** - Centralized session lifecycle management with connection pooling
+- **Global Session Registry** - Class-level tracking of all sessions for proper cleanup
+- **atexit Cleanup** - Automatic cleanup at program exit to prevent resource warnings
 - **Dynamic Models** - Models that update from API at runtime
 - **Hybrid Generators** - Automatic sync/async detection
-- **URL Generation** - Instant URL creation without network requests (NEW!)
+- **URL Generation** - Instant URL creation without network requests
 - **Streaming Support** - SSE parsing with Iterator/AsyncIterator and timeout protection
 - **Structured Errors** - Rich error context with suggestions and request IDs
 - **Request Tracing** - Unique IDs for debugging and error correlation
@@ -981,23 +1067,21 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📋 Changelog
 
-### v0.2.5 (Current)
+### v0.2.6 (Current)
+- 🧹 **Fixed Session Cleanup**: Resolved `ResourceWarning` about unclosed aiohttp sessions
+- ♻️ **Automatic Resource Management**: Sessions now properly closed at program exit via `atexit`
+- 🔒 **Thread-Safe Cleanup**: Improved cleanup in complex async scenarios
+- 📊 **Global Session Registry**: Centralized tracking of all active sessions
+- 🎯 **Better Context Managers**: Enhanced `async with` support for proper resource handling
+- 📖 **Documentation**: Added comprehensive resource management guide and best practices
+
+### v0.2.5
 - 🔗 **URL Generation**: New `generate_url()` method for instant image URLs without downloading
 - ⚡ **Performance**: URL generation is 20-50x faster than downloading bytes
 - 🤖 **Bot-Friendly**: Perfect for Discord, Telegram, and web integrations
 - 💾 **Bandwidth Efficient**: Share URLs instead of transferring bytes
 - 🔒 **Always Secure**: Tokens never included in URLs - completely safe to share publicly
-- 📝 **Documentation**: Comprehensive examples for bots and web apps
-
-### v0.2.4
-- 🛡️ Stream Timeout Protection: Automatic detection and handling (30s default)
-- ⏱️ Smart Rate Limiting: `Retry-After` header parsing
-- 🔍 Request Tracing: Unique request IDs for debugging
-- 🧹 Enhanced Cleanup: Guaranteed resource cleanup
-- ⚡ Better Error Messages: Request IDs and retry information
-- 🔧 Connection Optimization: Improved session management
-- 📦 New StreamError: Dedicated error type for streaming
-- 🎯 Enhanced Error Context: All errors include request_id
+- 📚 **Documentation**: Comprehensive examples for bots and web apps
 
 ## 🔗 Links
 
@@ -1014,4 +1098,4 @@ Made with 🌸 by the eclips team
 
 ---
 
-*This README reflects v0.2.5 with URL generation support and enhanced bot integrations.*
+*This README reflects v0.2.6 with enhanced resource management and session cleanup.*
