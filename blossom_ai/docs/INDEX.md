@@ -44,6 +44,19 @@ Learn how to use each generation type.
 
 ---
 
+## 🛠️ Utilities
+
+Tools to enhance your workflows.
+
+| Guide | Description |
+|-------|-------------|
+| **[File Content Reader](FILE_READER.md)** | Read text files and integrate them with AI prompts while respecting API limits |
+| 📄 File Validation | Automatic size and encoding validation |
+| ✂️ Auto-Truncation | Handle large files gracefully |
+| 📦 Multiple Files | Combine and process multiple files |
+
+---
+
 ## 🛠️ Development Guides
 
 Build real-world applications.
@@ -74,6 +87,7 @@ Technical details and API specifications.
 
 - **Generate an image URL:** [Image Generation - URL Method](IMAGE_GENERATION.md#-image-url-generation)
 - **Stream text in real-time:** [Text Generation - Streaming](TEXT_GENERATION.md#-streaming-text-generation)
+- **Read files for prompts:** [File Reader - Quick Start](FILE_READER.md#-quick-start)
 - **Handle errors properly:** [Error Handling Guide](ERROR_HANDLING.md)
 - **Use in async code:** [Resource Management - Async](RESOURCE_MANAGEMENT.md#asynchronous-context-manager)
 
@@ -86,6 +100,8 @@ Technical details and API specifications.
 | **Chat Bot (Telegram)** | [Telegram Bot Tutorial](TELEGRAM_BOT.md) |
 | **CLI Tool** | [Resource Management - Sync Usage](RESOURCE_MANAGEMENT.md#synchronous-context-manager) |
 | **Background Worker** | [Resource Management - Long-Running Apps](RESOURCE_MANAGEMENT.md#for-long-running-applications-eg-bots) |
+| **Code Analysis** | [File Reader - Code Analysis](FILE_READER.md#1-code-analysis) |
+| **Document Processing** | [File Reader - Document Summarization](FILE_READER.md#2-document-summarization) |
 
 ---
 
@@ -134,6 +150,23 @@ from blossom_ai import Blossom
 
 with Blossom(api_token="YOUR_TOKEN") as ai:
     ai.audio.save("Hello world", "hello.mp3", voice="nova")
+```
+
+### Read File for AI Analysis
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import read_file_for_prompt
+
+# Read file content
+content = read_file_for_prompt("data.txt", max_length=5000)
+
+# Analyze with AI
+with Blossom() as ai:
+    response = ai.text.generate(
+        f"Analyze this data:\n\n{content}",
+        model="deepseek"
+    )
+    print(response)
 ```
 
 ---

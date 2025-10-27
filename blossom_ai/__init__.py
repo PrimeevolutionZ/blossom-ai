@@ -2,7 +2,7 @@
 🌸 Blossom AI - Beautiful Python SDK for Pollinations.AI
 Generate images, text, and audio with AI
 
-Version: 0.2.92
+Version: 0.3.0
 """
 
 from blossom_ai.generators import (
@@ -26,6 +26,7 @@ from blossom_ai.core import (
     ValidationError,
     RateLimitError,
     StreamError,
+    FileTooLargeError,
     ImageModel,
     TextModel,
     Voice,
@@ -34,7 +35,18 @@ from blossom_ai.core import (
     DEFAULT_VOICES,
 )
 
-__version__ = "0.2.5"
+from blossom_ai.utils import (
+    FileContentReader,
+    FileContent,
+    read_file_for_prompt,
+    get_file_info,
+    DEFAULT_MAX_FILE_LENGTH,
+    DEFAULT_PROMPT_SPACE,
+    API_MAX_TOTAL_LENGTH,
+    SUPPORTED_TEXT_EXTENSIONS,
+)
+
+__version__ = "0.3.0"
 
 __all__ = [
     # Main client
@@ -59,6 +71,7 @@ __all__ = [
     "ValidationError",
     "RateLimitError",
     "StreamError",
+    "FileTooLargeError",
 
     # Models
     "ImageModel",
@@ -67,6 +80,16 @@ __all__ = [
     "DEFAULT_IMAGE_MODELS",
     "DEFAULT_TEXT_MODELS",
     "DEFAULT_VOICES",
+
+    # Utils
+    "FileContentReader",
+    "FileContent",
+    "read_file_for_prompt",
+    "get_file_info",
+    "DEFAULT_MAX_FILE_LENGTH",
+    "DEFAULT_PROMPT_SPACE",
+    "API_MAX_TOTAL_LENGTH",
+    "SUPPORTED_TEXT_EXTENSIONS",
 
     # Version
     "__version__",

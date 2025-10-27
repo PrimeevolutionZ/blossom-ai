@@ -22,6 +22,7 @@ class ErrorType:
     AUTH = "AUTHENTICATION_ERROR"
     RATE_LIMIT = "RATE_LIMIT_ERROR"
     STREAM = "STREAM_ERROR"
+    FILE_TOO_LARGE = "FILE_TOO_LARGE_ERROR"
     UNKNOWN = "UNKNOWN_ERROR"
 
 
@@ -151,6 +152,13 @@ class StreamError(BlossomError):
 
     def __init__(self, message: str, **kwargs):
         super().__init__(message, error_type=ErrorType.STREAM, **kwargs)
+
+
+class FileTooLargeError(BlossomError):
+    """File content exceeds API limits"""
+
+    def __init__(self, message: str, **kwargs):
+        super().__init__(message, error_type=ErrorType.FILE_TOO_LARGE, **kwargs)
 
 
 # ============================================================================
