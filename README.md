@@ -35,7 +35,8 @@ with Blossom() as ai:
     # Generate image URL (Fast & Free!)
     url = ai.image.generate_url("a beautiful sunset")
     print(url)
-     # Save image directly to a file
+    
+    # Save image directly to a file
     ai.image.save("a serene lake at dawn", "lake.jpg")
 
     # Get raw image bytes for custom processing
@@ -53,17 +54,18 @@ with Blossom() as ai:
 
 ## 📚 Documentation
 
-- **[Installation & Setup](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INSTALLATION.md )**
-- **[Image Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/IMAGE_GENERATION.md )**
-- **[Text Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/TEXT_GENERATION.md )**
-- **[Audio Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/AUDIO_GENERATION.md )**
-- **[Resource Management & Best Practices](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/RESOURCE_MANAGEMENT.md )**
-- **[Discord Bot Tutorial](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/DISCORD_BOT.md )**
-- **[Telegram Bot Tutorial](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/TELEGRAM_BOT.md )**
-- **[Error Handling](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/ERROR_HANDLING.md )**
-- **[API Reference](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/API_REFERENCE.md )**
-- **[Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md )**
-
+- **[Documentation Index](blossom_ai/docs/INDEX.md)** - Start here for complete guide
+- **[Installation & Setup](blossom_ai/docs/INSTALLATION.md)**
+- **[Image Generation Guide](blossom_ai/docs/IMAGE_GENERATION.md)**
+- **[Text Generation Guide](blossom_ai/docs/TEXT_GENERATION.md)**
+- **[Audio Generation Guide](blossom_ai/docs/AUDIO_GENERATION.md)**
+- **[Examples](blossom_ai/docs/EXAMPLES.md)** - Practical code examples
+- **[Resource Management & Best Practices](blossom_ai/docs/RESOURCE_MANAGEMENT.md)**
+- **[Discord Bot Tutorial](blossom_ai/docs/DISCORD_BOT.md)**
+- **[Telegram Bot Tutorial](blossom_ai/docs/TELEGRAM_BOT.md)**
+- **[Error Handling](blossom_ai/docs/ERROR_HANDLING.md)**
+- **[API Reference](blossom_ai/docs/API_REFERENCE.md)**
+- **[Changelog](blossom_ai/docs/CHANGELOG.md)**
 
 ## 🤝 Contributing
 
@@ -71,7 +73,7 @@ Contributions welcome!
 
 ## 📄 License
 
-MIT License - see [LICENSE](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/LICENSE)
+MIT License - see [LICENSE](LICENSE)
 
 ---
 
