@@ -1,8 +1,10 @@
 # Changelog
 
 This document tracks the changes and updates across different versions of the Blossom AI SDK.
+## v0.2.92 (Latest)
+- **fix links for docs in `README.md`. Sorry pls.
 
-## v0.2.91 (Latest)
+## v0.2.91
 
 ### 📚 Documentation Updates
 

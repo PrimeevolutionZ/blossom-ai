@@ -2,7 +2,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.2.7-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
+[![Version](https://img.shields.io/badge/version-0.2.91-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
 
 **A beautiful Python SDK for Pollinations.AI - Generate images, text, and audio with AI.**
 
@@ -54,18 +54,18 @@ with Blossom() as ai:
 
 ## 📚 Documentation
 
-- **[Documentation Index](blossom_ai/docs/INDEX.md)** - Start here for complete guide
-- **[Installation & Setup](blossom_ai/docs/INSTALLATION.md)**
-- **[Image Generation Guide](blossom_ai/docs/IMAGE_GENERATION.md)**
-- **[Text Generation Guide](blossom_ai/docs/TEXT_GENERATION.md)**
-- **[Audio Generation Guide](blossom_ai/docs/AUDIO_GENERATION.md)**
-- **[Examples](blossom_ai/docs/EXAMPLES.md)** - Practical code examples
-- **[Resource Management & Best Practices](blossom_ai/docs/RESOURCE_MANAGEMENT.md)**
-- **[Discord Bot Tutorial](blossom_ai/docs/DISCORD_BOT.md)**
-- **[Telegram Bot Tutorial](blossom_ai/docs/TELEGRAM_BOT.md)**
-- **[Error Handling](blossom_ai/docs/ERROR_HANDLING.md)**
-- **[API Reference](blossom_ai/docs/API_REFERENCE.md)**
-- **[Changelog](blossom_ai/docs/CHANGELOG.md)**
+- **[Documentation Index](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md)** - Start here for complete guide
+- **[Installation & Setup](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INSTALLATION.md)**
+- **[Image Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/IMAGE_GENERATION.md)**
+- **[Text Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/TEXT_GENERATION.md)**
+- **[Audio Generation Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/AUDIO_GENERATION.md)**
+- **[Examples](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/EXAMPLES.md)** - Practical code examples
+- **[Resource Management & Best Practices](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/RESOURCE_MANAGEMENT.md)**
+- **[Discord Bot Tutorial](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/DISCORD_BOT.md)**
+- **[Telegram Bot Tutorial](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/TELEGRAM_BOT.md)**
+- **[Error Handling](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/ERROR_HANDLING.md)**
+- **[API Reference](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/API_REFERENCE.md)**
+- **[Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md)**
 
 ## 🤝 Contributing
 
@@ -73,7 +73,7 @@ Contributions welcome!
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE)
+MIT License - see [LICENSE](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/LICENSE)
 
 ---
 
