@@ -60,8 +60,8 @@ with Blossom() as ai:
 - **[Resource Management & Best Practices](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/RESOURCE_MANAGEMENT.md )**
 - **[Discord Bot Tutorial](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/DISCORD_BOT.md )**
 - **[Telegram Bot Tutorial](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/TELEGRAM_BOT.md )**
-- **[Error Handling](https://github.com/PrimeevolutionZ/blossom-ai/blob/masterblossom_ai/docs/ERROR_HANDLING.md )**
-- **[API Reference](https://github.com/PrimeevolutionZ/blossom-ai/blob/masterblossom_ai/docs/API_REFERENCE.md )**
+- **[Error Handling](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/ERROR_HANDLING.md )**
+- **[API Reference](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/API_REFERENCE.md )**
 - **[Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md )**
 
 

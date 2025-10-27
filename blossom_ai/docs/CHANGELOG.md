@@ -1,6 +1,8 @@
 # Changelog
 
 This document tracks the changes and updates across different versions of the Blossom AI SDK.
+## v0.2.9 (Latest)
+**kill me please** - I accidentally missed / in the paths of 2 files.
 ## v0.2.8 (Latest)
 
 ### 🐛 Bug Fixes
