@@ -13,6 +13,7 @@ Perfect for newcomers to Blossom AI.
 | Guide                                      | Description |
 |--------------------------------------------|-------------|
 | **[Installation & Setup](INSTALLATION.md)** | Install the package and configure your environment |
+
 ---
 
 ## 🎨 Core Features
@@ -81,6 +82,19 @@ Technical details and API specifications.
 
 ---
 
+## 🤝 Contributing & Security
+
+Get involved and keep the project secure.
+
+| Document | Description |
+|----------|-------------|
+| **[Contributing Guide](../../CONTRIBUTING.md)** | How to contribute code, docs, and ideas |
+| **[Security Policy](../../SECURITY.md)** | Report vulnerabilities and security best practices |
+
+> **Note:** These files are located in the project root (`blossom-ai/`), one level above the package directory.
+
+---
+
 ## 🎯 Quick Links
 
 ### Common Tasks
@@ -90,6 +104,8 @@ Technical details and API specifications.
 - **Read files for prompts:** [File Reader - Quick Start](FILE_READER.md#-quick-start)
 - **Handle errors properly:** [Error Handling Guide](ERROR_HANDLING.md)
 - **Use in async code:** [Resource Management - Async](RESOURCE_MANAGEMENT.md#asynchronous-context-manager)
+- **Contribute to project:** [Contributing Guide](../../CONTRIBUTING.md)
+- **Report security issue:** [Security Policy](../../SECURITY.md)
 
 ### Examples by Use Case
 
@@ -108,9 +124,10 @@ Technical details and API specifications.
 ## 🆘 Need Help?
 
 - 🐛 **Found a bug?** [Report it on GitHub](https://github.com/PrimeevolutionZ/blossom-ai/issues)
+- 🔒 **Security issue?** See [Security Policy](../../SECURITY.md) for responsible disclosure
 - 💡 **Have a question?** Check the [Error Handling Guide](ERROR_HANDLING.md)
 - 📚 **Want examples?** See individual feature guides above
-
+- 🤝 **Want to contribute?** Read the [Contributing Guide](../../CONTRIBUTING.md)
 
 ---
 
@@ -176,5 +193,7 @@ with Blossom() as ai:
 **Made with 🌸 by the [Eclips Team](https://github.com/PrimeevolutionZ)**
 
 [PyPI Package](https://pypi.org/project/eclips-blossom-ai/) • [GitHub Repository](https://github.com/PrimeevolutionZ/blossom-ai) • [Report Issue](https://github.com/PrimeevolutionZ/blossom-ai/issues)
+
+[Contributing](../../CONTRIBUTING.md) • [Security](../../SECURITY.md) • [License](../../LICENSE)
 
 </div>
