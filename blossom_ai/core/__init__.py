@@ -13,6 +13,12 @@ from .errors import (
     RateLimitError,
     StreamError,
     FileTooLargeError,
+    handle_request_error,
+    handle_validation_error,
+    print_info,
+    print_warning,
+    print_error,
+    print_debug,
 )
 
 from .models import (
@@ -22,6 +28,13 @@ from .models import (
     DEFAULT_IMAGE_MODELS,
     DEFAULT_TEXT_MODELS,
     DEFAULT_VOICES,
+)
+
+from .config import (
+    ENDPOINTS,
+    LIMITS,
+    DEFAULTS,
+    AUTH_URL,
 )
 
 __all__ = [
@@ -36,6 +49,12 @@ __all__ = [
     "RateLimitError",
     "StreamError",
     "FileTooLargeError",
+    "handle_request_error",
+    "handle_validation_error",
+    "print_info",
+    "print_warning",
+    "print_error",
+    "print_debug",
 
     # Models
     "ImageModel",
@@ -44,4 +63,10 @@ __all__ = [
     "DEFAULT_IMAGE_MODELS",
     "DEFAULT_TEXT_MODELS",
     "DEFAULT_VOICES",
+
+    # Config
+    "ENDPOINTS",
+    "LIMITS",
+    "DEFAULTS",
+    "AUTH_URL",
 ]

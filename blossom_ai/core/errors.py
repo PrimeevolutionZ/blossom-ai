@@ -1,6 +1,6 @@
 """
-Blossom AI - Error Handling (Enhanced)
-Enhanced error handling with context and better diagnostics
+Blossom AI - Error Handling
+Clean error handling with context and better diagnostics
 """
 
 import logging

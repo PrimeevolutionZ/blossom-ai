@@ -1,6 +1,6 @@
 """
-Blossom AI - Session Manager (Fixed)
-Fixed async session cleanup to prevent ResourceWarnings
+Blossom AI - Session Manager
+Fixed async session cleanup without __del__ anti-patterns
 """
 
 import asyncio
@@ -24,7 +24,6 @@ class SyncSessionManager:
 
         if self._session is None:
             self._session = requests.Session()
-            # Set reasonable defaults
             adapter = requests.adapters.HTTPAdapter(
                 pool_connections=10,
                 pool_maxsize=20,
@@ -37,7 +36,7 @@ class SyncSessionManager:
 
     def close(self):
         """Close the session"""
-        if self._session is not None:
+        if self._session is not None and not self._closed:
             try:
                 self._session.close()
             except Exception:
@@ -53,21 +52,16 @@ class SyncSessionManager:
         self.close()
         return False
 
-    def __del__(self):
-        """Cleanup on destruction"""
-        try:
-            self.close()
-        except Exception:
-            pass
-
 
 class AsyncSessionManager:
-    """Manages asynchronous aiohttp sessions across event loops"""
+    """
+    Manages asynchronous aiohttp sessions across event loops
+    Uses atexit for cleanup instead of __del__ to avoid ResourceWarnings
+    """
 
-    # Class-level registry to track all sessions for cleanup
+    # Class-level registry for cleanup at exit
     _global_sessions: Dict[int, aiohttp.ClientSession] = {}
     _cleanup_registered = False
-    _lock = asyncio.Lock()
 
     def __init__(self):
         self._sessions: Dict[int, aiohttp.ClientSession] = {}
@@ -86,8 +80,8 @@ class AsyncSessionManager:
             if not cls._global_sessions:
                 return
 
-            # Create new event loop for cleanup
             try:
+                # Create new event loop for cleanup
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
 
@@ -123,7 +117,6 @@ class AsyncSessionManager:
         if loop_id in self._sessions:
             session = self._sessions[loop_id]
             try:
-                # Verify session is actually usable
                 if not session.closed and session.connector is not None:
                     return session
             except Exception:
@@ -153,7 +146,7 @@ class AsyncSessionManager:
             timeout=timeout
         )
 
-        # Store in both instance and global registries
+        # Store in both registries
         self._sessions[loop_id] = session
         self._global_sessions[loop_id] = session
 
@@ -168,7 +161,7 @@ class AsyncSessionManager:
                 except Exception:
                     pass
 
-            # Remove from global registry too
+            # Remove from global registry
             if loop_id in self._global_sessions:
                 del self._global_sessions[loop_id]
 
@@ -181,9 +174,3 @@ class AsyncSessionManager:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
         return False
-
-    def __del__(self):
-        """Cleanup on destruction - register sessions for cleanup at exit"""
-        # Don't try to close async sessions from __del__
-        # They will be cleaned up at program exit via atexit
-        pass

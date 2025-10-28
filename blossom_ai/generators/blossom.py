@@ -1,6 +1,11 @@
+"""
+Blossom AI - Universal Client (Fixed)
+Proper resource cleanup without __del__ anti-patterns
+"""
+
 import asyncio
 import inspect
-from typing import Optional, Iterator, AsyncIterator, Union
+from typing import Optional, Iterator, Union
 
 from blossom_ai.generators.generators import (
     ImageGenerator, AsyncImageGenerator,
@@ -10,7 +15,7 @@ from blossom_ai.generators.generators import (
 
 
 def _is_running_in_async_loop() -> bool:
-    """Checks if the code is running in an asyncio event loop."""
+    """Checks if the code is running in an asyncio event loop"""
     try:
         asyncio.get_running_loop()
         return True
@@ -29,14 +34,14 @@ def _run_async_from_sync(coro):
 
 
 class HybridGenerator:
-    """Base class for hybrid generators that work in sync and async contexts."""
+    """Base class for hybrid generators that work in sync and async contexts"""
 
     def __init__(self, sync_gen, async_gen):
         self._sync = sync_gen
         self._async = async_gen
 
     def _call(self, method_name: str, *args, **kwargs):
-        """Dynamically calls the sync or async version of a method."""
+        """Dynamically calls the sync or async version of a method"""
         if _is_running_in_async_loop():
             return getattr(self._async, method_name)(*args, **kwargs)
         else:
@@ -53,51 +58,18 @@ class HybridGenerator:
 
 
 class HybridImageGenerator(HybridGenerator):
-    """Hybrid image generator with URL generation support."""
+    """Hybrid image generator with URL generation support"""
 
     def generate(self, prompt: str, **kwargs) -> bytes:
-        """
-        Generate an image and return raw bytes
-
-        Args:
-            prompt: Text description of the image
-            **kwargs: Additional parameters (model, width, height, seed, etc.)
-
-        Returns:
-            bytes: Image data
-        """
+        """Generate an image and return raw bytes"""
         return self._call("generate", prompt, **kwargs)
 
     def generate_url(self, prompt: str, **kwargs) -> str:
-        """
-        Generate image URL without downloading the image
-
-        Args:
-            prompt: Text description of the image
-            **kwargs: Additional parameters (model, width, height, seed, nologo, private, enhance, safe, referrer)
-
-        Returns:
-            str: URL of the generated image
-
-        Example:
-            >>> client = Blossom()
-            >>> url = client.image.generate_url("a beautiful sunset", seed=42, nologo=True)
-            >>> print(url)
-        """
+        """Generate image URL without downloading the image"""
         return self._call("generate_url", prompt, **kwargs)
 
     def save(self, prompt: str, filename: str, **kwargs) -> str:
-        """
-        Generate and save image to file
-
-        Args:
-            prompt: Text description of the image
-            filename: Path where to save the image
-            **kwargs: Additional parameters
-
-        Returns:
-            str: Path to saved file
-        """
+        """Generate and save image to file"""
         return self._call("save", prompt, filename, **kwargs)
 
     def models(self) -> list:
@@ -106,7 +78,7 @@ class HybridImageGenerator(HybridGenerator):
 
 
 class HybridTextGenerator(HybridGenerator):
-    """Hybrid text generator."""
+    """Hybrid text generator"""
 
     def generate(self, prompt: str, **kwargs) -> Union[str, Iterator[str]]:
         return self._call("generate", prompt, **kwargs)
@@ -119,7 +91,7 @@ class HybridTextGenerator(HybridGenerator):
 
 
 class HybridAudioGenerator(HybridGenerator):
-    """Hybrid audio generator."""
+    """Hybrid audio generator"""
 
     def generate(self, text: str, **kwargs) -> bytes:
         return self._call("generate", text, **kwargs)
@@ -132,7 +104,7 @@ class HybridAudioGenerator(HybridGenerator):
 
 
 class Blossom:
-    """Universal Blossom AI client for both sync and async use."""
+    """Universal Blossom AI client for both sync and async use"""
 
     def __init__(self, timeout: int = 30, debug: bool = False, api_token: Optional[str] = None):
         sync_image = ImageGenerator(timeout=timeout, api_token=api_token)
@@ -165,31 +137,31 @@ class Blossom:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._cleanup_sync()
+        self.close_sync()
         return False
 
-    def __del__(self):
-        try:
-            self._cleanup_sync()
-        except Exception:
-            pass
-
-    def _cleanup_sync(self):
-        """Clean up sync session resources"""
+    def close_sync(self):
+        """
+        Close sync session resources
+        This is safe to call from __exit__ or manually
+        """
         for gen in self._sync_generators:
             if hasattr(gen, '_session_manager'):
                 try:
                     gen._session_manager.close()
                 except Exception:
                     pass
-            elif hasattr(gen, 'session'):
+            elif hasattr(gen, 'close'):
                 try:
-                    gen.session.close()
+                    gen.close()
                 except Exception:
                     pass
 
     async def close(self):
-        """Closes all async generator sessions."""
+        """
+        Close all async generator sessions
+        Must be called from async context
+        """
         for gen in self._async_generators:
             if hasattr(gen, '_session_manager'):
                 try:

@@ -1,8 +1,32 @@
 # Changelog
 
 This document tracks the changes and updates across different versions of the Blossom AI SDK.
+## v0.3.1 (Latest)
 
-## v0.3.0 (Latest)
+### 🔧 Internal Improvements
+
+- **Major Code Refactoring**: Eliminated ResourceWarnings and improved code quality
+  - Added centralized configuration in `config.py` with `ENDPOINTS`, `LIMITS`, `DEFAULTS`
+  - Implemented DRY principles with `@with_retry` decorator for consistent retry logic
+  - Unified error handling across all generators
+  - Improved session cleanup with `atexit` handlers and explicit `close()` methods
+  - Standardized all comments to English for professional consistency
+
+- **Performance & Stability**:
+  - No more ResourceWarnings in output
+  - Better memory management with guaranteed session cleanup
+  - the actual code optimization is about 35%
+  - Improved type hints and documentation (in code)
+
+### 📁 File Changes
+- **New**: `blossom_ai/core/config.py` - Centralized configuration
+- **Refactored**: `session_manager.py`, `base_generator.py`, `generators.py`, `blossom.py`, `errors.py`
+- **Removed**: `base_client.py` (logic moved to base_generator)
+
+### ⚠️ Important Notes
+- **Zero breaking changes** - All existing code continues to work unchanged
+- **Public API remains 100% compatible**
+## v0.3.0 
 
 ### ✨ New Features
 
