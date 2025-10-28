@@ -13,7 +13,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "eclips-blossom-ai"
-version = "0.3.1"
+version = "0.3.2"
 description = "🌸 Beautiful and simple AI generation library for images, text, and audio"
 readme = "README.md"
 requires-python = ">=3.8"
