@@ -42,16 +42,16 @@ keywords = [
 ]
 classifiers = [
     # Development Status
-    "Development Status :: 4 - Beta",
-    
+    "Development Status :: 5 - Production/Stable",
+
     # Intended Audience
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Information Technology",
-    
+
     # License
     "License :: OSI Approved :: MIT License",
-    
+
     # Programming Language
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
@@ -61,9 +61,10 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: Implementation :: CPython",
-    
+
     # Topics
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -71,13 +72,13 @@ classifiers = [
     "Topic :: Multimedia :: Graphics",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
-    
+
     # Operating System
     "Operating System :: OS Independent",
-    
+
     # Typing
     "Typing :: Typed",
-    
+
     # Natural Language
     "Natural Language :: English",
     "Natural Language :: Russian"
@@ -132,13 +133,13 @@ all = [
 
 [project.urls]
 Homepage = "https://github.com/PrimeevolutionZ/blossom-ai"
-Documentation = "https://github.com/PrimeevolutionZ/blossom-ai#readme"
+Documentation = "https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md"
 Repository = "https://github.com/PrimeevolutionZ/blossom-ai"
 "Source Code" = "https://github.com/PrimeevolutionZ/blossom-ai"
 "Bug Tracker" = "https://github.com/PrimeevolutionZ/blossom-ai/issues"
 "Issue Tracker" = "https://github.com/PrimeevolutionZ/blossom-ai/issues"
-Changelog = "https://github.com/PrimeevolutionZ/blossom-ai/releases"
-Discussions = "https://github.com/PrimeevolutionZ/blossom-ai/discussions"
+Changelog = "https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md"
+"Security Policy" = "https://github.com/PrimeevolutionZ/blossom-ai/blob/master/SECURITY.md"
 
 
 # ============================================================================

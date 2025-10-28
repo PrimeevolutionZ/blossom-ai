@@ -1,7 +1,40 @@
 # Changelog
 
 This document tracks the changes and updates across different versions of the Blossom AI SDK.
-## v0.3.1 (Latest)
+## v0.3.2 (Latest)
+
+### 📚 Documentation & Standardization
+
+- **PyPI Page Enhancement**: Updated package metadata for better PyPI presentation
+  - Changed development status to `Production/Stable`
+  - Added direct links to documentation, changelog, and security policy
+  - Improved project discoverability and user navigation
+
+- **Project Standardization**: Added essential project documentation files
+  - **CONTRIBUTING.md** - Comprehensive guide for contributors
+  - **SECURITY.md** - Detailed security policy and best practices
+  - **bug_report.md** - Standardized bug report template
+  - **feature_request.md** - Standardized feature request template
+
+- **Metadata Updates** in `pyproject.toml`:
+  - Updated development status classifier to `Production/Stable`
+  - Added direct documentation links:
+    - Documentation Index
+    - Changelog
+    - Security Policy
+
+### 🎯 Impact
+
+- **Better PyPI Presence**: Enhanced package page with clear documentation links
+- **Improved Onboarding**: New contributors can easily understand contribution process
+- **Security Transparency**: Clear security policy builds user trust
+- **Standardized Reporting**: Consistent issue and feature request templates
+
+### 📝 Notes
+
+- **No code changes** - This is a documentation and metadata update only
+- **All existing functionality remains unchanged**
+## v0.3.1
 
 ### 🔧 Internal Improvements
 
