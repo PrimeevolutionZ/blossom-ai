@@ -14,6 +14,10 @@ from blossom_ai.generators import (
     AudioGenerator,
     AsyncAudioGenerator,
     StreamChunk,
+    ImageGeneratorV2,
+    AsyncImageGeneratorV2,
+    TextGeneratorV2,
+    AsyncTextGeneratorV2,
 )
 
 from blossom_ai.core import (
@@ -60,6 +64,10 @@ __all__ = [
     "AudioGenerator",
     "AsyncAudioGenerator",
     "StreamChunk",
+    "ImageGeneratorV2",
+    "AsyncImageGeneratorV2",
+    "TextGeneratorV2",
+    "AsyncTextGeneratorV2",
 
     # Errors
     "BlossomError",

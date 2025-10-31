@@ -10,9 +10,18 @@ from typing import Final
 @dataclass(frozen=True)
 class APIEndpoints:
     """API endpoint URLs"""
+    # Legacy API (v1)
     IMAGE: str = "https://image.pollinations.ai"
     TEXT: str = "https://text.pollinations.ai"
     AUDIO: str = "https://text.pollinations.ai"  # Audio uses text endpoint
+
+    # New API (v2) - enter.pollinations.ai
+    V2_BASE: str = "https://enter.pollinations.ai/api"
+    V2_IMAGE: str = "https://enter.pollinations.ai/api/generate/image"
+    V2_TEXT: str = "https://enter.pollinations.ai/api/generate/text"
+    V2_OPENAI: str = "https://enter.pollinations.ai/api/generate/openai"
+    V2_IMAGE_MODELS: str = "https://enter.pollinations.ai/api/generate/image/models"
+    V2_TEXT_MODELS: str = "https://enter.pollinations.ai/api/generate/openai/models"
 
 
 @dataclass(frozen=True)
@@ -37,6 +46,9 @@ class Defaults:
     IMAGE_WIDTH: int = 1024
     IMAGE_HEIGHT: int = 1024
     TEMPERATURE: float = 1.0
+
+    # API version
+    API_VERSION: str = "v1"  # "v1" (legacy) or "v2" (new enter.pollinations.ai)
 
 
 # Singleton instances

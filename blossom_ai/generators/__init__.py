@@ -11,8 +11,14 @@ from .generators import (
     AsyncAudioGenerator,
     StreamChunk,
 )
+from .generators_v2 import (
+    ImageGeneratorV2,
+    AsyncImageGeneratorV2,
+    TextGeneratorV2,
+    AsyncTextGeneratorV2,
+)
 
-from .blossom import Blossom
+from .blossom import (Blossom)
 
 __all__ = [
     "ImageGenerator",
@@ -23,4 +29,8 @@ __all__ = [
     "AsyncAudioGenerator",
     "StreamChunk",
     "Blossom",
+    "ImageGeneratorV2",
+    "AsyncImageGeneratorV2",
+    "TextGeneratorV2",
+    "AsyncTextGeneratorV2",
 ]
