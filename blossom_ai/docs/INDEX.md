@@ -16,9 +16,38 @@ Perfect for newcomers to Blossom AI.
 
 ---
 
-## 🎨 Core Features
+## 🆕 V2 API (New!)
 
-Learn how to use each generation type.
+The new Pollinations V2 API brings powerful improvements and new features.
+
+| Guide | Description |
+|-------|-------------|
+| **[V2 Migration Guide](V2_MIGRATION_GUIDE.md)** | Migrate from V1 to V2 - step by step guide |
+| **[V2 Image Generation](V2_IMAGE_GENERATION.md)** | HD quality, guidance scale, negative prompts, transparency |
+| **[V2 Text Generation](V2_TEXT_GENERATION.md)** | Function calling, advanced parameters, better streaming |
+| **[V2 API Reference](V2_API_REFERENCE.md)** | Complete V2 API documentation with all parameters |
+
+### What's New in V2?
+
+**Image Generation:**
+- ✨ Quality levels: `low`, `medium`, `high`, `hd`
+- 🎯 Guidance scale control (1.0-20.0)
+- 🚫 Negative prompts
+- 🌈 Transparent backgrounds
+- 🖼️ Image-to-image transformation
+
+**Text Generation:**
+- 🛠️ Function calling / Tool use
+- 📋 Structured JSON output
+- ⚙️ Advanced parameters: `max_tokens`, `frequency_penalty`, `presence_penalty`, `top_p`
+- 🌊 Improved streaming
+- 🌡️ Extended temperature range (0-2)
+
+---
+
+## 🎨 Core Features (V1)
+
+Learn how to use each generation type with the legacy V1 API.
 
 ### Image Generation
 | Guide | Description |
@@ -67,7 +96,7 @@ Build real-world applications.
 | **[Discord Bot Tutorial](DISCORD_BOT.md)** | Create an AI image generation bot for Discord |
 | **[Telegram Bot Tutorial](TELEGRAM_BOT.md)** | Build a Telegram bot with image generation |
 | **[Resource Management](RESOURCE_MANAGEMENT.md)** | Best practices for production applications |
-| **[Error Handling](ERROR_HANDLING.md)** | Handle errors gracefully in your applications |
+| **[Error Handling](ERROR_HANDLING.md)** | Handle errors gracefully (V1 & V2) |
 
 ---
 
@@ -77,7 +106,8 @@ Technical details and API specifications.
 
 | Document | Description |
 |----------|-------------|
-| **[API Reference](API_REFERENCE.md)** | Complete API documentation for all methods |
+| **[API Reference](API_REFERENCE.md)** | Complete V1 API documentation for all methods |
+| **[V2 API Reference](V2_API_REFERENCE.md)** | Complete V2 API documentation |
 | **[Changelog](CHANGELOG.md)** | Version history and updates |
 
 ---
@@ -99,11 +129,21 @@ Get involved and keep the project secure.
 
 ### Common Tasks
 
+#### V2 API
+- **Migrate to V2:** [V2 Migration Guide](V2_MIGRATION_GUIDE.md)
+- **Generate HD images:** [V2 Image Generation - Quality](V2_IMAGE_GENERATION.md#-quality-levels)
+- **Use function calling:** [V2 Text Generation - Functions](V2_TEXT_GENERATION.md#-function-calling)
+- **Control text length:** [V2 Text Generation - Max Tokens](V2_TEXT_GENERATION.md#max-tokens)
+- **Structured JSON:** [V2 Text Generation - JSON Mode](V2_TEXT_GENERATION.md#-json-mode)
+
+#### V1 API (Legacy)
 - **Generate an image URL:** [Image Generation - URL Method](IMAGE_GENERATION.md#-image-url-generation)
 - **Stream text in real-time:** [Text Generation - Streaming](TEXT_GENERATION.md#-streaming-text-generation)
 - **Read files for prompts:** [File Reader - Quick Start](FILE_READER.md#-quick-start)
 - **Handle errors properly:** [Error Handling Guide](ERROR_HANDLING.md)
 - **Use in async code:** [Resource Management - Async](RESOURCE_MANAGEMENT.md#asynchronous-context-manager)
+
+#### Contributing
 - **Contribute to project:** [Contributing Guide](../../CONTRIBUTING.md)
 - **Report security issue:** [Security Policy](../../SECURITY.md)
 
@@ -111,7 +151,9 @@ Get involved and keep the project secure.
 
 | Use Case | Guide |
 |----------|-------|
-| **Web Application** | [Image Generation - Web Example](IMAGE_GENERATION.md#parallel-url-generation) |
+| **Web Application (V2)** | [V2 API Reference - Complete Example](V2_API_REFERENCE.md#-complete-example) |
+| **HD Image Generation** | [V2 Image Generation - Quality](V2_IMAGE_GENERATION.md#-quality-levels) |
+| **AI Chatbot with Tools** | [V2 Text Generation - Function Calling](V2_TEXT_GENERATION.md#-function-calling) |
 | **Chat Bot (Discord)** | [Discord Bot Tutorial](DISCORD_BOT.md) |
 | **Chat Bot (Telegram)** | [Telegram Bot Tutorial](TELEGRAM_BOT.md) |
 | **CLI Tool** | [Resource Management - Sync Usage](RESOURCE_MANAGEMENT.md#synchronous-context-manager) |
@@ -135,49 +177,58 @@ Get involved and keep the project secure.
 
 Quick code snippets for common tasks:
 
-### Generate and Save an Image
+### V2 API Quick Start
+
 ```python
 from blossom_ai import Blossom
 
-with Blossom() as ai:
-    ai.image.save("a beautiful sunset", "sunset.jpg")
+# Initialize V2 client
+with Blossom(api_version="v2", api_token="your_token") as client:
+    # HD image with advanced features
+    image = client.image.generate(
+        "sunset over mountains",
+        quality="hd",
+        guidance_scale=7.5,
+        negative_prompt="blurry, low quality"
+    )
+    
+    # Text with advanced parameters
+    response = client.text.generate(
+        "Explain quantum computing",
+        max_tokens=200,
+        frequency_penalty=0.5,
+        presence_penalty=0.3
+    )
 ```
 
-### Get Image URL (Fast!)
+### V1 API (Legacy)
+
 ```python
 from blossom_ai import Blossom
 
+# Generate and Save an Image
+with Blossom() as ai:
+    ai.image.save("a beautiful sunset", "sunset.jpg")
+
+# Get Image URL (Fast!)
 with Blossom() as ai:
     url = ai.image.generate_url("a cute robot")
     print(url)
-```
 
-### Stream Text Generation
-```python
-from blossom_ai import Blossom
-
+# Stream Text Generation
 with Blossom() as ai:
     for chunk in ai.text.generate("Tell me a story", stream=True):
         print(chunk, end='', flush=True)
-```
 
-### Generate Audio (Requires Token)
-```python
-from blossom_ai import Blossom
-
+# Generate Audio (Requires Token)
 with Blossom(api_token="YOUR_TOKEN") as ai:
     ai.audio.save("Hello world", "hello.mp3", voice="nova")
-```
 
-### Read File for AI Analysis
-```python
-from blossom_ai import Blossom
+# Read File for AI Analysis
 from blossom_ai.utils import read_file_for_prompt
 
-# Read file content
 content = read_file_for_prompt("data.txt", max_length=5000)
 
-# Analyze with AI
 with Blossom() as ai:
     response = ai.text.generate(
         f"Analyze this data:\n\n{content}",
@@ -185,6 +236,29 @@ with Blossom() as ai:
     )
     print(response)
 ```
+
+---
+
+## 🔄 Version Comparison
+
+| Feature | V1 (Legacy) | V2 (New) |
+|---------|-------------|----------|
+| **Image Quality Control** | ❌ | ✅ (low/medium/high/hd) |
+| **Guidance Scale** | ❌ | ✅ (1.0-20.0) |
+| **Negative Prompts** | ❌ | ✅ |
+| **Transparent Images** | ❌ | ✅ |
+| **Image-to-Image** | ❌ | ✅ |
+| **Function Calling** | ❌ | ✅ |
+| **Max Tokens Control** | ❌ | ✅ |
+| **Frequency Penalty** | ❌ | ✅ (0-2) |
+| **Presence Penalty** | ❌ | ✅ (0-2) |
+| **Top-P Sampling** | ❌ | ✅ |
+| **Temperature Range** | 0-1 | 0-2 (extended) |
+| **Basic Generation** | ✅ | ✅ |
+| **Streaming** | ✅ | ✅ (improved) |
+| **JSON Mode** | ✅ | ✅ (more reliable) |
+
+**Recommendation:** Use V2 for new projects. V1 remains supported for backward compatibility.
 
 ---
 

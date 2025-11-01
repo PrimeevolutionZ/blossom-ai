@@ -52,46 +52,24 @@ class ImageGeneratorV2(SyncGenerator, ModelAwareGenerator):
             )
 
     def generate(
-            self,
-            prompt: str,
-            model: str = DEFAULTS.IMAGE_MODEL,
-            width: int = DEFAULTS.IMAGE_WIDTH,
-            height: int = DEFAULTS.IMAGE_HEIGHT,
-            seed: int = 42,
-            enhance: bool = False,
-            negative_prompt: str = "worst quality, blurry",
-            private: bool = False,
-            nologo: bool = False,
-            nofeed: bool = False,
-            safe: bool = False,
-            quality: str = "medium",
-            image: Optional[str] = None,
-            transparent: bool = False,
-            guidance_scale: Optional[float] = None
+        self,
+        prompt: str,
+        model: str = DEFAULTS.IMAGE_MODEL,
+        width: int = DEFAULTS.IMAGE_WIDTH,
+        height: int = DEFAULTS.IMAGE_HEIGHT,
+        seed: int = 42,
+        enhance: bool = False,
+        negative_prompt: str = "worst quality, blurry",
+        private: bool = False,
+        nologo: bool = False,
+        nofeed: bool = False,
+        safe: bool = False,
+        quality: str = "medium",
+        image: Optional[str] = None,
+        transparent: bool = False,
+        guidance_scale: Optional[float] = None
     ) -> bytes:
-        """
-        Generate image using V2 API
-
-        Args:
-            prompt: Text description
-            model: Model (flux, kontext, turbo, etc.)
-            width: Image width
-            height: Image height
-            seed: Random seed
-            enhance: Auto-enhance prompt
-            negative_prompt: Negative prompt
-            private: Make generation private
-            nologo: Remove watermark
-            nofeed: Don't add to feed
-            safe: Enable safety filter
-            quality: Quality level (low, medium, high, hd)
-            image: URL of image for img2img
-            transparent: Generate transparent background
-            guidance_scale: Guidance scale for generation
-
-        Returns:
-            bytes: Image data
-        """
+        """Generate image using V2 API"""
         self._validate_prompt(prompt)
         encoded_prompt = self._encode_prompt(prompt)
         url = f"{self.base_url}/{encoded_prompt}"
@@ -116,16 +94,35 @@ class ImageGeneratorV2(SyncGenerator, ModelAwareGenerator):
         if guidance_scale is not None:
             params["guidance_scale"] = guidance_scale
 
+        # DON'T add token to params for V2 - it goes in header via _make_request
         response = self._make_request("GET", url, params=params)
         return response.content
 
     def models(self) -> List[str]:
         """Get available image models from V2 API"""
         if self._models_cache is None:
-            url = ENDPOINTS.V2_IMAGE_MODELS
-            models = self._fetch_list(url, self._fallback_models)
-            self._update_known_models(models)
-        return self._models_cache or self._fallback_models
+            try:
+                # Use absolute URL directly, bypass _build_url
+                response = self._make_request("GET", ENDPOINTS.V2_IMAGE_MODELS)
+                data = response.json()
+
+                models = []
+                if isinstance(data, list):
+                    for item in data:
+                        if isinstance(item, str):
+                            models.append(item)
+                        elif isinstance(item, dict):
+                            name = item.get('name') or item.get('id')
+                            if name:
+                                models.append(name)
+
+                self._update_known_models(models if models else self._fallback_models)
+                self._models_cache = models if models else self._fallback_models
+            except Exception as e:
+                print_warning(f"Failed to fetch V2 image models: {e}")
+                self._models_cache = self._fallback_models
+
+        return self._models_cache
 
 
 class AsyncImageGeneratorV2(AsyncGenerator, ModelAwareGenerator):
@@ -144,22 +141,22 @@ class AsyncImageGeneratorV2(AsyncGenerator, ModelAwareGenerator):
             )
 
     async def generate(
-            self,
-            prompt: str,
-            model: str = DEFAULTS.IMAGE_MODEL,
-            width: int = DEFAULTS.IMAGE_WIDTH,
-            height: int = DEFAULTS.IMAGE_HEIGHT,
-            seed: int = 42,
-            enhance: bool = False,
-            negative_prompt: str = "worst quality, blurry",
-            private: bool = False,
-            nologo: bool = False,
-            nofeed: bool = False,
-            safe: bool = False,
-            quality: str = "medium",
-            image: Optional[str] = None,
-            transparent: bool = False,
-            guidance_scale: Optional[float] = None
+        self,
+        prompt: str,
+        model: str = DEFAULTS.IMAGE_MODEL,
+        width: int = DEFAULTS.IMAGE_WIDTH,
+        height: int = DEFAULTS.IMAGE_HEIGHT,
+        seed: int = 42,
+        enhance: bool = False,
+        negative_prompt: str = "worst quality, blurry",
+        private: bool = False,
+        nologo: bool = False,
+        nofeed: bool = False,
+        safe: bool = False,
+        quality: str = "medium",
+        image: Optional[str] = None,
+        transparent: bool = False,
+        guidance_scale: Optional[float] = None
     ) -> bytes:
         """Generate image using V2 API (async)"""
         self._validate_prompt(prompt)
@@ -191,10 +188,27 @@ class AsyncImageGeneratorV2(AsyncGenerator, ModelAwareGenerator):
     async def models(self) -> List[str]:
         """Get available image models from V2 API (async)"""
         if self._models_cache is None:
-            url = ENDPOINTS.V2_IMAGE_MODELS
-            models = await self._fetch_list(url, self._fallback_models)
-            self._update_known_models(models)
-        return self._models_cache or self._fallback_models
+            try:
+                data = await self._make_request("GET", ENDPOINTS.V2_IMAGE_MODELS)
+                parsed = json.loads(data.decode('utf-8'))
+
+                models = []
+                if isinstance(parsed, list):
+                    for item in parsed:
+                        if isinstance(item, str):
+                            models.append(item)
+                        elif isinstance(item, dict):
+                            name = item.get('name') or item.get('id')
+                            if name:
+                                models.append(name)
+
+                self._update_known_models(models if models else self._fallback_models)
+                self._models_cache = models if models else self._fallback_models
+            except Exception as e:
+                print_warning(f"Failed to fetch V2 image models: {e}")
+                self._models_cache = self._fallback_models
+
+        return self._models_cache
 
 
 # ============================================================================
@@ -217,34 +231,18 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             )
 
     def generate(
-            self,
-            prompt: str,
-            model: str = DEFAULTS.TEXT_MODEL,
-            system: Optional[str] = None,
-            temperature: float = 1.0,
-            max_tokens: Optional[int] = None,
-            stream: bool = False,
-            json_mode: bool = False,
-            tools: Optional[List[Dict]] = None,
-            **kwargs
+        self,
+        prompt: str,
+        model: str = DEFAULTS.TEXT_MODEL,
+        system: Optional[str] = None,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        stream: bool = False,
+        json_mode: bool = False,
+        tools: Optional[List[Dict]] = None,
+        **kwargs
     ) -> Union[str, Iterator[str]]:
-        """
-        Generate text using V2 OpenAI-compatible endpoint
-
-        Args:
-            prompt: User prompt
-            model: Model name (openai, openai-fast, qwen-coder, mistral, etc.)
-            system: System message
-            temperature: Temperature (0-2)
-            max_tokens: Max tokens to generate
-            stream: Enable streaming
-            json_mode: Force JSON response format
-            tools: Function calling tools
-            **kwargs: Additional OpenAI parameters
-
-        Returns:
-            str if stream=False, Iterator[str] if stream=True
-        """
+        """Generate text using V2 OpenAI-compatible endpoint"""
         self._validate_prompt(prompt)
 
         messages = []
@@ -264,41 +262,38 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
         )
 
     def chat(
-            self,
-            messages: List[Dict[str, Any]],
-            model: str = DEFAULTS.TEXT_MODEL,
-            temperature: float = 1.0,
-            max_tokens: Optional[int] = None,
-            stream: bool = False,
-            json_mode: bool = False,
-            tools: Optional[List[Dict]] = None,
-            tool_choice: Optional[Union[str, Dict]] = None,
-            frequency_penalty: float = 0,
-            presence_penalty: float = 0,
-            top_p: float = 1.0,
-            n: int = 1,
-            **kwargs
+        self,
+        messages: List[Dict[str, Any]],
+        model: str = DEFAULTS.TEXT_MODEL,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        stream: bool = False,
+        json_mode: bool = False,
+        tools: Optional[List[Dict]] = None,
+        tool_choice: Optional[Union[str, Dict]] = None,
+        frequency_penalty: float = 0,
+        presence_penalty: float = 0,
+        top_p: float = 1.0,
+        n: int = 1,
+        **kwargs
     ) -> Union[str, Iterator[str]]:
-        """
-        Chat using V2 OpenAI-compatible API
-
-        Supports all OpenAI parameters including:
-        - Function calling (tools, tool_choice)
-        - JSON mode
-        - Streaming
-        - Advanced parameters (frequency_penalty, etc.)
-        """
+        """Chat using V2 OpenAI-compatible API"""
         body = {
             "model": self._validate_model(model),
             "messages": messages,
             "temperature": temperature,
             "stream": stream,
-            "n": n,
-            "top_p": top_p,
-            "frequency_penalty": frequency_penalty,
-            "presence_penalty": presence_penalty,
         }
 
+        # Only add optional parameters if they differ from defaults
+        if n != 1:
+            body["n"] = n
+        if top_p != 1.0:
+            body["top_p"] = top_p
+        if frequency_penalty != 0:
+            body["frequency_penalty"] = frequency_penalty
+        if presence_penalty != 0:
+            body["presence_penalty"] = presence_penalty
         if max_tokens:
             body["max_tokens"] = max_tokens
 
@@ -358,10 +353,8 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
     def models(self) -> List[str]:
         """Get available text models from V2 API"""
         if self._models_cache is None:
-            # V2 models endpoint returns detailed info
             try:
-                url = ENDPOINTS.V2_TEXT_MODELS
-                response = self._make_request("GET", url)
+                response = self._make_request("GET", ENDPOINTS.V2_TEXT_MODELS)
                 data = response.json()
 
                 models = []
@@ -400,16 +393,16 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
             )
 
     async def generate(
-            self,
-            prompt: str,
-            model: str = DEFAULTS.TEXT_MODEL,
-            system: Optional[str] = None,
-            temperature: float = 1.0,
-            max_tokens: Optional[int] = None,
-            stream: bool = False,
-            json_mode: bool = False,
-            tools: Optional[List[Dict]] = None,
-            **kwargs
+        self,
+        prompt: str,
+        model: str = DEFAULTS.TEXT_MODEL,
+        system: Optional[str] = None,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        stream: bool = False,
+        json_mode: bool = False,
+        tools: Optional[List[Dict]] = None,
+        **kwargs
     ) -> Union[str, AsyncIterator[str]]:
         """Generate text using V2 API (async)"""
         self._validate_prompt(prompt)
@@ -431,20 +424,20 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
         )
 
     async def chat(
-            self,
-            messages: List[Dict[str, Any]],
-            model: str = DEFAULTS.TEXT_MODEL,
-            temperature: float = 1.0,
-            max_tokens: Optional[int] = None,
-            stream: bool = False,
-            json_mode: bool = False,
-            tools: Optional[List[Dict]] = None,
-            tool_choice: Optional[Union[str, Dict]] = None,
-            frequency_penalty: float = 0,
-            presence_penalty: float = 0,
-            top_p: float = 1.0,
-            n: int = 1,
-            **kwargs
+        self,
+        messages: List[Dict[str, Any]],
+        model: str = DEFAULTS.TEXT_MODEL,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        stream: bool = False,
+        json_mode: bool = False,
+        tools: Optional[List[Dict]] = None,
+        tool_choice: Optional[Union[str, Dict]] = None,
+        frequency_penalty: float = 0,
+        presence_penalty: float = 0,
+        top_p: float = 1.0,
+        n: int = 1,
+        **kwargs
     ) -> Union[str, AsyncIterator[str]]:
         """Chat using V2 API (async)"""
         body = {
@@ -452,12 +445,16 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
             "messages": messages,
             "temperature": temperature,
             "stream": stream,
-            "n": n,
-            "top_p": top_p,
-            "frequency_penalty": frequency_penalty,
-            "presence_penalty": presence_penalty,
         }
 
+        if n != 1:
+            body["n"] = n
+        if top_p != 1.0:
+            body["top_p"] = top_p
+        if frequency_penalty != 0:
+            body["frequency_penalty"] = frequency_penalty
+        if presence_penalty != 0:
+            body["presence_penalty"] = presence_penalty
         if max_tokens:
             body["max_tokens"] = max_tokens
 
@@ -542,8 +539,7 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
         """Get available text models from V2 API (async)"""
         if self._models_cache is None:
             try:
-                url = ENDPOINTS.V2_TEXT_MODELS
-                data = await self._make_request("GET", url)
+                data = await self._make_request("GET", ENDPOINTS.V2_TEXT_MODELS)
                 parsed = json.loads(data.decode('utf-8'))
 
                 models = []

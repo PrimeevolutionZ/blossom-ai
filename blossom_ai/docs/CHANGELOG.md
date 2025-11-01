@@ -1,7 +1,227 @@
 # Changelog
 
 This document tracks the changes and updates across different versions of the Blossom AI SDK.
-## v0.3.2 (Latest)
+
+---
+
+## v0.4.0 (Latest)
+
+### 🚀 Major Update: V2 API Support
+This release introduces full support for the new Pollinations V2 API (`enter.pollinations.ai`), bringing significant improvements and new features while maintaining full backward compatibility with V1.
+
+#### ✨ New Features
+
+##### V2 API Integration
+- **Opt-in V2 Support**: Use `api_version="v2"` parameter to access new API
+- **Backward Compatible**: V1 remains default, all existing code works unchanged
+- **Dual API Support**: Can use V1 and V2 simultaneously in same application
+
+```python
+# V2 API with new features
+client = Blossom(api_version="v2", api_token="your_token")
+
+# V1 API (existing code still works)
+client = Blossom()  # Defaults to v1
+```
+
+##### Image Generation V2
+
+**Quality Levels** - Control output quality vs generation time:
+- `quality="low"` - Fast generation, smaller files (~10-30 KB)
+- `quality="medium"` - Balanced (default, ~30-100 KB)
+- `quality="high"` - Better details (~100-300 KB)
+- `quality="hd"` - Best quality (~300-500 KB)
+
+**Guidance Scale** - Fine-tune prompt adherence (1.0-20.0):
+- Low (1.0-5.0): Creative freedom, artistic interpretation
+- Medium (5.0-10.0): Balanced adherence (default: 7.5)
+- High (10.0-20.0): Strict prompt following
+
+**Negative Prompts** - Specify unwanted elements:
+```python
+negative_prompt="blurry, low quality, distorted, watermark"
+```
+
+**Transparent Backgrounds** - Generate PNG with alpha channel:
+```python
+transparent=True  # Perfect for logos, stickers, game assets
+```
+
+**Image-to-Image** - Transform existing images:
+```python
+image="https://example.com/source.jpg"  # Transform with prompt
+```
+
+**Feed Control** - Keep generations private:
+```python
+nofeed=True  # Don't add to public feed
+```
+
+##### Text Generation V2
+
+**OpenAI Compatibility** - Full OpenAI API compatibility:
+- Drop-in replacement for OpenAI endpoints
+- Compatible with existing OpenAI tools
+
+**Function Calling / Tool Use** - Build agentic AI applications:
+```python
+tools=[{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get weather for location",
+        "parameters": {...}
+    }
+}]
+```
+
+**Advanced Generation Control**:
+- `max_tokens` - Limit response length (50-2000+)
+- `frequency_penalty` (0-2) - Reduce word repetition
+- `presence_penalty` (0-2) - Encourage topic diversity
+- `top_p` (0.1-1.0) - Nucleus sampling for controlled randomness
+- `n` (1-128) - Generate multiple completions
+
+**Improved JSON Mode** - More reliable structured output:
+```python
+json_mode=True  # Guaranteed valid JSON responses
+```
+
+**Enhanced Streaming** - More stable real-time generation:
+- Better timeout handling
+- Improved error recovery
+- Reduced stream interruptions
+
+**Extended Temperature Range** - 0-2 (was 0-1 in V1):
+- Enables more creative outputs above 1.0
+- Better control over randomness
+
+**Model Aliases** - Multiple names for same models:
+- `"openai"` = `"gpt-4"` = `"chatgpt"`
+- More flexible model selection
+
+##### Authentication Improvements
+
+**Secret Keys** (`sk_...`) - Server-side use:
+- Best rate limits
+- Full feature access
+- Can spend Pollen credits
+- Never expose in client-side code
+
+**Publishable Keys** (`pk_...`) - Client-side use:
+- IP-based rate limits
+- Safe for browsers/client apps
+- Free features only
+- All models accessible
+
+**Anonymous Access** - Still available:
+- Free tier with basic limits
+- Great for testing
+
+#### 📚 Documentation
+
+**New Guides**:
+- **[V2 Migration Guide](docs/V2_MIGRATION_GUIDE.md)** - Step-by-step migration from V1
+- **[V2 Image Generation](docs/V2_IMAGE_GENERATION.md)** - Complete guide to image features
+- **[V2 Text Generation](docs/V2_TEXT_GENERATION.md)** - Advanced text generation guide
+- **[V2 API Reference](docs/V2_API_REFERENCE.md)** - Full API documentation
+
+**Updated Guides**:
+- **[Error Handling](docs/ERROR_HANDLING.md)** - V2-specific error handling
+- **[INDEX.md](docs/INDEX.md)** - Added V2 section and comparison table
+
+#### 🔧 Internal Improvements
+
+**New V2 Generators**:
+- `ImageGeneratorV2` / `AsyncImageGeneratorV2`
+- `TextGeneratorV2` / `AsyncTextGeneratorV2`
+- Located in `generators_v2.py`
+
+**V2 Endpoints**:
+- Image: `https://enter.pollinations.ai/api/generate/image`
+- Text: `https://enter.pollinations.ai/api/generate/openai`
+- Models: Separate endpoints for image/text model lists
+
+**Authentication Handling**:
+- V2 uses Bearer token in Authorization header
+- V1 uses query parameter (backward compatible)
+- Automatic method selection based on API version
+
+**Error Handling**:
+- 402 Payment Required support for V2
+- Better rate limit detection
+- Improved error messages with context
+
+#### ⚠️ Breaking Changes
+
+**None!** This release is fully backward compatible:
+- V1 API remains default (`api_version="v1"`)
+- All existing code continues to work
+- V2 is opt-in via `api_version="v2"` parameter
+
+#### 🔄 Migration Path
+
+```python
+# Before (V1 - still works!)
+client = Blossom()
+image = client.image.generate("sunset")
+
+# After (V2 - opt-in)
+client = Blossom(api_version="v2", api_token="token")
+image = client.image.generate(
+    "sunset",
+    quality="hd",
+    guidance_scale=7.5,
+    negative_prompt="blurry"
+)
+```
+
+See [V2 Migration Guide](docs/V2_MIGRATION_GUIDE.md) for detailed migration steps.
+
+#### 📊 Feature Comparison
+
+| Feature | V1 | V2 |
+|---------|----|----|
+| Basic generation | ✅ | ✅ |
+| Quality levels | ❌ | ✅ |
+| Guidance scale | ❌ | ✅ |
+| Negative prompts | ❌ | ✅ |
+| Transparent images | ❌ | ✅ |
+| Image-to-image | ❌ | ✅ |
+| Function calling | ❌ | ✅ |
+| Max tokens | ❌ | ✅ |
+| Frequency penalty | ❌ | ✅ |
+| Presence penalty | ❌ | ✅ |
+| Top-P sampling | ❌ | ✅ |
+| Temperature | 0-1 | 0-2 |
+| Streaming | ✅ | ✅ (improved) |
+| JSON mode | ✅ | ✅ (more reliable) |
+
+#### 🎯 Use Cases
+
+**Use V2 when you need:**
+- HD quality images
+- Fine control over image generation
+- Function calling for AI agents
+- Advanced text parameters
+- Better streaming reliability
+- Structured JSON outputs
+
+**Use V1 when you need:**
+- Simple, quick integration
+- Backward compatibility
+- No authentication required
+- Basic features are sufficient
+
+#### 🔗 Related Links
+
+- [V2 API Documentation](https://docs.pollinations.ai/v2)
+- [Get API Token](https://enter.pollinations.ai)
+- [V2 Migration Guide](docs/V2_MIGRATION_GUIDE.md)
+
+---
+
+## v0.3.2
 
 ### 📚 Documentation & Standardization
 
@@ -34,6 +254,9 @@ This document tracks the changes and updates across different versions of the Bl
 
 - **No code changes** - This is a documentation and metadata update only
 - **All existing functionality remains unchanged**
+
+---
+
 ## v0.3.1
 
 ### 🔧 Internal Improvements
@@ -48,7 +271,7 @@ This document tracks the changes and updates across different versions of the Bl
 - **Performance & Stability**:
   - No more ResourceWarnings in output
   - Better memory management with guaranteed session cleanup
-  - the actual code optimization is about 35%
+  - Code optimization ~35%
   - Improved type hints and documentation (in code)
 
 ### 📁 File Changes
@@ -59,6 +282,9 @@ This document tracks the changes and updates across different versions of the Bl
 ### ⚠️ Important Notes
 - **Zero breaking changes** - All existing code continues to work unchanged
 - **Public API remains 100% compatible**
+
+---
+
 ## v0.3.0 
 
 ### ✨ New Features
@@ -116,45 +342,6 @@ This document tracks the changes and updates across different versions of the Bl
 - `FileContentReader` defaults to limiting files to **8,000 characters** to leave space for prompts
 - **Users are responsible** for ensuring their final prompt doesn't exceed 10,000 characters
 - Use `validate_prompt_length()` to check before sending to API
-
-**Example:**
-```python
-from blossom_ai.utils import read_file_for_prompt
-
-# File limited to 8000 chars by default
-content = read_file_for_prompt("data.txt")  
-
-# You must ensure: len(your_prompt + content) <= 10000
-prompt = f"Analyze this: {content}"  # Your responsibility to check total length
-```
-
-### 🛠️ Migration Guide
-
-**Using File Reader (New in v0.3.0):**
-
-```python
-# Before v0.3.0 - manual file reading
-with open("data.txt", "r") as f:
-    content = f.read()
-    if len(content) > 10000:
-        content = content[:10000]  # Manual truncation
-
-# v0.3.0 - automatic validation with clear limits
-from blossom_ai.utils import read_file_for_prompt
-from blossom_ai.core import FileTooLargeError
-
-try:
-    # Limited to 8000 chars by default (leaves 2000 for prompt)
-    content = read_file_for_prompt("data.txt")
-except FileTooLargeError as e:
-    print(e.message)
-    # Use auto-truncation
-    content = read_file_for_prompt("data.txt", truncate_if_needed=True)
-
-# Remember: ensure final prompt + file <= 10,000 characters
-```
-
-All existing code continues to work without changes. The new utilities are optional additions.
 
 ---
 

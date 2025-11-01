@@ -109,21 +109,38 @@ class BaseGenerator(ABC):
         """Generate unique request ID for tracing"""
         return str(uuid.uuid4())
 
+    def _is_v2_api(self) -> bool:
+        """Check if this is V2 API (enter.pollinations.ai)"""
+        return 'enter.pollinations.ai' in self.base_url
+
     def _add_auth_params(self, params: Dict[str, Any], method: str = 'GET') -> Dict[str, Any]:
         """Add authentication parameters based on method"""
         if not self.api_token:
             return params
 
-        if method.upper() != 'POST':
-            params['token'] = self.api_token
+        # V2 API uses Bearer header ONLY (no query params for auth)
+        # V1 API uses 'token' query param for GET
+        if self._is_v2_api():
+            # V2: Don't add token to params, it goes in Authorization header only
+            pass
+        else:
+            # V1 API - add token to query params for non-POST
+            if method.upper() != 'POST':
+                params['token'] = self.api_token
+
         return params
 
     def _get_auth_headers(self, method: str = 'GET', request_id: Optional[str] = None) -> Dict[str, str]:
         """Get authentication headers with request ID"""
         headers = {}
 
-        if self.api_token and method.upper() == 'POST':
-            headers['Authorization'] = f'Bearer {self.api_token}'
+        if self.api_token:
+            # V2 API always uses Bearer header (preferred method)
+            if self._is_v2_api():
+                headers['Authorization'] = f'Bearer {self.api_token}'
+            # V1 API uses Bearer only for POST
+            elif method.upper() == 'POST':
+                headers['Authorization'] = f'Bearer {self.api_token}'
 
         if request_id:
             headers['X-Request-ID'] = request_id
