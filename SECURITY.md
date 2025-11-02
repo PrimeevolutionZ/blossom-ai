@@ -5,10 +5,11 @@
 We actively support and provide security updates for the following versions of Blossom AI:
 
 | Version | Supported          |
-| ------- | ------------------ |
-| 0.3.x   | ✅ Actively supported |
-| 0.2.x   | ✅ Security fixes only |
-| < 0.2.0 | ❌ Not supported      |
+|---------| ------------------ |
+| 0.4.x   | ✅ Actively supported |
+| 0.3.x   | ✅  Security fixes only |
+| <0.2.x   | ❌ Not supported  |
+
 
 ## Reporting a Vulnerability
 
@@ -370,6 +371,6 @@ For security-related questions:
 
 **Last Updated**: October 2025
 
-**Version**: 0.3.0
+**Version**: 0.4.1
 
 This security policy will be reviewed and updated regularly. Check back for the latest information.
