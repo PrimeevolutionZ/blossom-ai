@@ -2,7 +2,7 @@
 🌸 Blossom AI - Beautiful Python SDK for Pollinations.AI
 Generate images, text, and audio with AI
 
-Version: 0.4.0 (V2 API Support)
+Version: 0.4.1
 """
 
 from blossom_ai.generators import (
@@ -56,6 +56,7 @@ from blossom_ai.core import (
 )
 
 from blossom_ai.utils import (
+    # File handling
     FileContentReader,
     FileContent,
     read_file_for_prompt,
@@ -64,9 +65,23 @@ from blossom_ai.utils import (
     DEFAULT_PROMPT_SPACE,
     API_MAX_TOTAL_LENGTH,
     SUPPORTED_TEXT_EXTENSIONS,
+    # Reasoning
+    ReasoningLevel,
+    ReasoningConfig,
+    ReasoningEnhancer,
+    ReasoningChain,
+    add_reasoning_to_blossom,
+    create_reasoning_enhancer,
+    # Caching
+    CacheBackend,
+    CacheConfig,
+    CacheManager,
+    get_cache,
+    configure_cache,
+    cached,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 __all__ = [
     # Main client
@@ -109,7 +124,7 @@ __all__ = [
     "DEFAULT_TEXT_MODELS",
     "DEFAULT_VOICES",
 
-    # Utils
+    # Utils - File handling
     "FileContentReader",
     "FileContent",
     "read_file_for_prompt",
@@ -118,6 +133,22 @@ __all__ = [
     "DEFAULT_PROMPT_SPACE",
     "API_MAX_TOTAL_LENGTH",
     "SUPPORTED_TEXT_EXTENSIONS",
+
+    # Utils - Reasoning
+    "ReasoningLevel",
+    "ReasoningConfig",
+    "ReasoningEnhancer",
+    "ReasoningChain",
+    "add_reasoning_to_blossom",
+    "create_reasoning_enhancer",
+
+    # Utils - Caching
+    "CacheBackend",
+    "CacheConfig",
+    "CacheManager",
+    "get_cache",
+    "configure_cache",
+    "cached",
 
     # Version
     "__version__",

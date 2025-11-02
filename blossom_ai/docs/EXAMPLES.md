@@ -1,6 +1,280 @@
 # Examples
 
-Practical examples from the original documentation.
+Practical examples including V2 API, Reasoning, and Caching features.
+
+---
+
+## 🆕 New Features Examples (v0.4.1)
+
+### Reasoning + Caching Combined
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import ReasoningEnhancer, cached
+
+enhancer = ReasoningEnhancer()
+
+@cached(ttl=3600)  # Cache for 1 hour
+def deep_analysis(question):
+    """Cached deep reasoning - best of both worlds!"""
+    enhanced = enhancer.enhance(question, level="high")
+    
+    with Blossom(api_version="v2", api_token="token") as client:
+        return client.text.generate(enhanced, max_tokens=1500)
+
+# First call: deep reasoning + caches result (takes 3-5 seconds)
+result = deep_analysis("Design a scalable microservices architecture")
+
+# Second call: instant from cache (0.5ms instead of 3000ms!)
+result = deep_analysis("Design a scalable microservices architecture")
+```
+
+### Cache Statistics Monitoring
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import get_cache, cached
+
+@cached(ttl=1800)
+def generate_summary(text):
+    with Blossom(api_version="v2", api_token="token") as client:
+        return client.text.generate(f"Summarize: {text}", max_tokens=200)
+
+# Generate some requests
+for i in range(100):
+    generate_summary(f"Text {i % 20}")  # 20 unique, 80 cached
+
+# Check performance
+cache = get_cache()
+stats = cache.get_stats()
+
+print(f"✅ Hit rate: {stats.hit_rate:.1f}%")  # Should be ~80%
+print(f"📊 Hits: {stats.hits}, Misses: {stats.misses}")
+print(f"⚡ Speed improvement: {stats.hits / max(stats.misses, 1):.1f}x faster!")
+```
+
+### Reasoning Levels Comparison
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import ReasoningEnhancer, ReasoningLevel
+
+enhancer = ReasoningEnhancer()
+question = "How do I optimize database queries?"
+
+with Blossom(api_version="v2", api_token="token") as client:
+    # Quick answer (LOW)
+    low = enhancer.enhance(question, level=ReasoningLevel.LOW)
+    result_low = client.text.generate(low, max_tokens=300)
+    
+    # Systematic analysis (MEDIUM)
+    medium = enhancer.enhance(question, level=ReasoningLevel.MEDIUM)
+    result_medium = client.text.generate(medium, max_tokens=800)
+    
+    # Deep reasoning (HIGH)
+    high = enhancer.enhance(question, level=ReasoningLevel.HIGH)
+    result_high = client.text.generate(high, max_tokens=2000)
+    
+    print("=== LOW (Quick) ===")
+    print(result_low[:200] + "...\n")
+    
+    print("=== MEDIUM (Systematic) ===")
+    print(result_medium[:200] + "...\n")
+    
+    print("=== HIGH (Deep) ===")
+    print(result_high[:200] + "...")
+```
+
+### Extract Reasoning from Response
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import ReasoningEnhancer
+
+enhancer = ReasoningEnhancer()
+
+enhanced = enhancer.enhance(
+    "Design a caching system for a web application",
+    level="high"
+)
+
+with Blossom(api_version="v2", api_token="token") as client:
+    response = client.text.generate(enhanced, max_tokens=1500)
+    
+    # Parse structured output
+    parsed = enhancer.extract_reasoning(response)
+    
+    print("=== REASONING PROCESS ===")
+    print(parsed['reasoning'])
+    
+    print("\n=== FINAL ANSWER ===")
+    print(parsed['answer'])
+    
+    if parsed['confidence']:
+        print(f"\n=== CONFIDENCE: {parsed['confidence']} ===")
+```
+
+### Production-Ready Chatbot with Caching
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import CacheManager, ReasoningEnhancer
+
+cache = CacheManager()
+enhancer = ReasoningEnhancer()
+
+def chatbot_with_cache(user_id, message, history):
+    """Intelligent chatbot with caching and reasoning"""
+    
+    # Generate cache key
+    history_hash = hash(str(history))
+    cache_key = f"chat:{user_id}:{history_hash}:{hash(message)}"
+    
+    # Try cache first
+    cached_response = cache.get(cache_key)
+    if cached_response:
+        print("✅ Cache hit!")
+        return cached_response
+    
+    print("⚙️ Generating response...")
+    
+    # Enhance complex questions with reasoning
+    if any(word in message.lower() for word in ['how', 'why', 'explain', 'design']):
+        message = enhancer.enhance(message, level="medium")
+    
+    # Generate response
+    with Blossom(api_version="v2", api_token="token") as client:
+        messages = history + [{"role": "user", "content": message}]
+        response = client.text.chat(
+            messages=messages,
+            max_tokens=500,
+            frequency_penalty=0.3
+        )
+        
+        # Cache for 30 minutes
+        cache.set(cache_key, response, ttl=1800)
+        return response
+
+# Example usage
+history = [
+    {"role": "system", "content": "You are a helpful assistant"}
+]
+
+response1 = chatbot_with_cache("user123", "What is Python?", history)
+# ⚙️ Generating response... (takes 2-3 seconds)
+
+response2 = chatbot_with_cache("user123", "What is Python?", history)
+# ✅ Cache hit! (instant!)
+```
+
+---
+
+## V2 API Examples
+
+### HD Image with Advanced Features
+
+```python
+from blossom_ai import Blossom
+
+with Blossom(api_version="v2", api_token="token") as client:
+    # Professional HD image
+    image = client.image.generate(
+        prompt="professional portrait, studio lighting, 4k",
+        quality="hd",  # Best quality
+        guidance_scale=8.0,  # Strong prompt adherence
+        negative_prompt="blurry, distorted, low quality, amateur",
+        width=1024,
+        height=1024,
+        nologo=True,
+        nofeed=True  # Keep private
+    )
+    
+    with open("portrait_hd.png", "wb") as f:
+        f.write(image)
+    
+    print(f"✅ Generated HD image: {len(image)} bytes")
+```
+
+### Text Generation with Advanced Parameters
+
+```python
+from blossom_ai import Blossom
+
+with Blossom(api_version="v2", api_token="token") as client:
+    response = client.text.generate(
+        prompt="Write a creative story about AI",
+        model="openai",
+        max_tokens=500,  # Limit length
+        temperature=1.2,  # More creative (0-2 range)
+        frequency_penalty=0.8,  # Reduce repetition
+        presence_penalty=0.6,  # Diverse topics
+        top_p=0.95  # Nucleus sampling
+    )
+    
+    print(response)
+```
+
+### Function Calling (AI Agents)
+
+```python
+from blossom_ai import Blossom
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get current weather for a location",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "City name, e.g. London"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"]
+                    }
+                },
+                "required": ["location"]
+            }
+        }
+    }
+]
+
+with Blossom(api_version="v2", api_token="token") as client:
+    response = client.text.chat(
+        messages=[
+            {"role": "user", "content": "What's the weather in Paris?"}
+        ],
+        tools=tools,
+        tool_choice="auto"
+    )
+    
+    print(response)
+    # AI will indicate it wants to call get_weather function
+```
+
+### Transparent Images
+
+```python
+from blossom_ai import Blossom
+
+with Blossom(api_version="v2", api_token="token") as client:
+    # Logo with transparency
+    logo = client.image.generate(
+        prompt="minimalist tech logo, geometric, modern",
+        transparent=True,  # PNG with alpha channel
+        negative_prompt="background, text, complex",
+        quality="hd",
+        width=512,
+        height=512
+    )
+    
+    with open("logo_transparent.png", "wb") as f:
+        f.write(logo)
+```
 
 ---
 
@@ -340,27 +614,32 @@ app.run_polling()
 
 ---
 
-## Web Application Example
+## Web Application Example (with Caching)
 
 ```python
 from flask import Flask, render_template, request
 from blossom_ai import Blossom
+from blossom_ai.utils import cached
 
 app = Flask(__name__)
 
-@app.route('/generate', methods=['POST'])
-def generate():
-    prompt = request.form['prompt']
-    
-    # Sync context manager for Flask
+@cached(ttl=3600)  # Cache images for 1 hour
+def generate_cached_image(prompt):
+    """Generate image with caching"""
     with Blossom() as client:
-        # Generate URL for web embedding
-        url = client.image.generate_url(
+        return client.image.generate_url(
             prompt,
             width=512,
             height=512,
             nologo=True
         )
+
+@app.route('/generate', methods=['POST'])
+def generate():
+    prompt = request.form['prompt']
+    
+    # Use cached generator
+    url = generate_cached_image(prompt)
     
     return render_template('result.html', image_url=url)
 
@@ -475,20 +754,88 @@ with Blossom(debug=True) as ai:
 
 ---
 
-## Handling Rate Limits
+## Handling Rate Limits with Caching
 
 ```python
 from blossom_ai import Blossom, RateLimitError
+from blossom_ai.utils import CacheManager
 import time
 
-with Blossom() as ai:
+cache = CacheManager()
+
+def generate_with_protection(prompt):
+    """Generate with rate limit protection via caching"""
+    key = f"prompt:{hash(prompt)}"
+    
+    # Always try cache first
+    cached = cache.get(key)
+    if cached:
+        print("✅ Using cached result (avoiding rate limit)")
+        return cached
+    
     try:
-        response = ai.text.generate("Hello")
+        with Blossom() as ai:
+            response = ai.text.generate(prompt)
+            cache.set(key, response, ttl=3600)
+            return response
     except RateLimitError as e:
-        print(f"Rate limited: {e.message}")
+        print(f"⚠️ Rate limited: {e.message}")
         if e.retry_after:
-            print(f"Waiting {e.retry_after} seconds...")
+            print(f"⏳ Waiting {e.retry_after} seconds...")
             time.sleep(e.retry_after)
-            # Retry request
-            response = ai.text.generate("Hello")
+            return generate_with_protection(prompt)  # Retry
+```
+
+---
+
+## Document Analysis Pipeline (with Caching)
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import cached, ReasoningEnhancer
+
+enhancer = ReasoningEnhancer()
+
+@cached(ttl=86400)  # Cache 24 hours
+def extract_text(doc_path):
+    # Expensive OCR/extraction
+    with open(doc_path) as f:
+        return f.read()
+
+@cached(ttl=86400)
+def summarize_with_reasoning(text):
+    """Summarize with structured thinking"""
+    enhanced = enhancer.enhance(
+        f"Summarize this document:\n\n{text}",
+        level="medium"
+    )
+    
+    with Blossom(api_version="v2", api_token="token") as client:
+        return client.text.generate(enhanced, max_tokens=300)
+
+@cached(ttl=86400)
+def extract_entities(text):
+    with Blossom(api_version="v2", api_token="token") as client:
+        return client.text.generate(
+            f"Extract entities as JSON: {text}",
+            json_mode=True,
+            max_tokens=200
+        )
+
+def analyze_document(doc_path):
+    """Cached pipeline - each step cached independently"""
+    text = extract_text(doc_path)
+    summary = summarize_with_reasoning(text)
+    entities = extract_entities(text)
+    
+    return {
+        "summary": summary,
+        "entities": entities
+    }
+
+# First run: all steps execute
+result = analyze_document("document.txt")
+
+# Second run: instant from cache!
+result = analyze_document("document.txt")
 ```

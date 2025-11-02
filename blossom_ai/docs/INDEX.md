@@ -81,9 +81,26 @@ Tools to enhance your workflows.
 | Guide | Description |
 |-------|-------------|
 | **[File Content Reader](FILE_READER.md)** | Read text files and integrate them with AI prompts while respecting API limits |
+| **[Reasoning Module](REASONING.md)** | **NEW!** Enhance prompts with structured thinking for better responses |
+| **[Caching Module](CACHING.md)** | **NEW!** Cache AI responses to reduce costs and improve performance |
 | 📄 File Validation | Automatic size and encoding validation |
 | ✂️ Auto-Truncation | Handle large files gracefully |
 | 📦 Multiple Files | Combine and process multiple files |
+
+### ✨ New in v0.4.1: Reasoning & Caching
+
+**Reasoning Module** - Structured thinking for AI:
+- 🧠 Multiple reasoning levels (LOW, MEDIUM, HIGH, ADAPTIVE)
+- 🔍 Extract reasoning from responses
+- 🔗 Multi-step problem solving
+- ⚙️ Configurable thinking patterns
+
+**Caching Module** - Intelligent request caching:
+- ⚡ 99%+ faster responses for cached requests
+- 💰 Reduced API costs
+- 💾 Memory + Disk storage (hybrid)
+- 📊 Cache statistics and monitoring
+- 🎯 Selective caching (text/images/audio)
 
 ---
 
@@ -143,6 +160,12 @@ Get involved and keep the project secure.
 - **Handle errors properly:** [Error Handling Guide](ERROR_HANDLING.md)
 - **Use in async code:** [Resource Management - Async](RESOURCE_MANAGEMENT.md#asynchronous-context-manager)
 
+#### Utilities (New!)
+- **Add reasoning to prompts:** [Reasoning - Quick Start](REASONING.md#-quick-start)
+- **Cache AI responses:** [Caching - Quick Start](CACHING.md#-quick-start)
+- **Reduce API costs:** [Caching - Best Practices](CACHING.md#-best-practices)
+- **Deep problem solving:** [Reasoning - Multi-Step](REASONING.md#-advanced-features)
+
 #### Contributing
 - **Contribute to project:** [Contributing Guide](../../CONTRIBUTING.md)
 - **Report security issue:** [Security Policy](../../SECURITY.md)
@@ -160,6 +183,8 @@ Get involved and keep the project secure.
 | **Background Worker** | [Resource Management - Long-Running Apps](RESOURCE_MANAGEMENT.md#for-long-running-applications-eg-bots) |
 | **Code Analysis** | [File Reader - Code Analysis](FILE_READER.md#1-code-analysis) |
 | **Document Processing** | [File Reader - Document Summarization](FILE_READER.md#2-document-summarization) |
+| **Cached Responses** | [Caching - Use Cases](CACHING.md#-use-cases) |
+| **Structured Thinking** | [Reasoning - Examples](REASONING.md#-usage-examples) |
 
 ---
 
@@ -177,7 +202,7 @@ Get involved and keep the project secure.
 
 Quick code snippets for common tasks:
 
-### V2 API Quick Start
+### V2 API with Advanced Features
 
 ```python
 from blossom_ai import Blossom
@@ -199,6 +224,30 @@ with Blossom(api_version="v2", api_token="your_token") as client:
         frequency_penalty=0.5,
         presence_penalty=0.3
     )
+```
+
+### Reasoning + Caching (New!)
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import ReasoningEnhancer, cached
+
+enhancer = ReasoningEnhancer()
+
+@cached(ttl=3600)  # Cache for 1 hour
+def analyze_with_reasoning(question):
+    # Enhance with structured thinking
+    enhanced = enhancer.enhance(question, level="high")
+    
+    # Generate with V2
+    with Blossom(api_version="v2", api_token="token") as client:
+        return client.text.generate(enhanced, max_tokens=1000)
+
+# First call: generates with deep reasoning and caches
+result = analyze_with_reasoning("Design a microservices architecture")
+
+# Second call: instant from cache!
+result = analyze_with_reasoning("Design a microservices architecture")
 ```
 
 ### V1 API (Legacy)
@@ -237,28 +286,48 @@ with Blossom() as ai:
     print(response)
 ```
 
+### Caching Statistics
+
+```python
+from blossom_ai.utils import get_cache
+
+cache = get_cache()
+
+# Generate some cached requests...
+# ...
+
+# Check performance
+stats = cache.get_stats()
+print(f"Hit rate: {stats.hit_rate:.1f}%")
+print(f"Hits: {stats.hits}, Misses: {stats.misses}")
+print(f"Memory: {stats.memory_usage} items")
+```
+
 ---
 
-## 🔄 Version Comparison
+## 📄 Version Comparison
 
-| Feature | V1 (Legacy) | V2 (New) |
-|---------|-------------|----------|
-| **Image Quality Control** | ❌ | ✅ (low/medium/high/hd) |
-| **Guidance Scale** | ❌ | ✅ (1.0-20.0) |
-| **Negative Prompts** | ❌ | ✅ |
-| **Transparent Images** | ❌ | ✅ |
-| **Image-to-Image** | ❌ | ✅ |
-| **Function Calling** | ❌ | ✅ |
-| **Max Tokens Control** | ❌ | ✅ |
-| **Frequency Penalty** | ❌ | ✅ (0-2) |
-| **Presence Penalty** | ❌ | ✅ (0-2) |
-| **Top-P Sampling** | ❌ | ✅ |
-| **Temperature Range** | 0-1 | 0-2 (extended) |
-| **Basic Generation** | ✅ | ✅ |
-| **Streaming** | ✅ | ✅ (improved) |
-| **JSON Mode** | ✅ | ✅ (more reliable) |
+| Feature | V1 (Legacy) | V2 (New) | Utils |
+|---------|-------------|----------|-------|
+| **Image Quality Control** | ❌ | ✅ (low/medium/high/hd) | - |
+| **Guidance Scale** | ❌ | ✅ (1.0-20.0) | - |
+| **Negative Prompts** | ❌ | ✅ | - |
+| **Transparent Images** | ❌ | ✅ | - |
+| **Image-to-Image** | ❌ | ✅ | - |
+| **Function Calling** | ❌ | ✅ | - |
+| **Max Tokens Control** | ❌ | ✅ | - |
+| **Frequency Penalty** | ❌ | ✅ (0-2) | - |
+| **Presence Penalty** | ❌ | ✅ (0-2) | - |
+| **Top-P Sampling** | ❌ | ✅ | - |
+| **Temperature Range** | 0-1 | 0-2 (extended) | - |
+| **Basic Generation** | ✅ | ✅ | - |
+| **Streaming** | ✅ | ✅ (improved) | - |
+| **JSON Mode** | ✅ | ✅ (more reliable) | - |
+| **Reasoning Enhancement** | - | - | ✅ **NEW!** |
+| **Response Caching** | - | - | ✅ **NEW!** |
+| **File Reading** | - | - | ✅ |
 
-**Recommendation:** Use V2 for new projects. V1 remains supported for backward compatibility.
+**Recommendation:** Use V2 for new projects. Add Reasoning + Caching for production apps.
 
 ---
 

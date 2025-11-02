@@ -1,5 +1,6 @@
 """
 Blossom AI - Utilities Module
+Enhanced with Reasoning capabilities
 """
 
 from .file_uploader import (
@@ -13,7 +14,29 @@ from .file_uploader import (
     SUPPORTED_TEXT_EXTENSIONS,
 )
 
+from .reasoning import (
+    ReasoningLevel,
+    ReasoningConfig,
+    ReasoningEnhancer,
+    ReasoningChain,
+    add_reasoning_to_blossom,
+    create_reasoning_enhancer,
+    REASONING_PROMPTS,
+)
+
+from .cache import (
+    CacheBackend,
+    CacheConfig,
+    CacheEntry,
+    CacheStats,
+    CacheManager,
+    get_cache,
+    configure_cache,
+    cached,
+)
+
 __all__ = [
+    # File handling
     "FileContentReader",
     "FileContent",
     "read_file_for_prompt",
@@ -22,4 +45,23 @@ __all__ = [
     "DEFAULT_PROMPT_SPACE",
     "API_MAX_TOTAL_LENGTH",
     "SUPPORTED_TEXT_EXTENSIONS",
+
+    # Reasoning capabilities
+    "ReasoningLevel",
+    "ReasoningConfig",
+    "ReasoningEnhancer",
+    "ReasoningChain",
+    "add_reasoning_to_blossom",
+    "create_reasoning_enhancer",
+    "REASONING_PROMPTS",
+
+    # Caching
+    "CacheBackend",
+    "CacheConfig",
+    "CacheEntry",
+    "CacheStats",
+    "CacheManager",
+    "get_cache",
+    "configure_cache",
+    "cached",
 ]

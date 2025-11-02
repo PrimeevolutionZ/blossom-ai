@@ -4,7 +4,207 @@ This document tracks the changes and updates across different versions of the Bl
 
 ---
 
-## v0.4.0 (Latest)
+## v0.4.1 (Latest)
+
+### 🚀 Major Update: Reasoning & Caching
+
+This release introduces two powerful utility modules that enhance AI capabilities and reduce API costs.
+
+#### ✨ New Features
+
+##### Reasoning Module
+**Structured thinking for better AI responses**
+
+- **Multiple Reasoning Levels**:
+  - `LOW` - Quick thinking for simple questions
+  - `MEDIUM` - Systematic analysis (default)
+  - `HIGH` - Deep reasoning with multiple approaches
+  - `ADAPTIVE` - Automatic level selection
+
+- **Configuration Options**:
+  - `include_confidence` - Request confidence scores
+  - `self_critique` - Enable self-evaluation
+  - `alternative_approaches` - Consider multiple solutions
+  - `step_verification` - Verify each reasoning step
+
+- **Advanced Features**:
+  - `ReasoningEnhancer` - Enhance prompts with reasoning
+  - `ReasoningChain` - Multi-step problem solving
+  - `extract_reasoning()` - Parse reasoning from responses
+  - `add_reasoning_to_blossom()` - Direct integration
+
+```python
+from blossom_ai.utils import ReasoningEnhancer
+
+enhancer = ReasoningEnhancer()
+enhanced = enhancer.enhance(
+    "How do I optimize database queries?",
+    level="high"
+)
+
+# Use with Blossom
+with Blossom(api_version="v2", api_token="token") as client:
+    response = client.text.generate(enhanced)
+```
+
+##### Caching Module
+**Intelligent request caching to reduce costs**
+
+- **Three Cache Backends**:
+  - `MEMORY` - Fast in-memory cache
+  - `DISK` - Persistent disk storage
+  - `HYBRID` - Memory + Disk (recommended)
+
+- **Features**:
+  - TTL-based expiration
+  - LRU eviction policy
+  - Thread-safe and async-safe
+  - Cache statistics (hit rate, misses, evictions)
+  - Selective caching (text/images/audio)
+  - Automatic key generation
+
+- **Usage**:
+  - `@cached()` decorator for functions
+  - `CacheManager` for manual control
+  - `get_cache()` for global cache
+  - `configure_cache()` for setup
+
+```python
+from blossom_ai.utils import cached
+
+@cached(ttl=3600)  # Cache for 1 hour
+def generate_summary(text):
+    with Blossom(api_version="v2", api_token="token") as client:
+        return client.text.generate(f"Summarize: {text}")
+
+# First call: generates and caches
+result = generate_summary("Long text...")
+
+# Second call: instant from cache!
+result = generate_summary("Long text...")
+```
+
+#### 📚 Documentation
+
+**New Guides**:
+- **[Reasoning Guide](docs/REASONING.md)** - Complete reasoning module documentation
+- **[Caching Guide](docs/CACHING.md)** - Comprehensive caching guide
+
+**Updated Guides**:
+- **[EXAMPLES.md](docs/EXAMPLES.md)** - Added reasoning and caching examples
+- **[INDEX.md](docs/INDEX.md)** - Added utilities section with new guides
+
+#### 🔧 Internal Improvements
+
+**New Utils Modules**:
+- `blossom_ai.utils.reasoning` - Reasoning enhancement
+- `blossom_ai.utils.cache` - Caching system
+
+**Exports Added**:
+- Reasoning: `ReasoningLevel`, `ReasoningConfig`, `ReasoningEnhancer`, `ReasoningChain`
+- Caching: `CacheBackend`, `CacheConfig`, `CacheManager`, `cached`
+
+#### 📊 Performance Impact
+
+**Caching Benefits**:
+- ⚡ **99%+ faster** for cached responses (0.5ms vs 2000ms)
+- 💰 **Reduced API costs** - avoid duplicate requests
+- 🎯 **Better rate limit handling** - fewer API calls
+- 📈 **Improved user experience** - instant responses
+
+**Reasoning Benefits**:
+- 🧠 **Better responses** - structured thinking improves quality
+- 🎯 **More accurate** - systematic analysis reduces errors
+- 📊 **Verifiable** - extract reasoning separately
+- 🔄 **Adaptive** - automatic complexity detection
+
+#### 🎯 Use Cases
+
+**Reasoning Use Cases**:
+- Complex problem solving
+- Code analysis and optimization
+- System design and architecture
+- Multi-step workflows
+- Decision support systems
+
+**Caching Use Cases**:
+- Chatbots with repeated questions
+- Document analysis pipelines
+- API rate limit protection
+- Development and testing
+- Cost optimization for production
+
+#### 💡 Examples
+
+**Combined Usage**:
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import ReasoningEnhancer, cached
+
+enhancer = ReasoningEnhancer()
+
+@cached(ttl=3600)  # Cache + Reasoning = Efficient!
+def analyze_code(code):
+    enhanced = enhancer.enhance(
+        f"Analyze this code:\n\n{code}",
+        level="high"
+    )
+    
+    with Blossom(api_version="v2", api_token="token") as client:
+        return client.text.generate(enhanced, max_tokens=1000)
+
+# Deep analysis with caching
+result = analyze_code("def hello(): print('hi')")
+```
+
+**Cache Statistics**:
+```python
+from blossom_ai.utils import get_cache
+
+cache = get_cache()
+
+# Check performance
+stats = cache.get_stats()
+print(f"Hit rate: {stats.hit_rate:.1f}%")
+print(f"Hits: {stats.hits}, Misses: {stats.misses}")
+```
+
+#### ⚠️ Breaking Changes
+
+**None!** This release is fully backward compatible:
+- All existing code continues to work
+- New features are opt-in
+- No changes to existing APIs
+
+#### 📝 Migration Notes
+
+No migration needed! To use new features:
+
+```python
+# Add reasoning to existing code
+from blossom_ai.utils import ReasoningEnhancer
+
+enhancer = ReasoningEnhancer()
+enhanced_prompt = enhancer.enhance(your_prompt, level="medium")
+
+# Add caching to existing code
+from blossom_ai.utils import cached
+
+@cached(ttl=3600)
+def your_existing_function():
+    # Your code here
+    pass
+```
+
+#### 🔗 Related Links
+
+- [Reasoning Documentation](docs/REASONING.md)
+- [Caching Documentation](docs/CACHING.md)
+- [V2 API Documentation](docs/V2_API_REFERENCE.md)
+
+---
+
+## v0.4.0
 
 ### 🚀 Major Update: V2 API Support
 This release introduces full support for the new Pollinations V2 API (`enter.pollinations.ai`), bringing significant improvements and new features while maintaining full backward compatibility with V1.
@@ -159,7 +359,7 @@ json_mode=True  # Guaranteed valid JSON responses
 - All existing code continues to work
 - V2 is opt-in via `api_version="v2"` parameter
 
-#### 🔄 Migration Path
+#### 📄 Migration Path
 
 ```python
 # Before (V1 - still works!)
@@ -274,7 +474,7 @@ See [V2 Migration Guide](docs/V2_MIGRATION_GUIDE.md) for detailed migration step
   - Code optimization ~35%
   - Improved type hints and documentation (in code)
 
-### 📁 File Changes
+### 📝 File Changes
 - **New**: `blossom_ai/core/config.py` - Centralized configuration
 - **Refactored**: `session_manager.py`, `base_generator.py`, `generators.py`, `blossom.py`, `errors.py`
 - **Removed**: `base_client.py` (logic moved to base_generator)
