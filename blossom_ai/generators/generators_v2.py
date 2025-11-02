@@ -1,10 +1,11 @@
 """
-Blossom AI - V2 Generators (enter.pollinations.ai API)
+Blossom AI - V2 Generators (enter.pollinations.ai API) - Fixed
 Support for new API with OpenAI-compatible endpoints
 """
 
 from typing import Optional, List, Dict, Any, Iterator, Union, AsyncIterator
 import json
+import asyncio
 
 from blossom_ai.generators.base_generator import SyncGenerator, AsyncGenerator, ModelAwareGenerator
 from blossom_ai.core.config import ENDPOINTS, LIMITS, DEFAULTS
@@ -323,7 +324,7 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             return result["choices"][0]["message"]["content"]
 
     def _stream_response(self, response) -> Iterator[str]:
-        """Process streaming response (SSE)"""
+        """Process streaming response (SSE) - FIX: Proper cleanup"""
         try:
             for line in self._stream_with_timeout(response):
                 if not line or not line.strip():
@@ -349,6 +350,13 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
                 suggestion="Try non-streaming mode or check your connection",
                 original_error=e
             )
+        finally:
+            # FIX: Always close response
+            if response and hasattr(response, 'close'):
+                try:
+                    response.close()
+                except:
+                    pass
 
     def models(self) -> List[str]:
         """Get available text models from V2 API"""
@@ -481,9 +489,7 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
             return result["choices"][0]["message"]["content"]
 
     async def _stream_response(self, body: dict) -> AsyncIterator[str]:
-        """Async streaming response"""
-        import asyncio
-
+        """Async streaming response - FIX: Proper cleanup"""
         response = None
         try:
             response = await self._make_request(
@@ -532,8 +538,12 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
                 original_error=e
             )
         finally:
+            # FIX: Always close response
             if response and not response.closed:
-                await response.close()
+                try:
+                    await response.close()
+                except:
+                    pass
 
     async def models(self) -> List[str]:
         """Get available text models from V2 API (async)"""

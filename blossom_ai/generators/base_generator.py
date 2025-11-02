@@ -1,5 +1,5 @@
 """
-Blossom AI - Base Generator Classes (Refactored)
+Blossom AI - Base Generator Classes (Refactored & Fixed)
 Cleaner architecture with DRY principles and proper resource management
 """
 
@@ -7,6 +7,7 @@ import json
 import asyncio
 import time
 import uuid
+import random
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, Iterator, AsyncIterator, Callable
 from urllib.parse import quote
@@ -25,11 +26,11 @@ from blossom_ai.core.models import DynamicModel
 
 
 # ============================================================================
-# RETRY DECORATOR
+# RETRY DECORATOR (IMPROVED)
 # ============================================================================
 
 def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
-    """Decorator for retry logic with exponential backoff"""
+    """Decorator for retry logic with exponential backoff and jitter"""
     def decorator(func: Callable):
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
@@ -37,18 +38,36 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
             for attempt in range(max_attempts):
                 try:
                     return func(*args, **kwargs)
-                except (requests.exceptions.HTTPError,
-                        requests.exceptions.ChunkedEncodingError) as e:
+
+                except requests.exceptions.HTTPError as e:
                     last_exception = e
-                    if isinstance(e, requests.exceptions.HTTPError):
-                        if e.response.status_code == 502 and attempt < max_attempts - 1:
-                            wait_time = 2 ** attempt
-                            print_info(f"Retrying 502 error (attempt {attempt + 1}/{max_attempts})...")
+
+                    # Retry on 502, 503, 504
+                    if e.response.status_code in [502, 503, 504]:
+                        if attempt < max_attempts - 1:
+                            # FIX: Better backoff with jitter
+                            wait_time = min(2 ** attempt + random.uniform(0, 1), 32)
+                            print_info(
+                                f"Retrying {e.response.status_code} error "
+                                f"(attempt {attempt + 1}/{max_attempts}, "
+                                f"waiting {wait_time:.1f}s)..."
+                            )
                             time.sleep(wait_time)
                             continue
                     raise
+
+                except requests.exceptions.ChunkedEncodingError as e:
+                    last_exception = e
+                    if attempt < max_attempts - 1:
+                        wait_time = min(2 ** attempt + random.uniform(0, 1), 16)
+                        print_info(f"Retrying chunked encoding error (attempt {attempt + 1}/{max_attempts})...")
+                        time.sleep(wait_time)
+                        continue
+                    raise
+
                 except Exception:
                     raise
+
             if last_exception:
                 raise last_exception
 
@@ -58,17 +77,35 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
             for attempt in range(max_attempts):
                 try:
                     return await func(*args, **kwargs)
-                except aiohttp.ClientError as e:
+
+                except aiohttp.ClientResponseError as e:
                     last_exception = e
-                    if isinstance(e, aiohttp.ClientResponseError):
-                        if e.status == 502 and attempt < max_attempts - 1:
-                            wait_time = 2 ** attempt
-                            print_info(f"Retrying 502 error (attempt {attempt + 1}/{max_attempts})...")
+
+                    if e.status in [502, 503, 504]:
+                        if attempt < max_attempts - 1:
+                            # FIX: Better backoff with jitter
+                            wait_time = min(2 ** attempt + random.uniform(0, 1), 32)
+                            print_info(
+                                f"Retrying {e.status} error "
+                                f"(attempt {attempt + 1}/{max_attempts}, "
+                                f"waiting {wait_time:.1f}s)..."
+                            )
                             await asyncio.sleep(wait_time)
                             continue
                     raise
+
+                except aiohttp.ClientError as e:
+                    last_exception = e
+                    if attempt < max_attempts - 1:
+                        wait_time = min(2 ** attempt + random.uniform(0, 1), 16)
+                        print_info(f"Retrying connection error (attempt {attempt + 1}/{max_attempts})...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    raise
+
                 except Exception:
                     raise
+
             if last_exception:
                 raise last_exception
 
@@ -148,15 +185,22 @@ class BaseGenerator(ABC):
         return headers
 
     def _handle_http_error(self, status_code: int, response_data: Optional[bytes] = None) -> None:
-        """Common HTTP error handling"""
+        """Common HTTP error handling (OPTIMIZED)"""
         if status_code == 402:
             error_msg = "Payment Required"
+
+            # FIX: Decode once and reuse
             if response_data:
                 try:
-                    error_data = json.loads(response_data.decode('utf-8'))
+                    decoded = response_data.decode('utf-8')
+                    error_data = json.loads(decoded)
                     error_msg = error_data.get('error', error_msg)
-                except json.JSONDecodeError:
-                    pass
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    # If JSON parsing fails, try to use raw text
+                    try:
+                        error_msg = response_data.decode('utf-8', errors='ignore')[:200]
+                    except:
+                        pass
 
             raise BlossomError(
                 message=f"Payment Required: {error_msg}",
@@ -165,11 +209,21 @@ class BaseGenerator(ABC):
             )
 
         if status_code == 429:
+            # FIX: Extract retry-after from response if available
+            retry_after = 60
+            if response_data:
+                try:
+                    decoded = response_data.decode('utf-8')
+                    error_data = json.loads(decoded)
+                    retry_after = error_data.get('retry_after', 60)
+                except:
+                    pass
+
             raise BlossomError(
                 message="Rate limit exceeded",
                 error_type=ErrorType.RATE_LIMIT,
-                retry_after=60,
-                suggestion="Wait before retrying"
+                retry_after=retry_after,
+                suggestion=f"Wait {retry_after} seconds before retrying"
             )
 
 
@@ -250,7 +304,9 @@ class SyncGenerator(BaseGenerator):
                     last_data_time = current_time
                     yield line
         finally:
-            response.close()
+            # FIX: Always close response
+            if not response.raw.closed:
+                response.close()
 
     def _fetch_list(self, endpoint: str, fallback: list) -> list:
         """Fetch list from API endpoint with fallback"""
@@ -306,6 +362,7 @@ class AsyncGenerator(BaseGenerator):
         """Get aiohttp session"""
         return await self._session_manager.get_session()
 
+    @with_retry()
     async def _make_request(
         self,
         method: str,

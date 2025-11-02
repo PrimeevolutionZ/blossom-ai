@@ -1,5 +1,5 @@
 """
-Blossom AI - Generators (Refactored)
+Blossom AI - Generators (Refactored & Fixed)
 Clean implementation using centralized config and improved error handling
 """
 
@@ -413,7 +413,7 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
             return response.text
 
     def _stream_response(self, response) -> Iterator[str]:
-        """Process streaming response (SSE)"""
+        """Process streaming response (SSE) - FIX: Proper cleanup"""
         try:
             for line in self._stream_with_timeout(response):
                 if not line or not line.strip():
@@ -440,6 +440,13 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
                 suggestion="Try non-streaming mode or check your connection",
                 original_error=e
             )
+        finally:
+            # FIX: Always close response
+            if response and hasattr(response, 'close'):
+                try:
+                    response.close()
+                except:
+                    pass
 
     def chat(
         self,
@@ -583,7 +590,7 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
             return data.decode('utf-8')
 
     async def _stream_response(self, url: str, params: dict) -> AsyncIterator[str]:
-        """Async generator for streaming response"""
+        """Async generator for streaming response - FIX: Proper cleanup"""
         response = None
         try:
             response = await self._make_request("GET", url, params=params, stream=True)
@@ -626,8 +633,12 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
                 original_error=e
             )
         finally:
+            # FIX: Always close response
             if response and not response.closed:
-                await response.close()
+                try:
+                    await response.close()
+                except:
+                    pass
 
     async def chat(
         self,
@@ -685,7 +696,7 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
                 raise
 
     async def _stream_chat_response(self, url: str, body: dict) -> AsyncIterator[str]:
-        """Async generator for streaming chat response"""
+        """Async generator for streaming chat response - FIX: Proper cleanup"""
         response = None
         try:
             response = await self._make_request(
@@ -734,8 +745,12 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
                 original_error=e
             )
         finally:
+            # FIX: Always close response
             if response and not response.closed:
-                await response.close()
+                try:
+                    await response.close()
+                except:
+                    pass
 
     async def models(self) -> List[str]:
         """Get list of available text models (async)"""
