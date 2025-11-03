@@ -28,7 +28,7 @@ from blossom_ai.utils import cached
 # Cache function results automatically
 @cached(ttl=3600)  # Cache for 1 hour
 def generate_story(prompt):
-    with Blossom(api_version="v2", api_token="token") as client:
+    with Blossom(api_version="v2", api_token="your_token_here") as client:
         return client.text.generate(prompt)
 
 # First call: generates and caches
@@ -205,10 +205,14 @@ config = CacheConfig(
 ```python
 from blossom_ai import Blossom
 from blossom_ai.utils import cached
+import os
+
+# Get your API token from environment
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 @cached(ttl=1800)  # Cache 30 minutes
 def analyze_code(code):
-    with Blossom(api_version="v2", api_token="token") as client:
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
         return client.text.generate(
             f"Analyze this code:\n\n{code}",
             max_tokens=500
@@ -226,9 +230,12 @@ result = analyze_code("def hello(): print('hi')")
 ### Example 2: Manual Cache Control
 
 ```python
+from blossom_ai import Blossom
 from blossom_ai.utils import CacheManager
+import os
 
 cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 # Generate key
 key = "story_prompt_abc123"
@@ -237,16 +244,13 @@ key = "story_prompt_abc123"
 cached_result = cache.get(key)
 if cached_result:
     print("Using cached result!")
-    return cached_result
-
-# Generate new
-with Blossom(api_version="v2", api_token="token") as client:
-    result = client.text.generate("Tell me a story")
-    
-    # Cache it
-    cache.set(key, result, ttl=3600)
-    
-    return result
+else:
+    # Generate new
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        result = client.text.generate("Tell me a story")
+        
+        # Cache it
+        cache.set(key, result, ttl=3600)
 ```
 
 ---
@@ -256,7 +260,7 @@ with Blossom(api_version="v2", api_token="token") as client:
 ```python
 from blossom_ai.utils import get_cache, configure_cache, CacheConfig
 
-# Configure global cache once
+# Configure global cache once (e.g., in your app startup)
 configure_cache(CacheConfig(
     backend="hybrid",
     ttl=7200,  # 2 hours
@@ -279,10 +283,13 @@ def function2():
 ### Example 4: Custom Cache Keys
 
 ```python
+from blossom_ai import Blossom
 from blossom_ai.utils import CacheManager
 import hashlib
+import os
 
 cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 def generate_cache_key(prompt, model, temperature):
     """Generate deterministic cache key"""
@@ -300,7 +307,7 @@ key = generate_cache_key(prompt, model, temp)
 result = cache.get(key)
 if not result:
     # Generate and cache
-    with Blossom(api_version="v2", api_token="token") as client:
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
         result = client.text.generate(prompt, model=model, temperature=temp)
         cache.set(key, result, ttl=3600)
 ```
@@ -356,7 +363,7 @@ cache.set(
     }
 )
 
-# Retrieve (metadata not returned in get, but stored)
+# Retrieve (metadata stored internally but not returned)
 value = cache.get("response_123")
 ```
 
@@ -366,14 +373,16 @@ value = cache.get("response_123")
 
 ```python
 import asyncio
+import os
 from blossom_ai import Blossom
 from blossom_ai.utils import CacheManager
 
 cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 @cache.cached(ttl=3600)
 async def generate_async(prompt):
-    async with Blossom(api_version="v2", api_token="token") as client:
+    async with Blossom(api_version="v2", api_token=API_TOKEN) as client:
         return await client.text.generate(prompt)
 
 async def main():
@@ -443,10 +452,13 @@ print(f"Disk usage: {stats.disk_usage} items")
 ### Monitor Performance
 
 ```python
+from blossom_ai import Blossom
 from blossom_ai.utils import CacheManager
 import time
+import os
 
 cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 def generate_with_stats(prompt):
     key = f"prompt_{hash(prompt)}"
@@ -456,15 +468,15 @@ def generate_with_stats(prompt):
     
     if result:
         elapsed = time.time() - start
-        print(f"âœ… Cache hit! ({elapsed*1000:.1f}ms)")
+        print(f"✅ Cache hit! ({elapsed*1000:.1f}ms)")
         return result
     
     # Generate
     start = time.time()
-    with Blossom(api_version="v2", api_token="token") as client:
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
         result = client.text.generate(prompt)
     elapsed = time.time() - start
-    print(f"âš™ï¸ Generated ({elapsed*1000:.1f}ms)")
+    print(f"⚡ Generated ({elapsed*1000:.1f}ms)")
     
     # Cache it
     cache.set(key, result, ttl=3600)
@@ -472,11 +484,11 @@ def generate_with_stats(prompt):
 
 # First call: slow
 generate_with_stats("Tell me a story")
-# âš™ï¸ Generated (2500.0ms)
+# ⚡ Generated (2500.0ms)
 
 # Second call: fast!
 generate_with_stats("Tell me a story")
-# âœ… Cache hit! (0.5ms)
+# ✅ Cache hit! (0.5ms)
 ```
 
 ---
@@ -530,21 +542,25 @@ cache.clear(prefix="text:")
 ### 3. Cache Expensive Operations Only
 
 ```python
+from blossom_ai import Blossom
 from blossom_ai.utils import cached
+import os
 
-# âœ… DO cache expensive AI calls
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+# ✅ DO cache expensive AI calls
 @cached(ttl=3600)
 def analyze_document(doc):
-    with Blossom(api_version="v2", api_token="token") as client:
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
         return client.text.generate(f"Analyze: {doc}", max_tokens=1000)
 
-# âœ… DO cache large computations
+# ✅ DO cache large computations
 @cached(ttl=7200)
 def process_big_data(data):
     # Expensive processing...
     return result
 
-# âŒ DON'T cache simple operations
+# ❌ DON'T cache simple operations
 def add_numbers(a, b):
     return a + b  # Too simple, overhead not worth it
 ```
@@ -556,15 +572,18 @@ def add_numbers(a, b):
 #### With Reasoning
 
 ```python
+from blossom_ai import Blossom
 from blossom_ai.utils import cached, ReasoningEnhancer
+import os
 
 enhancer = ReasoningEnhancer()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 @cached(ttl=3600)
 def analyze_with_reasoning(question):
     enhanced = enhancer.enhance(question, level="high")
     
-    with Blossom(api_version="v2", api_token="token") as client:
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
         return client.text.generate(enhanced, max_tokens=1500)
 
 # Cache + reasoning = efficient deep thinking
@@ -576,8 +595,10 @@ result = analyze_with_reasoning("Design a database schema")
 ```python
 from blossom_ai import Blossom
 from blossom_ai.utils import CacheManager
+import os
 
 cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 def generate_with_v2(prompt):
     key = f"v2:{hash(prompt)}"
@@ -586,7 +607,7 @@ def generate_with_v2(prompt):
     if result:
         return result
     
-    with Blossom(api_version="v2", api_token="token") as client:
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
         result = client.text.generate(
             prompt,
             max_tokens=500,
@@ -602,9 +623,12 @@ def generate_with_v2(prompt):
 ### 5. Handle Cache Misses Gracefully
 
 ```python
+from blossom_ai import Blossom
 from blossom_ai.utils import CacheManager
+import os
 
 cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 def get_or_generate(prompt):
     key = f"prompt_{hash(prompt)}"
@@ -616,7 +640,7 @@ def get_or_generate(prompt):
     
     try:
         # Generate new
-        with Blossom(api_version="v2", api_token="token") as client:
+        with Blossom(api_version="v2", api_token=API_TOKEN) as client:
             result = client.text.generate(prompt)
             
             # Cache successful result
@@ -652,13 +676,13 @@ for i in range(1000):
 stats = cache.get_stats()
 
 if stats.hit_rate < 50:
-    print("âš ï¸ Low hit rate! Consider:")
+    print("⚠️ Low hit rate! Consider:")
     print("  - Increasing TTL")
     print("  - Increasing cache size")
     print("  - Better key generation")
     
 if stats.evictions > stats.hits:
-    print("âš ï¸ Too many evictions! Consider:")
+    print("⚠️ Too many evictions! Consider:")
     print("  - Increasing max_memory_size")
     print("  - Using DISK or HYBRID backend")
 ```
@@ -707,8 +731,10 @@ configure_cache(config)
 ```python
 from blossom_ai import Blossom
 from blossom_ai.utils import CacheManager
+import os
 
 cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 def chatbot(user_id, message, history):
     # Create cache key from user + history hash
@@ -721,7 +747,7 @@ def chatbot(user_id, message, history):
         return cached
     
     # Generate response
-    with Blossom(api_version="v2", api_token="token") as client:
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
         messages = history + [{"role": "user", "content": message}]
         response = client.text.chat(messages=messages)
         
@@ -735,9 +761,12 @@ def chatbot(user_id, message, history):
 ### 2. Document Analysis Pipeline
 
 ```python
+from blossom_ai import Blossom
 from blossom_ai.utils import CacheManager, cached
+import os
 
 cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 @cached(ttl=86400)  # Cache 24 hours
 def extract_text(doc_path):
@@ -746,13 +775,16 @@ def extract_text(doc_path):
 
 @cached(ttl=86400)
 def summarize(text):
-    with Blossom(api_version="v2", api_token="token") as client:
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
         return client.text.generate(f"Summarize: {text}", max_tokens=200)
 
 @cached(ttl=86400)
 def extract_entities(text):
-    with Blossom(api_version="v2", api_token="token") as client:
-        return client.text.generate(f"Extract entities: {text}", json_mode=True)
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        return client.text.generate(
+            f"Extract entities: {text}", 
+            json_mode=True
+        )
 
 def analyze_document(doc_path):
     # Each step cached independently
@@ -771,11 +803,14 @@ def analyze_document(doc_path):
 ### 3. API Rate Limit Protection
 
 ```python
-from blossom_ai import Blossom, RateLimitError
+from blossom_ai import Blossom
+from blossom_ai.core.errors import RateLimitError
 from blossom_ai.utils import CacheManager
 import time
+import os
 
 cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
 def generate_with_protection(prompt):
     key = f"prompt:{hash(prompt)}"
@@ -786,7 +821,7 @@ def generate_with_protection(prompt):
         return result
     
     try:
-        with Blossom(api_version="v2", api_token="token") as client:
+        with Blossom(api_version="v2", api_token=API_TOKEN) as client:
             result = client.text.generate(prompt)
             
             # Cache successful result
@@ -794,19 +829,14 @@ def generate_with_protection(prompt):
             return result
             
     except RateLimitError as e:
-        print(f"Rate limited! Using longer cache TTL")
-        
-        # Try to find any cached version (even expired)
-        # Custom logic to check expired entries...
-        
-        print(f"Retry after {e.retry_after}s")
+        print(f"Rate limited! Retry after {e.retry_after}s")
         time.sleep(e.retry_after)
         return generate_with_protection(prompt)
 ```
 
 ---
 
-## 🔗 Related Documentation
+## 📗 Related Documentation
 
 - **[V2 API Reference](V2_API_REFERENCE.md)** - Complete API docs
 - **[Reasoning Guide](REASONING.md)** - Structured thinking

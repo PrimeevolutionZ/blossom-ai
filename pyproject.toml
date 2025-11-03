@@ -97,6 +97,7 @@ dependencies = [
 # Development dependencies
 dev = [
     "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
     "black>=23.7.0",
@@ -116,6 +117,7 @@ docs = [
 # Testing dependencies (subset of dev)
 test = [
     "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
 ]
@@ -191,7 +193,7 @@ addopts = [
     "--disable-warnings",
 ]
 markers = [
-    "integration: Integration tests requiring internet connection",
+    "api: API integration tests requiring internet connection",
     "slow: Slow running tests",
     "unit: Unit tests (fast)",
 ]
@@ -200,6 +202,7 @@ filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
 ]
+asyncio_mode = "auto"
 
 
 # ============================================================================

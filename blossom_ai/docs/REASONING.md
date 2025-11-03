@@ -33,8 +33,8 @@ enhanced = enhancer.enhance(
 )
 
 # Use with Blossom AI
-with Blossom(api_version="v2", api_token="token") as client:
-    response = client.text.generate(enhanced)
+with Blossom(api_version="v2", api_token="your_token") as client:
+    response = client.text.generate(enhanced, max_tokens=1000)
     print(response)
 ```
 
@@ -254,7 +254,7 @@ enhanced = enhancer.enhance(
 )
 
 # Generate response
-with Blossom(api_version="v2", api_token="token") as client:
+with Blossom(api_version="v2", api_token="your_token") as client:
     response = client.text.generate(enhanced, max_tokens=500)
     print(response)
 ```
@@ -279,7 +279,7 @@ enhanced = enhancer.enhance(
     ]
 )
 
-# Use enhanced prompt...
+# Use enhanced prompt with your client...
 ```
 
 ---
@@ -297,7 +297,7 @@ enhanced = enhancer.enhance(
     level="high"
 )
 
-with Blossom(api_version="v2", api_token="token") as client:
+with Blossom(api_version="v2", api_token="your_token") as client:
     response = client.text.generate(enhanced, max_tokens=1000)
     
     # Extract reasoning and answer separately
@@ -324,61 +324,35 @@ from blossom_ai.utils import ReasoningChain
 
 async def solve_complex_problem():
     # Initialize client
-    client = Blossom(api_version="v2", api_token="token")
-    
-    # Create reasoning chain
-    chain = ReasoningChain(client.text)
-    
-    # Solve step by step
-    result = await chain.solve(
-        problem="Design a scalable microservices architecture for e-commerce",
-        steps=["analyze", "design", "validate", "optimize"],
-        level="high"
-    )
-    
-    # Access results
-    print("=== PROBLEM ===")
-    print(result['problem'])
-    
-    for step_result in result['steps']:
-        print(f"\n=== STEP: {step_result['step'].upper()} ===")
-        print(f"Reasoning: {step_result['reasoning']}")
-        print(f"Output: {step_result['output']}")
-    
-    print("\n=== FINAL ANSWER ===")
-    print(result['final_answer'])
-    
-    await client.close()
+    async with Blossom(api_version="v2", api_token="your_token") as client:
+        # Create reasoning chain
+        chain = ReasoningChain(client.text)
+        
+        # Solve step by step
+        result = await chain.solve(
+            problem="Design a scalable microservices architecture for e-commerce",
+            steps=["analyze", "design", "validate", "optimize"],
+            level="high"
+        )
+        
+        # Access results
+        print("=== PROBLEM ===")
+        print(result['problem'])
+        
+        for step_result in result['steps']:
+            print(f"\n=== STEP: {step_result['step'].upper()} ===")
+            print(f"Reasoning: {step_result['reasoning']}")
+            print(f"Output: {step_result['output']}")
+        
+        print("\n=== FINAL ANSWER ===")
+        print(result['final_answer'])
 
 asyncio.run(solve_complex_problem())
 ```
 
 ---
 
-### Example 5: Integration with Blossom Client
-
-```python
-from blossom_ai import Blossom
-from blossom_ai.utils import add_reasoning_to_blossom
-
-# Add reasoning capability to Blossom
-add_reasoning_to_blossom()
-
-# Now you can use generate_with_reasoning
-with Blossom(api_version="v2", api_token="token") as client:
-    result = client.text.generate_with_reasoning(
-        "How to optimize Python code?",
-        level="high"
-    )
-    
-    # result is a dict with 'reasoning' and 'answer'
-    print("Reasoning:", result['reasoning'])
-    print("Answer:", result['answer'])
-```
-
----
-
-### Example 6: Convenience Factory
+### Example 5: Convenience Factory
 
 ```python
 from blossom_ai.utils import create_reasoning_enhancer
@@ -403,7 +377,7 @@ enhanced = enhancer.enhance("Your complex question")
 You can access and customize the built-in reasoning prompts:
 
 ```python
-from blossom_ai.utils import REASONING_PROMPTS, ReasoningLevel
+from blossom_ai.utils.reasoning import REASONING_PROMPTS, ReasoningLevel
 
 # View prompts
 print(REASONING_PROMPTS[ReasoningLevel.LOW])
@@ -524,8 +498,8 @@ from blossom_ai.utils import ReasoningEnhancer
 enhancer = ReasoningEnhancer()
 enhanced = enhancer.enhance("Your question", level="high")
 
-with Blossom(api_version="v2", api_token="token") as client:
-    response = client.text.generate(enhanced)
+with Blossom(api_version="v2", api_token="your_token") as client:
+    response = client.text.generate(enhanced, max_tokens=1000)
     
     # Parse structured output
     parsed = enhancer.extract_reasoning(response)
@@ -550,7 +524,7 @@ enhanced = enhancer.enhance(
     level="high"
 )
 
-with Blossom(api_version="v2", api_token="token") as client:
+with Blossom(api_version="v2", api_token="your_token") as client:
     response = client.text.generate(
         enhanced,
         max_tokens=1500,  # V2: Control length
@@ -565,6 +539,7 @@ with Blossom(api_version="v2", api_token="token") as client:
 ### 6. Use with Caching
 
 ```python
+from blossom_ai import Blossom
 from blossom_ai.utils import ReasoningEnhancer, cached
 
 enhancer = ReasoningEnhancer()
@@ -572,8 +547,9 @@ enhancer = ReasoningEnhancer()
 @cached(ttl=3600)  # Cache for 1 hour
 def analyze_with_reasoning(question):
     enhanced = enhancer.enhance(question, level="high")
-    # Generate response...
-    return response
+    
+    with Blossom(api_version="v2", api_token="your_token") as client:
+        return client.text.generate(enhanced, max_tokens=1000)
 
 # First call: generates response
 result1 = analyze_with_reasoning("Design microservices")
@@ -594,7 +570,7 @@ from blossom_ai.utils import ReasoningEnhancer
 
 enhancer = ReasoningEnhancer()
 
-with Blossom(api_version="v2", api_token="token") as client:
+with Blossom(api_version="v2", api_token="your_token") as client:
     # Enhance prompt
     enhanced = enhancer.enhance(
         "Optimize this SQL query",
@@ -624,7 +600,7 @@ from blossom_ai.utils import ReasoningEnhancer
 
 enhancer = ReasoningEnhancer()
 
-with Blossom(api_version="v2", api_token="token") as client:
+with Blossom(api_version="v2", api_token="your_token") as client:
     enhanced = enhancer.enhance(
         "Write a detailed guide",
         level="medium"
@@ -637,7 +613,7 @@ with Blossom(api_version="v2", api_token="token") as client:
 
 ---
 
-### With Function Calling
+### With Function Calling (V2 Only)
 
 ```python
 from blossom_ai import Blossom
@@ -651,12 +627,17 @@ tools = [
         "function": {
             "name": "get_data",
             "description": "Fetch data from database",
-            "parameters": {...}
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"}
+                }
+            }
         }
     }
 ]
 
-with Blossom(api_version="v2", api_token="token") as client:
+with Blossom(api_version="v2", api_token="your_token") as client:
     enhanced = enhancer.enhance(
         "Analyze user data and provide insights",
         level="high"
@@ -734,7 +715,7 @@ token_limits = {
     ReasoningLevel.HIGH: 2000
 }
 
-with Blossom(api_version="v2", api_token="token") as client:
+with Blossom(api_version="v2", api_token="your_token") as client:
     response = client.text.generate(
         enhanced,
         max_tokens=token_limits[level]
@@ -743,7 +724,7 @@ with Blossom(api_version="v2", api_token="token") as client:
 
 ---
 
-## 🔗 Related Documentation
+## 📗 Related Documentation
 
 - **[V2 Text Generation](V2_TEXT_GENERATION.md)** - Advanced text features
 - **[Caching Guide](CACHING.md)** - Cache AI responses
