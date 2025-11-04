@@ -70,3 +70,5 @@ MIT License - see [LICENSE](https://github.com/PrimeevolutionZ/blossom-ai/blob/m
 ---
 
 Made with 🌸 by [Eclips Team](https://github.com/PrimeevolutionZ)
+
+:D
