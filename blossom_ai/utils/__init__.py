@@ -16,12 +16,13 @@ from .file_uploader import (
 
 from .reasoning import (
     ReasoningLevel,
+    ReasoningMode,
     ReasoningConfig,
     ReasoningEnhancer,
     ReasoningChain,
-    add_reasoning_to_blossom,
     create_reasoning_enhancer,
     REASONING_PROMPTS,
+    get_native_reasoning_models,
 )
 
 from .cache import (
@@ -48,12 +49,13 @@ __all__ = [
 
     # Reasoning capabilities
     "ReasoningLevel",
+    "ReasoningMode",
     "ReasoningConfig",
     "ReasoningEnhancer",
     "ReasoningChain",
-    "add_reasoning_to_blossom",
     "create_reasoning_enhancer",
     "REASONING_PROMPTS",
+    "get_native_reasoning_models",
 
     # Caching
     "CacheBackend",

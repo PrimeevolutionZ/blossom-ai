@@ -1,5 +1,5 @@
 """
-Blossom AI - V2 Generators (enter.pollinations.ai API) - Fixed
+Blossom AI - V2 Generators (enter.pollinations.ai API) - FIXED v2
 Support for new API with OpenAI-compatible endpoints
 """
 
@@ -95,7 +95,6 @@ class ImageGeneratorV2(SyncGenerator, ModelAwareGenerator):
         if guidance_scale is not None:
             params["guidance_scale"] = guidance_scale
 
-        # DON'T add token to params for V2 - it goes in header via _make_request
         response = self._make_request("GET", url, params=params)
         return response.content
 
@@ -103,7 +102,6 @@ class ImageGeneratorV2(SyncGenerator, ModelAwareGenerator):
         """Get available image models from V2 API"""
         if self._models_cache is None:
             try:
-                # Use absolute URL directly, bypass _build_url
                 response = self._make_request("GET", ENDPOINTS.V2_IMAGE_MODELS)
                 data = response.json()
 
@@ -262,25 +260,22 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             **kwargs
         )
 
-    # Add this to the existing generators_v2.py
-    # Only showing the updated/new parts
-
     def chat(
-            self,
-            messages: List[Dict[str, Any]],
-            model: str = DEFAULTS.TEXT_MODEL,
-            temperature: float = 1.0,
-            max_tokens: Optional[int] = None,
-            stream: bool = False,
-            json_mode: bool = False,
-            tools: Optional[List[Dict]] = None,
-            tool_choice: Optional[Union[str, Dict]] = None,
-            frequency_penalty: float = 0,
-            presence_penalty: float = 0,
-            top_p: float = 1.0,
-            n: int = 1,
-            thinking: Optional[Dict[str, Any]] = None,  # ✅ NEW: Native reasoning support
-            **kwargs
+        self,
+        messages: List[Dict[str, Any]],
+        model: str = DEFAULTS.TEXT_MODEL,
+        temperature: float = 1.0,
+        max_tokens: Optional[int] = None,
+        stream: bool = False,
+        json_mode: bool = False,
+        tools: Optional[List[Dict]] = None,
+        tool_choice: Optional[Union[str, Dict]] = None,
+        frequency_penalty: float = 0,
+        presence_penalty: float = 0,
+        top_p: float = 1.0,
+        n: int = 1,
+        thinking: Optional[Dict[str, Any]] = None,
+        **kwargs
     ) -> Union[str, Iterator[str]]:
         """
         Chat using V2 OpenAI-compatible API
@@ -298,32 +293,21 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             presence_penalty: Presence penalty (-2 to 2)
             top_p: Top-p sampling
             n: Number of completions
-            thinking: Native reasoning config (V2 only), e.g.:
-                {"type": "enabled", "budget_tokens": 2000}
-                {"type": "disabled"}
+            thinking: Native reasoning config
             **kwargs: Additional parameters
-
-        Returns:
-            str if stream=False, Iterator[str] if stream=True
-
-        Example:
-            >>> # Without reasoning
-            >>> response = gen.chat(messages=[...])
-            >>>
-            >>> # With native reasoning (OpenAI models only)
-            >>> response = gen.chat(
-            ...     messages=[...],
-            ...     thinking={"type": "enabled", "budget_tokens": 2000}
-            ... )
         """
+
         body = {
             "model": self._validate_model(model),
             "messages": messages,
-            "temperature": temperature,
             "stream": stream,
         }
 
-        # Only add optional parameters if they differ from defaults
+
+        if temperature != 1.0:
+            body["temperature"] = temperature
+        if max_tokens is not None:
+            body["max_tokens"] = max_tokens
         if n != 1:
             body["n"] = n
         if top_p != 1.0:
@@ -332,8 +316,6 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             body["frequency_penalty"] = frequency_penalty
         if presence_penalty != 0:
             body["presence_penalty"] = presence_penalty
-        if max_tokens:
-            body["max_tokens"] = max_tokens
 
         if json_mode:
             body["response_format"] = {"type": "json_object"}
@@ -343,12 +325,13 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             if tool_choice:
                 body["tool_choice"] = tool_choice
 
-        # ✅ NEW: Add native reasoning if provided
         if thinking:
             body["thinking"] = thinking
 
-        # Add any additional parameters
-        body.update(kwargs)
+
+        for key, value in kwargs.items():
+            if value is not None and value != 0 and value != False and value != 1.0:
+                body[key] = value
 
         response = self._make_request(
             "POST",
@@ -364,71 +347,8 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             result = response.json()
             return result["choices"][0]["message"]["content"]
 
-    # Similar update for AsyncTextGeneratorV2.chat()
-    async def chat(
-            self,
-            messages: List[Dict[str, Any]],
-            model: str = DEFAULTS.TEXT_MODEL,
-            temperature: float = 1.0,
-            max_tokens: Optional[int] = None,
-            stream: bool = False,
-            json_mode: bool = False,
-            tools: Optional[List[Dict]] = None,
-            tool_choice: Optional[Union[str, Dict]] = None,
-            frequency_penalty: float = 0,
-            presence_penalty: float = 0,
-            top_p: float = 1.0,
-            n: int = 1,
-            thinking: Optional[Dict[str, Any]] = None,  # ✅ ДОБАВЬ ЭТО!
-            **kwargs
-    ) -> Union[str, AsyncIterator[str]]:
-        """Chat using V2 API (async) with optional native reasoning"""
-        body = {
-            "model": self._validate_model(model),
-            "messages": messages,
-            "temperature": temperature,
-            "stream": stream,
-        }
-
-        if n != 1:
-            body["n"] = n
-        if top_p != 1.0:
-            body["top_p"] = top_p
-        if frequency_penalty != 0:
-            body["frequency_penalty"] = frequency_penalty
-        if presence_penalty != 0:
-            body["presence_penalty"] = presence_penalty
-        if max_tokens:
-            body["max_tokens"] = max_tokens
-
-        if json_mode:
-            body["response_format"] = {"type": "json_object"}
-
-        if tools:
-            body["tools"] = tools
-            if tool_choice:
-                body["tool_choice"] = tool_choice
-
-        #
-        if thinking:
-            body["thinking"] = thinking
-
-        body.update(kwargs)
-
-        if stream:
-            return self._stream_response(body)
-        else:
-            data = await self._make_request(
-                "POST",
-                self.base_url,
-                json=body,
-                headers={"Content-Type": "application/json"}
-            )
-            result = json.loads(data.decode('utf-8'))
-            return result["choices"][0]["message"]["content"]
-
     def _stream_response(self, response) -> Iterator[str]:
-        """Process streaming response (SSE) - FIX: Proper cleanup"""
+        """Process streaming response (SSE)"""
         try:
             for line in self._stream_with_timeout(response):
                 if not line or not line.strip():
@@ -455,7 +375,6 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
                 original_error=e
             )
         finally:
-            # FIX: Always close response
             if response and hasattr(response, 'close'):
                 try:
                     response.close()
@@ -476,7 +395,6 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
                             name = item.get('name')
                             if name:
                                 models.append(name)
-                                # Also add aliases
                                 if 'aliases' in item:
                                     models.extend(item['aliases'])
 
@@ -549,16 +467,21 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
         presence_penalty: float = 0,
         top_p: float = 1.0,
         n: int = 1,
+        thinking: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> Union[str, AsyncIterator[str]]:
-        """Chat using V2 API (async)"""
+        """Chat using V2 API (async) with optional native reasoning"""
+
         body = {
             "model": self._validate_model(model),
             "messages": messages,
-            "temperature": temperature,
             "stream": stream,
         }
 
+        if temperature != 1.0:
+            body["temperature"] = temperature
+        if max_tokens is not None:
+            body["max_tokens"] = max_tokens
         if n != 1:
             body["n"] = n
         if top_p != 1.0:
@@ -567,8 +490,6 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
             body["frequency_penalty"] = frequency_penalty
         if presence_penalty != 0:
             body["presence_penalty"] = presence_penalty
-        if max_tokens:
-            body["max_tokens"] = max_tokens
 
         if json_mode:
             body["response_format"] = {"type": "json_object"}
@@ -578,7 +499,13 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
             if tool_choice:
                 body["tool_choice"] = tool_choice
 
-        body.update(kwargs)
+        if thinking:
+            body["thinking"] = thinking
+
+
+        for key, value in kwargs.items():
+            if value is not None and value != 0 and value != False and value != 1.0:
+                body[key] = value
 
         if stream:
             return self._stream_response(body)
@@ -593,7 +520,7 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
             return result["choices"][0]["message"]["content"]
 
     async def _stream_response(self, body: dict) -> AsyncIterator[str]:
-        """Async streaming response - FIX: Proper cleanup"""
+        """Async streaming response"""
         response = None
         try:
             response = await self._make_request(
@@ -642,7 +569,6 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
                 original_error=e
             )
         finally:
-            # FIX: Always close response
             if response and not response.closed:
                 try:
                     await response.close()

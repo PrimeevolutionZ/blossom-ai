@@ -70,8 +70,10 @@ from blossom_ai.utils import (
     ReasoningConfig,
     ReasoningEnhancer,
     ReasoningChain,
-    add_reasoning_to_blossom,
     create_reasoning_enhancer,
+    get_native_reasoning_models,
+    ReasoningMode,
+
     # Caching
     CacheBackend,
     CacheConfig,
@@ -139,7 +141,6 @@ __all__ = [
     "ReasoningConfig",
     "ReasoningEnhancer",
     "ReasoningChain",
-    "add_reasoning_to_blossom",
     "create_reasoning_enhancer",
 
     # Utils - Caching
