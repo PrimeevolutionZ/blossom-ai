@@ -1,5 +1,5 @@
 """
-Blossom AI - V2 Generators (enter.pollinations.ai API) - FIXED v2
+Blossom AI - V2 Generators (enter.pollinations.ai API) - FIXED v3
 Support for new API with OpenAI-compatible endpoints
 """
 
@@ -218,7 +218,8 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
     """Generate text using V2 API (OpenAI-compatible)"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
-        SyncGenerator.__init__(self, ENDPOINTS.V2_OPENAI, timeout, api_token)
+        # ИСПРАВЛЕНО: используем базовый URL без /generate/openai
+        SyncGenerator.__init__(self, ENDPOINTS.V2_BASE, timeout, api_token)
         ModelAwareGenerator.__init__(self, TextModel, DEFAULT_TEXT_MODELS)
 
     def _validate_prompt(self, prompt: str) -> None:
@@ -303,7 +304,6 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             "stream": stream,
         }
 
-
         if temperature != 1.0:
             body["temperature"] = temperature
         if max_tokens is not None:
@@ -328,14 +328,16 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
         if thinking:
             body["thinking"] = thinking
 
-
         for key, value in kwargs.items():
             if value is not None and value != 0 and value != False and value != 1.0:
                 body[key] = value
 
+        # ИСПРАВЛЕНО: используем правильный URL для chat completions
+        chat_url = f"{self.base_url}/generate/openai"
+
         response = self._make_request(
             "POST",
-            self.base_url,
+            chat_url,
             json=body,
             headers={"Content-Type": "application/json"},
             stream=stream
@@ -385,7 +387,9 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
         """Get available text models from V2 API"""
         if self._models_cache is None:
             try:
-                response = self._make_request("GET", ENDPOINTS.V2_TEXT_MODELS)
+                # ИСПРАВЛЕНО: используем правильный endpoint для получения моделей
+                models_url = f"{self.base_url}/generate/openai/models"
+                response = self._make_request("GET", models_url)
                 data = response.json()
 
                 models = []
@@ -395,7 +399,8 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
                             name = item.get('name')
                             if name:
                                 models.append(name)
-                                if 'aliases' in item:
+                                # Добавляем алиасы
+                                if 'aliases' in item and isinstance(item['aliases'], list):
                                     models.extend(item['aliases'])
 
                 self._update_known_models(models if models else self._fallback_models)
@@ -411,7 +416,8 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
     """Async text generator for V2 API"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
-        AsyncGenerator.__init__(self, ENDPOINTS.V2_OPENAI, timeout, api_token)
+        # ИСПРАВЛЕНО: используем базовый URL без /generate/openai
+        AsyncGenerator.__init__(self, ENDPOINTS.V2_BASE, timeout, api_token)
         ModelAwareGenerator.__init__(self, TextModel, DEFAULT_TEXT_MODELS)
 
     def _validate_prompt(self, prompt: str) -> None:
@@ -502,30 +508,32 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
         if thinking:
             body["thinking"] = thinking
 
-
         for key, value in kwargs.items():
             if value is not None and value != 0 and value != False and value != 1.0:
                 body[key] = value
 
+        # ИСПРАВЛЕНО: используем правильный URL для chat completions
+        chat_url = f"{self.base_url}/generate/openai"
+
         if stream:
-            return self._stream_response(body)
+            return self._stream_response(body, chat_url)
         else:
             data = await self._make_request(
                 "POST",
-                self.base_url,
+                chat_url,
                 json=body,
                 headers={"Content-Type": "application/json"}
             )
             result = json.loads(data.decode('utf-8'))
             return result["choices"][0]["message"]["content"]
 
-    async def _stream_response(self, body: dict) -> AsyncIterator[str]:
+    async def _stream_response(self, body: dict, chat_url: str) -> AsyncIterator[str]:
         """Async streaming response"""
         response = None
         try:
             response = await self._make_request(
                 "POST",
-                self.base_url,
+                chat_url,
                 json=body,
                 headers={"Content-Type": "application/json"},
                 stream=True
@@ -579,7 +587,9 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
         """Get available text models from V2 API (async)"""
         if self._models_cache is None:
             try:
-                data = await self._make_request("GET", ENDPOINTS.V2_TEXT_MODELS)
+                # ИСПРАВЛЕНО: используем правильный endpoint для получения моделей
+                models_url = f"{self.base_url}/generate/openai/models"
+                data = await self._make_request("GET", models_url)
                 parsed = json.loads(data.decode('utf-8'))
 
                 models = []
@@ -589,7 +599,8 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
                             name = item.get('name')
                             if name:
                                 models.append(name)
-                                if 'aliases' in item:
+                                # Добавляем алиасы
+                                if 'aliases' in item and isinstance(item['aliases'], list):
                                     models.extend(item['aliases'])
 
                 self._update_known_models(models if models else self._fallback_models)
