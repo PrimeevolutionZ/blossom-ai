@@ -1,5 +1,6 @@
 """
 Blossom AI - Core Module
+Fixed imports for corrected models
 """
 
 from .errors import (
@@ -28,6 +29,7 @@ from .models import (
     DEFAULT_IMAGE_MODELS,
     DEFAULT_TEXT_MODELS,
     DEFAULT_VOICES,
+    DynamicModel,
 )
 
 from .config import (
@@ -35,6 +37,11 @@ from .config import (
     LIMITS,
     DEFAULTS,
     AUTH_URL,
+)
+
+from .session_manager import (
+    SyncSessionManager,
+    AsyncSessionManager,
 )
 
 __all__ = [
@@ -63,10 +70,15 @@ __all__ = [
     "DEFAULT_IMAGE_MODELS",
     "DEFAULT_TEXT_MODELS",
     "DEFAULT_VOICES",
+    "DynamicModel",
 
     # Config
     "ENDPOINTS",
     "LIMITS",
     "DEFAULTS",
     "AUTH_URL",
+
+    # Session Manager
+    "SyncSessionManager",
+    "AsyncSessionManager",
 ]
