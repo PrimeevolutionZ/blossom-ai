@@ -4,7 +4,105 @@ This document tracks the changes and updates across different versions of the Bl
 
 ---
 
-## v0.4.1 (Latest)
+## v0.4.2 (Latest)
+
+### 🔧 Bug Fix: V2 Model List and API Endpoints
+
+This release fixes critical issues with V2 API model retrieval and endpoint URLs.
+
+#### 🛠️ Bug Fixes
+
+##### Fixed V2 Text Generator Endpoints
+**Problem**: `TextGeneratorV2` was using incorrect base URL and endpoints, causing 404 errors when trying to use models.
+##### Fixed Model List Retrieval
+**Problem**: `TextModel.initialize_from_api()` was trying multiple non-existent endpoints, causing fallback to default models only.
+
+**What was fixed**:
+- Removed attempts to fetch from non-existent endpoints
+- Now uses single correct endpoint: `/generate/openai/models`
+- Proper handling of model data with aliases
+- Better error messages for debugging
+
+#### ✅ What Works Now
+
+**Model List Retrieval**:
+```python
+from blossom_ai import Blossom
+
+client = Blossom(api_version="v2", api_token="your_token")
+
+# Now returns all available models (39+ models)
+models = client.text.models()
+print(f"Available models: {len(models)}")
+# Output: Available models: 39
+
+# Includes: claudyclaude, deepseek, gemini, openai, etc.
+```
+
+**Using Any Model**:
+```python
+# All models now work without 404 errors
+response = client.text.chat(
+    messages=[{"role": "user", "content": "Hello!"}],
+    model="claudyclaude"  # ✅ Works now!
+)
+
+response = client.text.chat(
+    messages=[{"role": "user", "content": "Hello!"}],
+    model="deepseek"  # ✅ Works too!
+)
+```
+#### 📊 Impact
+
+**Before this fix**:
+- ❌ Only 11 default models available
+- ❌ Model list didn't reflect actual API capabilities
+
+**After this fix**:
+- ✅ 39+ models from API available
+- ✅ Dynamic model list reflects current API state
+#### ⚠️ Breaking Changes
+
+**None!** This is a pure bug fix:
+- No API changes
+- No behavior changes for working code
+- Only fixes broken functionality
+
+#### 📝 Migration Notes
+
+**If you were using workarounds**:
+
+```python
+# If you were manually specifying full URLs (no longer needed)
+# Before (workaround)
+# client._some_hack_to_fix_urls()
+
+# After (just works)
+client = Blossom(api_version="v2", api_token="token")
+models = client.text.models()  # ✅ Just works now
+```
+
+**If you hit 404 errors**:
+- Update to v0.4.2
+- No code changes needed
+- Everything should work now
+#### 🔗 Related Issues
+
+This fix resolves:
+- 404 errors when calling `client.text.chat()` with V2 API
+- Incorrect model counts (11 instead of 39+)
+- `claudyclaude` and other models not working
+- Model initialization failures
+
+#### 💡 Recommendations
+
+**Recommended Update**:
+```bash
+pip install --upgrade blossom-ai
+```
+---
+
+## v0.4.1
 
 ### 🚀 Major Update: Reasoning & Caching
 
@@ -200,7 +298,7 @@ def your_existing_function():
     pass
 ```
 
-#### 🐛 Bug Fixes
+#### 🛠 Bug Fixes
 
 - **Documentation**: Fixed and simplified EXAMPLES.md
   - Removed confusing Native Reasoning section that didn't match user-facing API
@@ -370,7 +468,7 @@ json_mode=True  # Guaranteed valid JSON responses
 - All existing code continues to work
 - V2 is opt-in via `api_version="v2"` parameter
 
-#### 📄 Migration Path
+#### 🔄 Migration Path
 
 ```python
 # Before (V1 - still works!)
@@ -429,6 +527,7 @@ See [V2 Migration Guide](docs/V2_MIGRATION_GUIDE.md) for detailed migration step
 - [V2 API Documentation](https://docs.pollinations.ai/v2)
 - [Get API Token](https://enter.pollinations.ai)
 - [V2 Migration Guide](docs/V2_MIGRATION_GUIDE.md)
+
 ---
 
 <div align="center">

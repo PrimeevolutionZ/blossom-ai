@@ -1,537 +1,853 @@
-# Changelog
+# 💾 Caching Guide
 
-This document tracks the changes and updates across different versions of the Blossom AI SDK.
+> **Intelligent caching for AI requests to reduce costs and improve performance**
+
+The Caching Module provides automatic request caching with memory and disk storage, reducing API calls and improving response times.
 
 ---
 
-## v0.4.2 (Latest)
+## 📋 Table of Contents
 
-### 🔧 Bug Fix: V2 Model List and API Endpoints
+- [Quick Start](#-quick-start)
+- [Cache Backends](#-cache-backends)
+- [Configuration](#-configuration)
+- [Usage Examples](#-usage-examples)
+- [Cache Statistics](#-cache-statistics)
+- [Best Practices](#-best-practices)
 
-This release fixes critical issues with V2 API model retrieval and endpoint URLs.
+---
 
-#### 🛠️ Bug Fixes
+## 🚀 Quick Start
 
-##### Fixed V2 Text Generator Endpoints
-**Problem**: `TextGeneratorV2` was using incorrect base URL and endpoints, causing 404 errors when trying to use models.
-##### Fixed Model List Retrieval
-**Problem**: `TextModel.initialize_from_api()` was trying multiple non-existent endpoints, causing fallback to default models only.
+### Basic Usage
 
-**What was fixed**:
-- Removed attempts to fetch from non-existent endpoints
-- Now uses single correct endpoint: `/generate/openai/models`
-- Proper handling of model data with aliases
-- Better error messages for debugging
-
-#### ✅ What Works Now
-
-**Model List Retrieval**:
 ```python
 from blossom_ai import Blossom
-
-client = Blossom(api_version="v2", api_token="your_token")
-
-# Now returns all available models (39+ models)
-models = client.text.models()
-print(f"Available models: {len(models)}")
-# Output: Available models: 39
-
-# Includes: claudyclaude, deepseek, gemini, openai, etc.
-```
-
-**Using Any Model**:
-```python
-# All models now work without 404 errors
-response = client.text.chat(
-    messages=[{"role": "user", "content": "Hello!"}],
-    model="claudyclaude"  # ✅ Works now!
-)
-
-response = client.text.chat(
-    messages=[{"role": "user", "content": "Hello!"}],
-    model="deepseek"  # ✅ Works too!
-)
-```
-#### 📊 Impact
-
-**Before this fix**:
-- ❌ Only 11 default models available
-- ❌ Model list didn't reflect actual API capabilities
-
-**After this fix**:
-- ✅ 39+ models from API available
-- ✅ Dynamic model list reflects current API state
-#### ⚠️ Breaking Changes
-
-**None!** This is a pure bug fix:
-- No API changes
-- No behavior changes for working code
-- Only fixes broken functionality
-
-#### 📝 Migration Notes
-
-**If you were using workarounds**:
-
-```python
-# If you were manually specifying full URLs (no longer needed)
-# Before (workaround)
-# client._some_hack_to_fix_urls()
-
-# After (just works)
-client = Blossom(api_version="v2", api_token="token")
-models = client.text.models()  # ✅ Just works now
-```
-
-**If you hit 404 errors**:
-- Update to v0.4.2
-- No code changes needed
-- Everything should work now
-#### 🔗 Related Issues
-
-This fix resolves:
-- 404 errors when calling `client.text.chat()` with V2 API
-- Incorrect model counts (11 instead of 39+)
-- `claudyclaude` and other models not working
-- Model initialization failures
-
-#### 💡 Recommendations
-
-**Recommended Update**:
-```bash
-pip install --upgrade blossom-ai
-```
----
-
-## v0.4.1
-
-### 🚀 Major Update: Reasoning & Caching
-
-This release introduces two powerful utility modules that enhance AI capabilities and reduce API costs.
-
-#### ✨ New Features
-
-##### Reasoning Module
-**Structured thinking for better AI responses**
-
-- **Multiple Reasoning Levels**:
-  - `LOW` - Quick thinking for simple questions
-  - `MEDIUM` - Systematic analysis (default)
-  - `HIGH` - Deep reasoning with multiple approaches
-  - `ADAPTIVE` - Automatic level selection
-
-- **Configuration Options**:
-  - `include_confidence` - Request confidence scores
-  - `self_critique` - Enable self-evaluation
-  - `alternative_approaches` - Consider multiple solutions
-  - `step_verification` - Verify each reasoning step
-
-- **Advanced Features**:
-  - `ReasoningEnhancer` - Enhance prompts with reasoning
-  - `ReasoningChain` - Multi-step problem solving
-  - `extract_reasoning()` - Parse reasoning from responses
-
-```python
-from blossom_ai.utils import ReasoningEnhancer
-
-enhancer = ReasoningEnhancer()
-enhanced = enhancer.enhance(
-    "How do I optimize database queries?",
-    level="high"
-)
-
-# Use with Blossom
-with Blossom(api_version="v2", api_token="token") as client:
-    response = client.text.generate(enhanced)
-```
-
-##### Caching Module
-**Intelligent request caching to reduce costs**
-
-- **Three Cache Backends**:
-  - `MEMORY` - Fast in-memory cache
-  - `DISK` - Persistent disk storage
-  - `HYBRID` - Memory + Disk (recommended)
-
-- **Features**:
-  - TTL-based expiration
-  - LRU eviction policy
-  - Thread-safe and async-safe
-  - Cache statistics (hit rate, misses, evictions)
-  - Selective caching (text/images/audio)
-  - Automatic key generation
-
-- **Usage**:
-  - `@cached()` decorator for functions
-  - `CacheManager` for manual control
-  - `get_cache()` for global cache
-  - `configure_cache()` for setup
-
-```python
 from blossom_ai.utils import cached
 
+# Cache function results automatically
 @cached(ttl=3600)  # Cache for 1 hour
-def generate_summary(text):
-    with Blossom(api_version="v2", api_token="token") as client:
-        return client.text.generate(f"Summarize: {text}")
+def generate_story(prompt):
+    with Blossom(api_version="v2", api_token="your_token_here") as client:
+        return client.text.generate(prompt)
 
 # First call: generates and caches
-result = generate_summary("Long text...")
+result1 = generate_story("Tell me a story about AI")
 
-# Second call: instant from cache!
-result = generate_summary("Long text...")
+# Second call: returns cached result (instant!)
+result2 = generate_story("Tell me a story about AI")
 ```
 
-#### 📚 Documentation
+### Manual Caching
 
-**New Guides**:
-- **[Reasoning Guide](docs/REASONING.md)** - Complete reasoning module documentation
-- **[Caching Guide](docs/CACHING.md)** - Comprehensive caching guide
+```python
+from blossom_ai.utils import CacheManager
 
-**Updated Guides**:
-- **[EXAMPLES.md](docs/EXAMPLES.md)** - Simplified and cleaned up
-- **[INDEX.md](docs/INDEX.md)** - Added utilities section with new guides
+# Create cache manager
+cache = CacheManager()
 
-#### 🔧 Internal Improvements
+# Set value
+cache.set("my_key", "my_value", ttl=3600)
 
-**New Utils Modules**:
-- `blossom_ai.utils.reasoning` - Reasoning enhancement
-- `blossom_ai.utils.cache` - Caching system
+# Get value
+value = cache.get("my_key")
+print(value)  # "my_value"
 
-**Exports Added**:
-- Reasoning: `ReasoningLevel`, `ReasoningConfig`, `ReasoningEnhancer`, `ReasoningChain`
-- Caching: `CacheBackend`, `CacheConfig`, `CacheManager`, `cached`
+# Check stats
+print(cache.get_stats())
+```
 
-**Documentation Cleanup**:
-- Removed 100+ lines of confusing Native Reasoning examples from EXAMPLES.md
-- Simplified reasoning examples to focus on practical usage
-- Fixed all code examples to match actual API
+---
 
-#### 📊 Performance Impact
+## 🗄️ Cache Backends
 
-**Caching Benefits**:
-- ⚡ **99%+ faster** for cached responses (0.5ms vs 2000ms)
-- 💰 **Reduced API costs** - avoid duplicate requests
-- 🎯 **Better rate limit handling** - fewer API calls
-- 📈 **Improved user experience** - instant responses
+### MEMORY - Fast In-Memory Cache
 
-**Reasoning Benefits**:
-- 🧠 **Better responses** - structured thinking improves quality
-- 🎯 **More accurate** - systematic analysis reduces errors
-- 📊 **Verifiable** - extract reasoning separately
-- 🔄 **Adaptive** - automatic complexity detection
+Best for: Short-lived data, development, testing
 
-#### 🎯 Use Cases
+```python
+from blossom_ai.utils import CacheConfig, CacheBackend, CacheManager
 
-**Reasoning Use Cases**:
-- Complex problem solving
-- Code analysis and optimization
-- System design and architecture
-- Multi-step workflows
-- Decision support systems
+config = CacheConfig(
+    backend=CacheBackend.MEMORY,
+    max_memory_size=100,  # Max 100 items
+    ttl=3600
+)
 
-**Caching Use Cases**:
-- Chatbots with repeated questions
-- Document analysis pipelines
-- API rate limit protection
-- Development and testing
-- Cost optimization for production
+cache = CacheManager(config)
+```
 
-#### 💡 Examples
+**Pros:**
+- ⚡ Extremely fast
+- 🎯 No disk I/O
+- 🧹 Auto-cleanup on exit
 
-**Combined Usage**:
+**Cons:**
+- ⏳ Lost on program restart
+- 💾 Limited by RAM
+
+---
+
+### DISK - Persistent Disk Cache
+
+Best for: Long-term storage, shared cache, large datasets
+
+```python
+from blossom_ai.utils import CacheConfig, CacheBackend, CacheManager
+from pathlib import Path
+
+config = CacheConfig(
+    backend=CacheBackend.DISK,
+    cache_dir=Path.home() / ".my_app_cache",
+    max_disk_size=1000,  # Max 1000 items
+    ttl=86400  # 24 hours
+)
+
+cache = CacheManager(config)
+```
+
+**Pros:**
+- 💾 Persists across restarts
+- 📦 Can store large amounts
+- 🔄 Shareable between processes
+
+**Cons:**
+- 🐢 Slower than memory
+- 💿 Requires disk space
+
+---
+
+### HYBRID - Memory + Disk (Recommended)
+
+Best for: Production, balanced performance, large workloads
+
+```python
+from blossom_ai.utils import CacheConfig, CacheBackend, CacheManager
+
+config = CacheConfig(
+    backend=CacheBackend.HYBRID,  # Default
+    max_memory_size=100,
+    max_disk_size=1000,
+    ttl=3600
+)
+
+cache = CacheManager(config)
+```
+
+**How it works:**
+1. Check memory first (fast)
+2. Check disk if not in memory
+3. Promote disk → memory on access
+4. Auto-evict old entries (LRU)
+
+**Pros:**
+- ⚡ Fast memory access
+- 💾 Persistent storage
+- 🔄 Auto-promotion
+- 🎯 Best of both worlds
+
+---
+
+## ⚙️ Configuration
+
+### Complete Configuration
+
+```python
+from blossom_ai.utils import CacheConfig, CacheBackend
+from pathlib import Path
+
+config = CacheConfig(
+    # General
+    enabled=True,  # Enable/disable caching
+    backend=CacheBackend.HYBRID,  # Memory + Disk
+    ttl=3600,  # Time to live (seconds)
+    
+    # Memory settings
+    max_memory_size=100,  # Max items in memory
+    
+    # Disk settings
+    max_disk_size=1000,  # Max items on disk
+    cache_dir=Path.home() / ".blossom_cache",  # Cache directory
+    
+    # What to cache
+    cache_text=True,  # Cache text responses
+    cache_images=False,  # Don't cache images (large)
+    cache_audio=False,  # Don't cache audio
+    
+    # Advanced
+    compress=True,  # Compress disk cache
+    serialize_format="pickle"  # pickle or json
+)
+```
+
+### Configuration Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `enabled` | `bool` | `True` | Enable/disable caching |
+| `backend` | `CacheBackend` | `HYBRID` | Storage backend |
+| `ttl` | `int` | `3600` | Time to live (seconds) |
+| `max_memory_size` | `int` | `100` | Max items in memory |
+| `max_disk_size` | `int` | `1000` | Max items on disk |
+| `cache_dir` | `Optional[Path]` | `~/.blossom_cache` | Cache directory |
+| `cache_text` | `bool` | `True` | Cache text responses |
+| `cache_images` | `bool` | `False` | Cache images |
+| `cache_audio` | `bool` | `False` | Cache audio |
+| `compress` | `bool` | `True` | Compress disk cache |
+| `serialize_format` | `str` | `"pickle"` | Serialization format |
+
+---
+
+## 💡 Usage Examples
+
+### Example 1: Basic Decorator
+
 ```python
 from blossom_ai import Blossom
-from blossom_ai.utils import ReasoningEnhancer, cached
+from blossom_ai.utils import cached
+import os
 
-enhancer = ReasoningEnhancer()
+# Get your API token from environment
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
-@cached(ttl=3600)  # Cache + Reasoning = Efficient!
+@cached(ttl=1800)  # Cache 30 minutes
 def analyze_code(code):
-    enhanced = enhancer.enhance(
-        f"Analyze this code:\n\n{code}",
-        level="high"
-    )
-    
-    with Blossom(api_version="v2", api_token="token") as client:
-        return client.text.generate(enhanced, max_tokens=1000)
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        return client.text.generate(
+            f"Analyze this code:\n\n{code}",
+            max_tokens=500
+        )
 
-# Deep analysis with caching
+# First call: generates response
+result = analyze_code("def hello(): print('hi')")
+
+# Second call: instant from cache
 result = analyze_code("def hello(): print('hi')")
 ```
 
-**Cache Statistics**:
-```python
-from blossom_ai.utils import get_cache
+---
 
-cache = get_cache()
-
-# Check performance
-stats = cache.get_stats()
-print(f"Hit rate: {stats.hit_rate:.1f}%")
-print(f"Hits: {stats.hits}, Misses: {stats.misses}")
-```
-
-#### ⚠️ Breaking Changes
-
-**None!** This release is fully backward compatible:
-- All existing code continues to work
-- New features are opt-in
-- No changes to existing APIs
-
-#### 📝 Migration Notes
-
-No migration needed! To use new features:
+### Example 2: Manual Cache Control
 
 ```python
-# Add reasoning to existing code
-from blossom_ai.utils import ReasoningEnhancer
+from blossom_ai import Blossom
+from blossom_ai.utils import CacheManager
+import os
 
-enhancer = ReasoningEnhancer()
-enhanced_prompt = enhancer.enhance(your_prompt, level="medium")
+cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
 
-# Add caching to existing code
-from blossom_ai.utils import cached
+# Generate key
+key = "story_prompt_abc123"
 
-@cached(ttl=3600)
-def your_existing_function():
-    # Your code here
-    pass
+# Check if cached
+cached_result = cache.get(key)
+if cached_result:
+    print("Using cached result!")
+else:
+    # Generate new
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        result = client.text.generate("Tell me a story")
+        
+        # Cache it
+        cache.set(key, result, ttl=3600)
 ```
-
-#### 🛠 Bug Fixes
-
-- **Documentation**: Fixed and simplified EXAMPLES.md
-  - Removed confusing Native Reasoning section that didn't match user-facing API
-  - Clarified distinction between internal implementation and public API
-  - All code examples now tested and verified to work
-
-#### 🔗 Related Links
-
-- [Reasoning Documentation](docs/REASONING.md)
-- [Caching Documentation](docs/CACHING.md)
-- [V2 API Documentation](docs/V2_API_REFERENCE.md)
 
 ---
 
-## v0.4.0
-
-### 🚀 Major Update: V2 API Support
-This release introduces full support for the new Pollinations V2 API (`enter.pollinations.ai`), bringing significant improvements and new features while maintaining full backward compatibility with V1.
-
-#### ✨ New Features
-
-##### V2 API Integration
-- **Opt-in V2 Support**: Use `api_version="v2"` parameter to access new API
-- **Backward Compatible**: V1 remains default, all existing code works unchanged
-- **Dual API Support**: Can use V1 and V2 simultaneously in same application
+### Example 3: Global Cache
 
 ```python
-# V2 API with new features
-client = Blossom(api_version="v2", api_token="your_token")
+from blossom_ai.utils import get_cache, configure_cache, CacheConfig
 
-# V1 API (existing code still works)
-client = Blossom()  # Defaults to v1
+# Configure global cache once (e.g., in your app startup)
+configure_cache(CacheConfig(
+    backend="hybrid",
+    ttl=7200,  # 2 hours
+    cache_text=True
+))
+
+# Use anywhere in your app
+def function1():
+    cache = get_cache()
+    cache.set("key1", "value1")
+
+def function2():
+    cache = get_cache()  # Same cache instance
+    value = cache.get("key1")
+    print(value)  # "value1"
 ```
 
-##### Image Generation V2
+---
 
-**Quality Levels** - Control output quality vs generation time:
-- `quality="low"` - Fast generation, smaller files (~10-30 KB)
-- `quality="medium"` - Balanced (default, ~30-100 KB)
-- `quality="high"` - Better details (~100-300 KB)
-- `quality="hd"` - Best quality (~300-500 KB)
+### Example 4: Custom Cache Keys
 
-**Guidance Scale** - Fine-tune prompt adherence (1.0-20.0):
-- Low (1.0-5.0): Creative freedom, artistic interpretation
-- Medium (5.0-10.0): Balanced adherence (default: 7.5)
-- High (10.0-20.0): Strict prompt following
-
-**Negative Prompts** - Specify unwanted elements:
 ```python
-negative_prompt="blurry, low quality, distorted, watermark"
+from blossom_ai import Blossom
+from blossom_ai.utils import CacheManager
+import hashlib
+import os
+
+cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+def generate_cache_key(prompt, model, temperature):
+    """Generate deterministic cache key"""
+    data = f"{prompt}:{model}:{temperature}"
+    return hashlib.sha256(data.encode()).hexdigest()[:16]
+
+# Use custom key
+prompt = "Explain AI"
+model = "openai"
+temp = 0.7
+
+key = generate_cache_key(prompt, model, temp)
+
+# Check cache
+result = cache.get(key)
+if not result:
+    # Generate and cache
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        result = client.text.generate(prompt, model=model, temperature=temp)
+        cache.set(key, result, ttl=3600)
 ```
 
-**Transparent Backgrounds** - Generate PNG with alpha channel:
-```python
-transparent=True  # Perfect for logos, stickers, game assets
-```
+---
 
-**Image-to-Image** - Transform existing images:
-```python
-image="https://example.com/source.jpg"  # Transform with prompt
-```
-
-**Feed Control** - Keep generations private:
-```python
-nofeed=True  # Don't add to public feed
-```
-
-##### Text Generation V2
-
-**OpenAI Compatibility** - Full OpenAI API compatibility:
-- Drop-in replacement for OpenAI endpoints
-- Compatible with existing OpenAI tools
-
-**Function Calling / Tool Use** - Build agentic AI applications:
-```python
-tools=[{
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Get weather for location",
-        "parameters": {...}
-    }
-}]
-```
-
-**Advanced Generation Control**:
-- `max_tokens` - Limit response length (50-2000+)
-- `frequency_penalty` (0-2) - Reduce word repetition
-- `presence_penalty` (0-2) - Encourage topic diversity
-- `top_p` (0.1-1.0) - Nucleus sampling for controlled randomness
-- `n` (1-128) - Generate multiple completions
-
-**Improved JSON Mode** - More reliable structured output:
-```python
-json_mode=True  # Guaranteed valid JSON responses
-```
-
-**Enhanced Streaming** - More stable real-time generation:
-- Better timeout handling
-- Improved error recovery
-- Reduced stream interruptions
-
-**Extended Temperature Range** - 0-2 (was 0-1 in V1):
-- Enables more creative outputs above 1.0
-- Better control over randomness
-
-**Model Aliases** - Multiple names for same models:
-- `"openai"` = `"gpt-4"` = `"chatgpt"`
-- More flexible model selection
-
-##### Authentication Improvements
-
-**Secret Keys** (`sk_...`) - Server-side use:
-- Best rate limits
-- Full feature access
-- Can spend Pollen credits
-- Never expose in client-side code
-
-**Publishable Keys** (`pk_...`) - Client-side use:
-- IP-based rate limits
-- Safe for browsers/client apps
-- Free features only
-- All models accessible
-
-**Anonymous Access** - Still available:
-- Free tier with basic limits
-- Great for testing
-
-#### 📚 Documentation
-
-**New Guides**:
-- **[V2 Migration Guide](docs/V2_MIGRATION_GUIDE.md)** - Step-by-step migration from V1
-- **[V2 Image Generation](docs/V2_IMAGE_GENERATION.md)** - Complete guide to image features
-- **[V2 Text Generation](docs/V2_TEXT_GENERATION.md)** - Advanced text generation guide
-- **[V2 API Reference](docs/V2_API_REFERENCE.md)** - Full API documentation
-
-**Updated Guides**:
-- **[Error Handling](docs/ERROR_HANDLING.md)** - V2-specific error handling
-- **[INDEX.md](docs/INDEX.md)** - Added V2 section and comparison table
-
-#### 🔧 Internal Improvements
-
-**New V2 Generators**:
-- `ImageGeneratorV2` / `AsyncImageGeneratorV2`
-- `TextGeneratorV2` / `AsyncTextGeneratorV2`
-- Located in `generators_v2.py`
-
-**V2 Endpoints**:
-- Image: `https://enter.pollinations.ai/api/generate/image`
-- Text: `https://enter.pollinations.ai/api/generate/openai`
-- Models: Separate endpoints for image/text model lists
-
-**Authentication Handling**:
-- V2 uses Bearer token in Authorization header
-- V1 uses query parameter (backward compatible)
-- Automatic method selection based on API version
-
-**Error Handling**:
-- 402 Payment Required support for V2
-- Better rate limit detection
-- Improved error messages with context
-
-#### ⚠️ Breaking Changes
-
-**None!** This release is fully backward compatible:
-- V1 API remains default (`api_version="v1"`)
-- All existing code continues to work
-- V2 is opt-in via `api_version="v2"` parameter
-
-#### 🔄 Migration Path
+### Example 5: Selective Caching
 
 ```python
-# Before (V1 - still works!)
-client = Blossom()
-image = client.image.generate("sunset")
+from blossom_ai.utils import CacheManager, CacheConfig
 
-# After (V2 - opt-in)
-client = Blossom(api_version="v2", api_token="token")
-image = client.image.generate(
-    "sunset",
-    quality="hd",
-    guidance_scale=7.5,
-    negative_prompt="blurry"
+config = CacheConfig(
+    cache_text=True,  # Cache text
+    cache_images=False,  # Don't cache images (large files)
+    cache_audio=False  # Don't cache audio
 )
+
+cache = CacheManager(config)
+
+# Text will be cached
+@cache.cached(ttl=3600)
+def generate_text(prompt):
+    # ...
+    pass
+
+# Images won't be cached (too large)
+def generate_image(prompt):
+    # Direct generation, no cache
+    # ...
+    pass
 ```
 
-See [V2 Migration Guide](docs/V2_MIGRATION_GUIDE.md) for detailed migration steps.
+---
 
-#### 📊 Feature Comparison
+### Example 6: Cache with Metadata
 
-| Feature | V1 | V2 |
-|---------|----|----|
-| Basic generation | ✅ | ✅ |
-| Quality levels | ❌ | ✅ |
-| Guidance scale | ❌ | ✅ |
-| Negative prompts | ❌ | ✅ |
-| Transparent images | ❌ | ✅ |
-| Image-to-image | ❌ | ✅ |
-| Function calling | ❌ | ✅ |
-| Max tokens | ❌ | ✅ |
-| Frequency penalty | ❌ | ✅ |
-| Presence penalty | ❌ | ✅ |
-| Top-P sampling | ❌ | ✅ |
-| Temperature | 0-1 | 0-2 |
-| Streaming | ✅ | ✅ (improved) |
-| JSON mode | ✅ | ✅ (more reliable) |
+```python
+from blossom_ai.utils import CacheManager
+import time
 
-#### 🎯 Use Cases
+cache = CacheManager()
 
-**Use V2 when you need:**
-- HD quality images
-- Fine control over image generation
-- Function calling for AI agents
-- Advanced text parameters
-- Better streaming reliability
-- Structured JSON outputs
+# Cache with metadata
+cache.set(
+    key="response_123",
+    value="AI response here",
+    ttl=3600,
+    metadata={
+        "model": "openai",
+        "tokens": 150,
+        "timestamp": time.time(),
+        "user_id": "user_123"
+    }
+)
 
-**Use V1 when you need:**
-- Simple, quick integration
-- Backward compatibility
-- No authentication required
-- Basic features are sufficient
+# Retrieve (metadata stored internally but not returned)
+value = cache.get("response_123")
+```
 
-#### 🔗 Related Links
+---
 
-- [V2 API Documentation](https://docs.pollinations.ai/v2)
-- [Get API Token](https://enter.pollinations.ai)
-- [V2 Migration Guide](docs/V2_MIGRATION_GUIDE.md)
+### Example 7: Async Support
+
+```python
+import asyncio
+import os
+from blossom_ai import Blossom
+from blossom_ai.utils import CacheManager
+
+cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+@cache.cached(ttl=3600)
+async def generate_async(prompt):
+    async with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        return await client.text.generate(prompt)
+
+async def main():
+    # First call: generates
+    result1 = await generate_async("Hello")
+    
+    # Second call: cached
+    result2 = await generate_async("Hello")
+    
+    print(f"Same result: {result1 == result2}")
+
+asyncio.run(main())
+```
+
+---
+
+### Example 8: Clear Cache
+
+```python
+from blossom_ai.utils import CacheManager
+
+cache = CacheManager()
+
+# Cache some data
+cache.set("key1", "value1")
+cache.set("key2", "value2")
+cache.set("prefix_a", "value3")
+cache.set("prefix_b", "value4")
+
+# Clear all cache
+cache.clear()
+
+# Clear specific prefix
+cache.clear(prefix="prefix_")  # Only clears prefix_a, prefix_b
+```
+
+---
+
+## 📊 Cache Statistics
+
+### Get Stats
+
+```python
+from blossom_ai.utils import CacheManager
+
+cache = CacheManager()
+
+# Perform operations
+cache.set("key1", "value1")
+cache.get("key1")  # Hit
+cache.get("key2")  # Miss
+cache.get("key1")  # Hit
+
+# Get statistics
+stats = cache.get_stats()
+
+print(stats)
+# CacheStats(hits=2, misses=1, hit_rate=66.7%, evictions=0)
+
+print(f"Hit rate: {stats.hit_rate:.1f}%")
+print(f"Hits: {stats.hits}")
+print(f"Misses: {stats.misses}")
+print(f"Memory usage: {stats.memory_usage} items")
+print(f"Disk usage: {stats.disk_usage} items")
+```
+
+### Monitor Performance
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import CacheManager
+import time
+import os
+
+cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+def generate_with_stats(prompt):
+    key = f"prompt_{hash(prompt)}"
+    
+    start = time.time()
+    result = cache.get(key)
+    
+    if result:
+        elapsed = time.time() - start
+        print(f"✅ Cache hit! ({elapsed*1000:.1f}ms)")
+        return result
+    
+    # Generate
+    start = time.time()
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        result = client.text.generate(prompt)
+    elapsed = time.time() - start
+    print(f"⚡ Generated ({elapsed*1000:.1f}ms)")
+    
+    # Cache it
+    cache.set(key, result, ttl=3600)
+    return result
+
+# First call: slow
+generate_with_stats("Tell me a story")
+# ⚡ Generated (2500.0ms)
+
+# Second call: fast!
+generate_with_stats("Tell me a story")
+# ✅ Cache hit! (0.5ms)
+```
+
+---
+
+## ✅ Best Practices
+
+### 1. Choose Appropriate TTL
+
+```python
+from blossom_ai.utils import CacheManager
+
+cache = CacheManager()
+
+# Short TTL for dynamic content
+cache.set("weather", data, ttl=300)  # 5 minutes
+
+# Medium TTL for semi-static content
+cache.set("news", data, ttl=1800)  # 30 minutes
+
+# Long TTL for static content
+cache.set("facts", data, ttl=86400)  # 24 hours
+
+# Very long TTL for rarely changing content
+cache.set("constants", data, ttl=604800)  # 1 week
+```
+
+---
+
+### 2. Use Prefixes for Organization
+
+```python
+from blossom_ai.utils import CacheManager
+
+cache = CacheManager()
+
+# Organize with prefixes
+cache.set("text:summary:doc1", summary1)
+cache.set("text:summary:doc2", summary2)
+cache.set("text:analysis:doc1", analysis1)
+cache.set("image:thumbnail:img1", thumb1)
+
+# Clear all summaries
+cache.clear(prefix="text:summary:")
+
+# Clear all text cache
+cache.clear(prefix="text:")
+```
+
+---
+
+### 3. Cache Expensive Operations Only
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import cached
+import os
+
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+# ✅ DO cache expensive AI calls
+@cached(ttl=3600)
+def analyze_document(doc):
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        return client.text.generate(f"Analyze: {doc}", max_tokens=1000)
+
+# ✅ DO cache large computations
+@cached(ttl=7200)
+def process_big_data(data):
+    # Expensive processing...
+    return result
+
+# ❌ DON'T cache simple operations
+def add_numbers(a, b):
+    return a + b  # Too simple, overhead not worth it
+```
+
+---
+
+### 4. Combine with Other Features
+
+#### With Reasoning
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import cached, ReasoningEnhancer
+import os
+
+enhancer = ReasoningEnhancer()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+@cached(ttl=3600)
+def analyze_with_reasoning(question):
+    enhanced = enhancer.enhance(question, level="high")
+    
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        return client.text.generate(enhanced, max_tokens=1500)
+
+# Cache + reasoning = efficient deep thinking
+result = analyze_with_reasoning("Design a database schema")
+```
+
+#### With V2 API
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import CacheManager
+import os
+
+cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+def generate_with_v2(prompt):
+    key = f"v2:{hash(prompt)}"
+    
+    result = cache.get(key)
+    if result:
+        return result
+    
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        result = client.text.generate(
+            prompt,
+            max_tokens=500,
+            frequency_penalty=0.5
+        )
+        
+        cache.set(key, result, ttl=3600)
+        return result
+```
+
+---
+
+### 5. Handle Cache Misses Gracefully
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import CacheManager
+import os
+
+cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+def get_or_generate(prompt):
+    key = f"prompt_{hash(prompt)}"
+    
+    # Try cache first
+    result = cache.get(key)
+    if result:
+        return result, True  # (result, from_cache)
+    
+    try:
+        # Generate new
+        with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+            result = client.text.generate(prompt)
+            
+            # Cache successful result
+            cache.set(key, result, ttl=3600)
+            return result, False
+            
+    except Exception as e:
+        # If generation fails, return None
+        print(f"Error: {e}")
+        return None, False
+
+# Use it
+result, cached = get_or_generate("Hello")
+if result:
+    print(f"Result ({'cached' if cached else 'fresh'}): {result}")
+```
+
+---
+
+### 6. Monitor and Tune
+
+```python
+from blossom_ai.utils import CacheManager
+
+cache = CacheManager()
+
+# Generate workload...
+for i in range(1000):
+    cache.set(f"key_{i}", f"value_{i}")
+    cache.get(f"key_{i % 500}")  # 50% hit rate
+
+# Check performance
+stats = cache.get_stats()
+
+if stats.hit_rate < 50:
+    print("⚠️ Low hit rate! Consider:")
+    print("  - Increasing TTL")
+    print("  - Increasing cache size")
+    print("  - Better key generation")
+    
+if stats.evictions > stats.hits:
+    print("⚠️ Too many evictions! Consider:")
+    print("  - Increasing max_memory_size")
+    print("  - Using DISK or HYBRID backend")
+```
+
+---
+
+### 7. Production Configuration
+
+```python
+from blossom_ai.utils import CacheConfig, CacheBackend, configure_cache
+from pathlib import Path
+
+# Production-ready config
+config = CacheConfig(
+    backend=CacheBackend.HYBRID,
+    
+    # Generous limits
+    max_memory_size=500,  # 500 items in memory
+    max_disk_size=5000,  # 5000 items on disk
+    
+    # Persistent storage
+    cache_dir=Path("/var/cache/myapp"),
+    
+    # 2-hour TTL for most content
+    ttl=7200,
+    
+    # Cache text only (images too large)
+    cache_text=True,
+    cache_images=False,
+    cache_audio=False,
+    
+    # Optimize disk usage
+    compress=True
+)
+
+# Set globally
+configure_cache(config)
+```
+
+---
+
+## 🎯 Use Cases
+
+### 1. Chatbot with History Caching
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import CacheManager
+import os
+
+cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+def chatbot(user_id, message, history):
+    # Create cache key from user + history hash
+    history_hash = hash(str(history))
+    cache_key = f"chat:{user_id}:{history_hash}:{hash(message)}"
+    
+    # Check cache
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+    
+    # Generate response
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        messages = history + [{"role": "user", "content": message}]
+        response = client.text.chat(messages=messages)
+        
+        # Cache for 30 minutes
+        cache.set(cache_key, response, ttl=1800)
+        return response
+```
+
+---
+
+### 2. Document Analysis Pipeline
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.utils import CacheManager, cached
+import os
+
+cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+@cached(ttl=86400)  # Cache 24 hours
+def extract_text(doc_path):
+    # Expensive OCR/extraction
+    return text
+
+@cached(ttl=86400)
+def summarize(text):
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        return client.text.generate(f"Summarize: {text}", max_tokens=200)
+
+@cached(ttl=86400)
+def extract_entities(text):
+    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        return client.text.generate(
+            f"Extract entities: {text}", 
+            json_mode=True
+        )
+
+def analyze_document(doc_path):
+    # Each step cached independently
+    text = extract_text(doc_path)
+    summary = summarize(text)
+    entities = extract_entities(text)
+    
+    return {
+        "summary": summary,
+        "entities": entities
+    }
+```
+
+---
+
+### 3. API Rate Limit Protection
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.core.errors import RateLimitError
+from blossom_ai.utils import CacheManager
+import time
+import os
+
+cache = CacheManager()
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN")
+
+def generate_with_protection(prompt):
+    key = f"prompt:{hash(prompt)}"
+    
+    # Always try cache first
+    result = cache.get(key)
+    if result:
+        return result
+    
+    try:
+        with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+            result = client.text.generate(prompt)
+            
+            # Cache successful result
+            cache.set(key, result, ttl=3600)
+            return result
+            
+    except RateLimitError as e:
+        print(f"Rate limited! Retry after {e.retry_after}s")
+        time.sleep(e.retry_after)
+        return generate_with_protection(prompt)
+```
+
+---
+
+## 📗 Related Documentation
+
+- **[V2 API Reference](V2_API_REFERENCE.md)** - Complete API docs
+- **[Reasoning Guide](REASONING.md)** - Structured thinking
+- **[Error Handling](ERROR_HANDLING.md)** - Handle errors properly
 
 ---
 
 <div align="center">
 
-**[View Full Documentation](docs/INDEX.md)** • **[GitHub Repository](https://github.com/PrimeevolutionZ/blossom-ai)**
+**Made with 🌸 by the Blossom AI Team**
+
+[Documentation](INDEX.md) • [GitHub](https://github.com/PrimeevolutionZ/blossom-ai) • [PyPI](https://pypi.org/project/eclips-blossom-ai/)
 
 </div>
