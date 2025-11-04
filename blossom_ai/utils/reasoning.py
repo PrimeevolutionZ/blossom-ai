@@ -1,6 +1,7 @@
 """
-Blossom AI - Reasoning Module
+Blossom AI - Reasoning Module (V2 Native Support)
 Enhances prompts with reasoning capabilities for better AI responses
+Supports both prompt-based (universal) and native V2 reasoning
 """
 
 from typing import Optional, Literal, Dict, Any, Union, List
@@ -13,25 +14,47 @@ class ReasoningLevel(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
-    ADAPTIVE = "adaptive"  # Automatically choose based on prompt complexity
+    ADAPTIVE = "adaptive"
+
+
+class ReasoningMode(str, Enum):
+    """Reasoning implementation mode"""
+    PROMPT = "prompt"      # Through prompt engineering (works for all models)
+    NATIVE = "native"      # Built-in reasoning (V2 OpenAI models only)
+    AUTO = "auto"          # Automatic selection based on API version and model
 
 
 @dataclass
 class ReasoningConfig:
     """Configuration for reasoning enhancement"""
     level: ReasoningLevel = ReasoningLevel.MEDIUM
+    mode: ReasoningMode = ReasoningMode.AUTO  # ✅ NEW: Auto-detect best mode
+
+    # Native reasoning params (V2 only)
+    budget_tokens: Optional[int] = None  # ✅ NEW: Token budget for native reasoning
+
+    # Prompt-based reasoning params
     max_reasoning_tokens: Optional[int] = None
     include_confidence: bool = False
     structured_thinking: bool = True
     chain_of_thought: bool = True
 
     # Advanced options
-    self_critique: bool = False  # For HIGH level
-    alternative_approaches: bool = False  # Consider multiple solutions
-    step_verification: bool = False  # Verify each reasoning step
+    self_critique: bool = False
+    alternative_approaches: bool = False
+    step_verification: bool = False
 
 
-# Reasoning prompts for different levels
+# Models that support native reasoning (V2 API)
+NATIVE_REASONING_MODELS = {
+    "openai",
+    "openai-large",
+    "openai-fast",
+    # Add more as OpenAI releases them
+}
+
+
+# Reasoning prompts for different levels (PROMPT mode)
 REASONING_PROMPTS = {
     ReasoningLevel.LOW: """Before answering, briefly consider:
 1. What is the core question?
@@ -87,14 +110,30 @@ class ReasoningEnhancer:
     """
     Enhances prompts with reasoning capabilities
 
+    Supports two modes:
+    - PROMPT: Universal, works with all models (adds reasoning to prompt)
+    - NATIVE: V2 API only, uses built-in thinking parameter (more efficient)
+    - AUTO: Automatically chooses best mode
+
     Example:
         >>> enhancer = ReasoningEnhancer()
-        >>> enhanced = enhancer.enhance(
-        ...     "How do I optimize database queries?",
-        ...     level="high"
+        >>>
+        >>> # Auto mode - chooses best approach
+        >>> result = enhancer.enhance(
+        ...     "How to optimize code?",
+        ...     level="high",
+        ...     api_version="v2",
+        ...     model="openai"
         ... )
-        >>> # Use enhanced prompt with your text generator
-        >>> result = text_gen.generate(enhanced)
+        >>>
+        >>> # Use with V2 API
+        >>> if result.get("thinking"):
+        ...     client.text.chat(
+        ...         messages=[{"role": "user", "content": result["prompt"]}],
+        ...         thinking=result["thinking"]
+        ...     )
+        ... else:
+        ...     client.text.generate(result["prompt"])
     """
 
     def __init__(self, default_config: Optional[ReasoningConfig] = None):
@@ -104,22 +143,29 @@ class ReasoningEnhancer:
             self,
             prompt: str,
             level: Optional[Union[str, ReasoningLevel]] = None,
+            mode: Optional[Union[str, ReasoningMode]] = None,
+            api_version: str = "v1",
+            model: Optional[str] = None,
             config: Optional[ReasoningConfig] = None,
             context: Optional[str] = None,
             examples: Optional[List[str]] = None
-    ) -> str:
+    ) -> Union[str, Dict[str, Any]]:
         """
         Enhance a prompt with reasoning instructions
 
         Args:
             prompt: Original user prompt
             level: Reasoning level (low, medium, high, adaptive)
+            mode: Reasoning mode (prompt, native, auto)
+            api_version: API version ("v1" or "v2")
+            model: Model name (for native reasoning detection)
             config: Custom reasoning configuration
             context: Additional context to include
             examples: Example reasoning patterns
 
         Returns:
-            Enhanced prompt with reasoning instructions
+            - PROMPT mode: Enhanced prompt string
+            - NATIVE mode: Dict with {"prompt": str, "thinking": dict}
         """
         # Use provided config or default
         cfg = config or self.default_config
@@ -134,7 +180,110 @@ class ReasoningEnhancer:
         if level == ReasoningLevel.ADAPTIVE:
             level = self._determine_adaptive_level(prompt)
 
-        # Build enhanced prompt
+        # Determine reasoning mode
+        if mode is None:
+            mode = cfg.mode
+        elif isinstance(mode, str):
+            mode = ReasoningMode(mode.lower())
+
+        # Auto-detect best mode
+        if mode == ReasoningMode.AUTO:
+            mode = self._auto_detect_mode(api_version, model)
+
+        # NATIVE mode - use V2 built-in reasoning
+        if mode == ReasoningMode.NATIVE:
+            if api_version != "v2":
+                raise ValueError(
+                    "Native reasoning only available in V2 API. "
+                    "Use mode='prompt' for V1 or switch to api_version='v2'"
+                )
+
+            if model and model not in NATIVE_REASONING_MODELS:
+                raise ValueError(
+                    f"Model '{model}' doesn't support native reasoning. "
+                    f"Supported models: {', '.join(NATIVE_REASONING_MODELS)}. "
+                    f"Use mode='prompt' as fallback."
+                )
+
+            return self._create_native_reasoning(prompt, level, cfg, context, examples)
+
+        # PROMPT mode - enhance prompt text
+        return self._create_prompt_reasoning(prompt, level, cfg, context, examples)
+
+    def _auto_detect_mode(self, api_version: str, model: Optional[str]) -> ReasoningMode:
+        """
+        Automatically detect best reasoning mode
+
+        Logic:
+        - V2 API + OpenAI model → NATIVE (more efficient)
+        - V2 API + other model → PROMPT (fallback)
+        - V1 API → PROMPT (only option)
+        """
+        if api_version == "v2" and model in NATIVE_REASONING_MODELS:
+            return ReasoningMode.NATIVE
+        return ReasoningMode.PROMPT
+
+    def _create_native_reasoning(
+        self,
+        prompt: str,
+        level: ReasoningLevel,
+        config: ReasoningConfig,
+        context: Optional[str],
+        examples: Optional[List[str]]
+    ) -> Dict[str, Any]:
+        """
+        Create native reasoning configuration for V2 API
+
+        Returns dict with prompt and thinking config
+        """
+        # Build enhanced prompt (but lighter than PROMPT mode)
+        parts = []
+
+        if context:
+            parts.append(f"Context: {context}\n")
+
+        if examples:
+            parts.append("Consider these approaches:")
+            for i, example in enumerate(examples, 1):
+                parts.append(f"{i}. {example}")
+            parts.append("")
+
+        parts.append(prompt)
+
+        enhanced_prompt = "\n".join(parts)
+
+        # Map reasoning level to token budget
+        budget_mapping = {
+            ReasoningLevel.LOW: 500,
+            ReasoningLevel.MEDIUM: 1500,
+            ReasoningLevel.HIGH: 3000
+        }
+
+        budget_tokens = config.budget_tokens or budget_mapping.get(level, 1500)
+
+        return {
+            "prompt": enhanced_prompt,
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": budget_tokens
+            },
+            "mode": "native",
+            "level": level.value
+        }
+
+    def _create_prompt_reasoning(
+        self,
+        prompt: str,
+        level: ReasoningLevel,
+        config: ReasoningConfig,
+        context: Optional[str],
+        examples: Optional[List[str]]
+    ) -> str:
+        """
+        Create prompt-based reasoning enhancement
+
+        Returns enhanced prompt string
+        """
         parts = []
 
         # Add context if provided
@@ -156,16 +305,16 @@ class ReasoningEnhancer:
         parts.append(f"User question: {prompt}")
 
         # Add special instructions based on config
-        if cfg.include_confidence and level in [ReasoningLevel.MEDIUM, ReasoningLevel.HIGH]:
+        if config.include_confidence and level in [ReasoningLevel.MEDIUM, ReasoningLevel.HIGH]:
             parts.append("\n[Please include confidence level: LOW/MEDIUM/HIGH]")
 
-        if cfg.alternative_approaches and level == ReasoningLevel.HIGH:
+        if config.alternative_approaches and level == ReasoningLevel.HIGH:
             parts.append("[Consider at least 2-3 different approaches]")
 
-        if cfg.self_critique and level == ReasoningLevel.HIGH:
+        if config.self_critique and level == ReasoningLevel.HIGH:
             parts.append("[Critically evaluate your own reasoning]")
 
-        if cfg.step_verification:
+        if config.step_verification:
             parts.append("[Verify each logical step]")
 
         return "\n".join(parts)
@@ -209,7 +358,9 @@ class ReasoningEnhancer:
 
     def extract_reasoning(self, response: str) -> Dict[str, Any]:
         """
-        Extract reasoning from AI response
+        Extract reasoning from AI response (PROMPT mode only)
+
+        Note: NATIVE mode reasoning is internal and not returned in response
 
         Returns:
             Dictionary with 'reasoning' and 'answer' parts
@@ -247,10 +398,34 @@ class ReasoningEnhancer:
 
         return result
 
+    def supports_native_reasoning(self, model: str) -> bool:
+        """
+        Check if model supports native reasoning
+
+        Args:
+            model: Model name
+
+        Returns:
+            True if model supports native reasoning
+        """
+        return model in NATIVE_REASONING_MODELS
+
+
+def get_native_reasoning_models() -> List[str]:
+    """
+    Get list of models that support native reasoning
+
+    Returns:
+        List of model names
+    """
+    return list(NATIVE_REASONING_MODELS)
+
 
 class ReasoningChain:
     """
     Multi-step reasoning chain for complex problems
+
+    Automatically uses native reasoning for V2 API
 
     Example:
         >>> chain = ReasoningChain(text_generator)
@@ -272,7 +447,9 @@ class ReasoningChain:
             self,
             problem: str,
             steps: Optional[List[str]] = None,
-            level: ReasoningLevel = ReasoningLevel.HIGH
+            level: ReasoningLevel = ReasoningLevel.HIGH,
+            api_version: str = "v1",
+            model: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Solve problem through multi-step reasoning chain
@@ -281,6 +458,8 @@ class ReasoningChain:
             problem: Problem to solve
             steps: Custom steps or None for automatic
             level: Reasoning level for each step
+            api_version: API version ("v1" or "v2")
+            model: Model name
 
         Returns:
             Dictionary with step-by-step reasoning and final answer
@@ -306,20 +485,44 @@ Please complete this reasoning step.
 """
 
             # Enhance with reasoning
-            enhanced = self.enhancer.enhance(step_prompt, level=level)
+            enhanced = self.enhancer.enhance(
+                step_prompt,
+                level=level,
+                api_version=api_version,
+                model=model
+            )
 
             # Generate response (handle both sync and async)
             if hasattr(self.generator, 'generate') and callable(self.generator.generate):
                 import inspect
                 if inspect.iscoroutinefunction(self.generator.generate):
-                    response = await self.generator.generate(enhanced)
+                    if isinstance(enhanced, dict):
+                        # Native mode
+                        response = await self.generator.chat(
+                            messages=[{"role": "user", "content": enhanced["prompt"]}],
+                            thinking=enhanced.get("thinking")
+                        )
+                    else:
+                        # Prompt mode
+                        response = await self.generator.generate(enhanced)
                 else:
-                    response = self.generator.generate(enhanced)
+                    if isinstance(enhanced, dict):
+                        # Native mode
+                        response = self.generator.chat(
+                            messages=[{"role": "user", "content": enhanced["prompt"]}],
+                            thinking=enhanced.get("thinking")
+                        )
+                    else:
+                        # Prompt mode
+                        response = self.generator.generate(enhanced)
             else:
                 raise ValueError("Invalid text generator")
 
-            # Extract reasoning
-            parsed = self.enhancer.extract_reasoning(response)
+            # Extract reasoning (only for prompt mode)
+            if isinstance(enhanced, str):
+                parsed = self.enhancer.extract_reasoning(response)
+            else:
+                parsed = {'reasoning': None, 'answer': response}
 
             results['steps'].append({
                 'step': step,
@@ -339,49 +542,41 @@ Previous reasoning:
 {context}
 """
 
+        final_enhanced = self.enhancer.enhance(
+            synthesis_prompt,
+            level=level,
+            api_version=api_version,
+            model=model
+        )
+
         if hasattr(self.generator, 'generate') and callable(self.generator.generate):
             import inspect
             if inspect.iscoroutinefunction(self.generator.generate):
-                final = await self.generator.generate(synthesis_prompt)
+                if isinstance(final_enhanced, dict):
+                    final = await self.generator.chat(
+                        messages=[{"role": "user", "content": final_enhanced["prompt"]}],
+                        thinking=final_enhanced.get("thinking")
+                    )
+                else:
+                    final = await self.generator.generate(final_enhanced)
             else:
-                final = self.generator.generate(synthesis_prompt)
+                if isinstance(final_enhanced, dict):
+                    final = self.generator.chat(
+                        messages=[{"role": "user", "content": final_enhanced["prompt"]}],
+                        thinking=final_enhanced.get("thinking")
+                    )
+                else:
+                    final = self.generator.generate(final_enhanced)
 
         results['final_answer'] = final
 
         return results
 
 
-# Integration with Blossom client
-def add_reasoning_to_blossom():
-    """
-    Monkey-patch to add reasoning to Blossom client
-
-    Usage:
-        >>> from blossom_ai.utils.reasoning import add_reasoning_to_blossom
-        >>> add_reasoning_to_blossom()
-        >>>
-        >>> client = Blossom()
-        >>> result = client.text.generate_with_reasoning(
-        ...     "How to optimize Python code?",
-        ...     level="high"
-        ... )
-    """
-    from blossom_ai.generators.blossom import HybridTextGenerator
-
-    def generate_with_reasoning(self, prompt: str, level="medium", **kwargs):
-        """Generate text with reasoning enhancement"""
-        enhancer = ReasoningEnhancer()
-        enhanced_prompt = enhancer.enhance(prompt, level=level)
-        response = self._call("generate", enhanced_prompt, **kwargs)
-        return enhancer.extract_reasoning(response) if isinstance(response, str) else response
-
-    # Add method to HybridTextGenerator
-    HybridTextGenerator.generate_with_reasoning = generate_with_reasoning
-
-
 # Convenience function
 def create_reasoning_enhancer(
         level: str = "medium",
+        mode: str = "auto",
         **config_kwargs
 ) -> ReasoningEnhancer:
     """
@@ -389,10 +584,29 @@ def create_reasoning_enhancer(
 
     Args:
         level: Default reasoning level
+        mode: Reasoning mode ("prompt", "native", "auto")
         **config_kwargs: Additional ReasoningConfig parameters
 
     Returns:
         Configured ReasoningEnhancer instance
+
+    Example:
+        >>> # Auto mode - best for most cases
+        >>> enhancer = create_reasoning_enhancer(level="high", mode="auto")
+        >>>
+        >>> # Force prompt mode (universal)
+        >>> enhancer = create_reasoning_enhancer(level="high", mode="prompt")
+        >>>
+        >>> # Force native mode (V2 only)
+        >>> enhancer = create_reasoning_enhancer(
+        ...     level="high",
+        ...     mode="native",
+        ...     budget_tokens=2000
+        ... )
     """
-    config = ReasoningConfig(level=ReasoningLevel(level), **config_kwargs)
+    config = ReasoningConfig(
+        level=ReasoningLevel(level),
+        mode=ReasoningMode(mode),
+        **config_kwargs
+    )
     return ReasoningEnhancer(default_config=config)

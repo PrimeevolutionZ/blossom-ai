@@ -262,23 +262,60 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             **kwargs
         )
 
+    # Add this to the existing generators_v2.py
+    # Only showing the updated/new parts
+
     def chat(
-        self,
-        messages: List[Dict[str, Any]],
-        model: str = DEFAULTS.TEXT_MODEL,
-        temperature: float = 1.0,
-        max_tokens: Optional[int] = None,
-        stream: bool = False,
-        json_mode: bool = False,
-        tools: Optional[List[Dict]] = None,
-        tool_choice: Optional[Union[str, Dict]] = None,
-        frequency_penalty: float = 0,
-        presence_penalty: float = 0,
-        top_p: float = 1.0,
-        n: int = 1,
-        **kwargs
+            self,
+            messages: List[Dict[str, Any]],
+            model: str = DEFAULTS.TEXT_MODEL,
+            temperature: float = 1.0,
+            max_tokens: Optional[int] = None,
+            stream: bool = False,
+            json_mode: bool = False,
+            tools: Optional[List[Dict]] = None,
+            tool_choice: Optional[Union[str, Dict]] = None,
+            frequency_penalty: float = 0,
+            presence_penalty: float = 0,
+            top_p: float = 1.0,
+            n: int = 1,
+            thinking: Optional[Dict[str, Any]] = None,  # ✅ NEW: Native reasoning support
+            **kwargs
     ) -> Union[str, Iterator[str]]:
-        """Chat using V2 OpenAI-compatible API"""
+        """
+        Chat using V2 OpenAI-compatible API
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            model: Model to use
+            temperature: Temperature (0-2)
+            max_tokens: Max tokens in response
+            stream: Enable streaming
+            json_mode: Enable JSON output
+            tools: Function calling tools
+            tool_choice: Tool selection strategy
+            frequency_penalty: Frequency penalty (-2 to 2)
+            presence_penalty: Presence penalty (-2 to 2)
+            top_p: Top-p sampling
+            n: Number of completions
+            thinking: Native reasoning config (V2 only), e.g.:
+                {"type": "enabled", "budget_tokens": 2000}
+                {"type": "disabled"}
+            **kwargs: Additional parameters
+
+        Returns:
+            str if stream=False, Iterator[str] if stream=True
+
+        Example:
+            >>> # Without reasoning
+            >>> response = gen.chat(messages=[...])
+            >>>
+            >>> # With native reasoning (OpenAI models only)
+            >>> response = gen.chat(
+            ...     messages=[...],
+            ...     thinking={"type": "enabled", "budget_tokens": 2000}
+            ... )
+        """
         body = {
             "model": self._validate_model(model),
             "messages": messages,
@@ -306,6 +343,10 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             if tool_choice:
                 body["tool_choice"] = tool_choice
 
+        # ✅ NEW: Add native reasoning if provided
+        if thinking:
+            body["thinking"] = thinking
+
         # Add any additional parameters
         body.update(kwargs)
 
@@ -321,6 +362,69 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             return self._stream_response(response)
         else:
             result = response.json()
+            return result["choices"][0]["message"]["content"]
+
+    # Similar update for AsyncTextGeneratorV2.chat()
+    async def chat(
+            self,
+            messages: List[Dict[str, Any]],
+            model: str = DEFAULTS.TEXT_MODEL,
+            temperature: float = 1.0,
+            max_tokens: Optional[int] = None,
+            stream: bool = False,
+            json_mode: bool = False,
+            tools: Optional[List[Dict]] = None,
+            tool_choice: Optional[Union[str, Dict]] = None,
+            frequency_penalty: float = 0,
+            presence_penalty: float = 0,
+            top_p: float = 1.0,
+            n: int = 1,
+            thinking: Optional[Dict[str, Any]] = None,  # ✅ ДОБАВЬ ЭТО!
+            **kwargs
+    ) -> Union[str, AsyncIterator[str]]:
+        """Chat using V2 API (async) with optional native reasoning"""
+        body = {
+            "model": self._validate_model(model),
+            "messages": messages,
+            "temperature": temperature,
+            "stream": stream,
+        }
+
+        if n != 1:
+            body["n"] = n
+        if top_p != 1.0:
+            body["top_p"] = top_p
+        if frequency_penalty != 0:
+            body["frequency_penalty"] = frequency_penalty
+        if presence_penalty != 0:
+            body["presence_penalty"] = presence_penalty
+        if max_tokens:
+            body["max_tokens"] = max_tokens
+
+        if json_mode:
+            body["response_format"] = {"type": "json_object"}
+
+        if tools:
+            body["tools"] = tools
+            if tool_choice:
+                body["tool_choice"] = tool_choice
+
+        #
+        if thinking:
+            body["thinking"] = thinking
+
+        body.update(kwargs)
+
+        if stream:
+            return self._stream_response(body)
+        else:
+            data = await self._make_request(
+                "POST",
+                self.base_url,
+                json=body,
+                headers={"Content-Type": "application/json"}
+            )
+            result = json.loads(data.decode('utf-8'))
             return result["choices"][0]["message"]["content"]
 
     def _stream_response(self, response) -> Iterator[str]:
