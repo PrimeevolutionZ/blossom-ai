@@ -10,7 +10,6 @@
 [![Downloads](https://img.shields.io/pypi/dm/eclips-blossom-ai.svg)](https://pypi.org/project/eclips-blossom-ai/)
 [![Stars](https://img.shields.io/github/stars/PrimeevolutionZ/blossom-ai?style=social)](https://github.com/PrimeevolutionZ/blossom-ai)
 
-**Generate images, text, and audio with AI - beautifully simple.**
 
 [🚀 Quick Start](#-quick-start) • [📚 Documentation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md) • [💡 Examples](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/EXAMPLES.md) • [📝 Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md)
 
