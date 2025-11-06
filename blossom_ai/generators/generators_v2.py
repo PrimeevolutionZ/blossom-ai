@@ -1,11 +1,11 @@
 """
-Blossom AI - V2 Generators (enter.pollinations.ai API) - FIXED v3
-Support for new API with OpenAI-compatible endpoints
+Blossom AI - V2 Generators (enter.pollinations.ai API)
 """
 
 from typing import Optional, List, Dict, Any, Iterator, Union, AsyncIterator
 import json
 import asyncio
+import time
 
 from blossom_ai.generators.base_generator import SyncGenerator, AsyncGenerator, ModelAwareGenerator
 from blossom_ai.core.config import ENDPOINTS, LIMITS, DEFAULTS
@@ -218,7 +218,6 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
     """Generate text using V2 API (OpenAI-compatible)"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
-        # ИСПРАВЛЕНО: используем базовый URL без /generate/openai
         SyncGenerator.__init__(self, ENDPOINTS.V2_BASE, timeout, api_token)
         ModelAwareGenerator.__init__(self, TextModel, DEFAULT_TEXT_MODELS)
 
@@ -304,6 +303,7 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             "stream": stream,
         }
 
+        # Only add non-default values to reduce payload
         if temperature != 1.0:
             body["temperature"] = temperature
         if max_tokens is not None:
@@ -328,12 +328,17 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
         if thinking:
             body["thinking"] = thinking
 
+        # Add stream_options for better streaming support
+        if stream:
+            body["stream_options"] = {"include_usage": True}
+
+        # Add any additional kwargs
         for key, value in kwargs.items():
             if value is not None and value != 0 and value != False and value != 1.0:
                 body[key] = value
 
-        # ИСПРАВЛЕНО: используем правильный URL для chat completions
-        chat_url = f"{self.base_url}/generate/openai"
+        # FIXED: Use correct V2 endpoint
+        chat_url = f"{self.base_url}/generate/v1/chat/completions"
 
         response = self._make_request(
             "POST",
@@ -350,24 +355,64 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             return result["choices"][0]["message"]["content"]
 
     def _stream_response(self, response) -> Iterator[str]:
-        """Process streaming response (SSE)"""
+        """
+        Process streaming response (SSE) - FIXED VERSION
+
+        V2 API uses Server-Sent Events (SSE) format:
+        data: {"choices":[{"delta":{"content":"text"}}]}
+        data: [DONE]
+        """
+        buffer = ""
+        last_data_time = time.time()
+
         try:
-            for line in self._stream_with_timeout(response):
-                if not line or not line.strip():
+            # Use iter_content for better streaming support
+            for chunk in response.iter_content(chunk_size=None, decode_unicode=False):
+                current_time = time.time()
+
+                # Timeout check
+                if current_time - last_data_time > LIMITS.STREAM_CHUNK_TIMEOUT:
+                    raise StreamError(
+                        message=f"Stream timeout: no data for {LIMITS.STREAM_CHUNK_TIMEOUT}s",
+                        suggestion="Check connection or increase timeout"
+                    )
+
+                if not chunk:
                     continue
 
-                parsed = _parse_sse_line(line)
-                if parsed is None:
-                    continue
+                last_data_time = current_time
 
-                if parsed.get('done'):
-                    break
+                # Decode chunk
+                try:
+                    chunk_str = chunk.decode('utf-8')
+                except UnicodeDecodeError:
+                    chunk_str = chunk.decode('utf-8', errors='ignore')
 
-                if 'choices' in parsed and len(parsed['choices']) > 0:
-                    delta = parsed['choices'][0].get('delta', {})
-                    content = delta.get('content', '')
-                    if content:
-                        yield content
+                buffer += chunk_str
+
+                # Process complete lines
+                while '\n' in buffer:
+                    line, buffer = buffer.split('\n', 1)
+                    line = line.strip()
+
+                    if not line:
+                        continue
+
+                    # Parse SSE line
+                    parsed = _parse_sse_line(line)
+                    if parsed is None:
+                        continue
+
+                    if parsed.get('done'):
+                        return
+
+                    # Extract content from delta
+                    if 'choices' in parsed and len(parsed['choices']) > 0:
+                        delta = parsed['choices'][0].get('delta', {})
+                        content = delta.get('content', '')
+                        if content:
+                            yield content
+
         except StreamError:
             raise
         except Exception as e:
@@ -387,8 +432,8 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
         """Get available text models from V2 API"""
         if self._models_cache is None:
             try:
-                # ИСПРАВЛЕНО: используем правильный endpoint для получения моделей
-                models_url = f"{self.base_url}/generate/openai/models"
+                # FIXED: Use correct endpoint
+                models_url = f"{self.base_url}/generate/v1/models"
                 response = self._make_request("GET", models_url)
                 data = response.json()
 
@@ -399,7 +444,7 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
                             name = item.get('name')
                             if name:
                                 models.append(name)
-                                # Добавляем алиасы
+                                # Add aliases
                                 if 'aliases' in item and isinstance(item['aliases'], list):
                                     models.extend(item['aliases'])
 
@@ -416,7 +461,6 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
     """Async text generator for V2 API"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
-        # ИСПРАВЛЕНО: используем базовый URL без /generate/openai
         AsyncGenerator.__init__(self, ENDPOINTS.V2_BASE, timeout, api_token)
         ModelAwareGenerator.__init__(self, TextModel, DEFAULT_TEXT_MODELS)
 
@@ -508,12 +552,16 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
         if thinking:
             body["thinking"] = thinking
 
+        # Add stream_options for better streaming support
+        if stream:
+            body["stream_options"] = {"include_usage": True}
+
         for key, value in kwargs.items():
             if value is not None and value != 0 and value != False and value != 1.0:
                 body[key] = value
 
-        # ИСПРАВЛЕНО: используем правильный URL для chat completions
-        chat_url = f"{self.base_url}/generate/openai"
+        # FIXED: Use correct endpoint
+        chat_url = f"{self.base_url}/generate/v1/chat/completions"
 
         if stream:
             return self._stream_response(body, chat_url)
@@ -528,8 +576,10 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
             return result["choices"][0]["message"]["content"]
 
     async def _stream_response(self, body: dict, chat_url: str) -> AsyncIterator[str]:
-        """Async streaming response"""
+        """Async streaming response - FIXED VERSION"""
         response = None
+        buffer = ""
+
         try:
             response = await self._make_request(
                 "POST",
@@ -541,7 +591,8 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
 
             last_data_time = asyncio.get_event_loop().time()
 
-            async for line in response.content:
+            # Read response content line by line
+            async for chunk in response.content.iter_any():
                 current_time = asyncio.get_event_loop().time()
 
                 if current_time - last_data_time > LIMITS.STREAM_CHUNK_TIMEOUT:
@@ -550,23 +601,39 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
                         suggestion="Check connection or increase timeout"
                     )
 
-                line_str = line.decode('utf-8').strip()
-                if not line_str:
+                if not chunk:
                     continue
 
                 last_data_time = current_time
-                parsed = _parse_sse_line(line_str)
-                if parsed is None:
-                    continue
 
-                if parsed.get('done'):
-                    break
+                # Decode chunk
+                try:
+                    chunk_str = chunk.decode('utf-8')
+                except UnicodeDecodeError:
+                    chunk_str = chunk.decode('utf-8', errors='ignore')
 
-                if 'choices' in parsed and len(parsed['choices']) > 0:
-                    delta = parsed['choices'][0].get('delta', {})
-                    content = delta.get('content', '')
-                    if content:
-                        yield content
+                buffer += chunk_str
+
+                # Process complete lines
+                while '\n' in buffer:
+                    line, buffer = buffer.split('\n', 1)
+                    line = line.strip()
+
+                    if not line:
+                        continue
+
+                    parsed = _parse_sse_line(line)
+                    if parsed is None:
+                        continue
+
+                    if parsed.get('done'):
+                        return
+
+                    if 'choices' in parsed and len(parsed['choices']) > 0:
+                        delta = parsed['choices'][0].get('delta', {})
+                        content = delta.get('content', '')
+                        if content:
+                            yield content
 
         except StreamError:
             raise
@@ -587,8 +654,7 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
         """Get available text models from V2 API (async)"""
         if self._models_cache is None:
             try:
-                # ИСПРАВЛЕНО: используем правильный endpoint для получения моделей
-                models_url = f"{self.base_url}/generate/openai/models"
+                models_url = f"{self.base_url}/generate/v1/models"
                 data = await self._make_request("GET", models_url)
                 parsed = json.loads(data.decode('utf-8'))
 
@@ -599,7 +665,7 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
                             name = item.get('name')
                             if name:
                                 models.append(name)
-                                # Добавляем алиасы
+                                # Add aliases
                                 if 'aliases' in item and isinstance(item['aliases'], list):
                                     models.extend(item['aliases'])
 

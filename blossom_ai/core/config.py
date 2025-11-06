@@ -13,16 +13,15 @@ class APIEndpoints:
     # Legacy API (v1)
     IMAGE: str = "https://image.pollinations.ai"
     TEXT: str = "https://text.pollinations.ai"
-    AUDIO: str = "https://text.pollinations.ai"  # Audio uses text endpoint
+    AUDIO: str = "https://text.pollinations.ai"
 
     # New API (v2) - enter.pollinations.ai
     V2_BASE: str = "https://enter.pollinations.ai/api"
     V2_IMAGE: str = "https://enter.pollinations.ai/api/generate/image"
     V2_TEXT: str = "https://enter.pollinations.ai/api/generate/text"
-    V2_OPENAI: str = "https://enter.pollinations.ai/api/generate/openai"
+    V2_CHAT: str = "https://enter.pollinations.ai/api/generate/v1/chat/completions"
     V2_IMAGE_MODELS: str = "https://enter.pollinations.ai/api/generate/image/models"
-    V2_TEXT_MODELS: str = "https://enter.pollinations.ai/api/generate/openai/models"
-
+    V2_TEXT_MODELS: str = "https://enter.pollinations.ai/api/generate/v1/models"
 
 @dataclass(frozen=True)
 class Limits:

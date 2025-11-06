@@ -1,10 +1,30 @@
 # Changelog
 
 This document tracks the changes and updates across different versions of the Blossom AI SDK.
+---
+## v0.4.3 (Latest)
+## 🔧 Critical API Fixes
 
+### V2 API Endpoint Updates
+Fixed compatibility with the latest Pollinations.AI V2 API changes:
+
+**Breaking Changes in V2 API:**
+- Chat completions endpoint changed: `/generate/openai` → `/generate/v1/chat/completions`
+- Models endpoint changed: `/generate/openai/models` → `/generate/v1/models`
+
+**What was fixed:**
+- ✅ All V2 text generation and chat operations now work correctly
+
+### Streaming Improvements
+
+**Major streaming fixes for V2 API:**
+- 🌊 Completely rewritten SSE (Server-Sent Events) parsing for V2 streaming
+- ⏱️ Improved timeout handling between chunks
+- 🛡️ Better Unicode decode error handling
+- 🔒 Proper response cleanup in finally blocks
 ---
 
-## v0.4.2 (Latest)
+## v0.4.2
 
 ### 🔧 Bug Fix: V2 Model List and API Endpoints
 
