@@ -1,8 +1,7 @@
 <div align="center">
 
 # 🌸 Blossom AI
-
-### A beautiful Python SDK for Pollinations.AI
+### <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=600&size=24&pause=1000&color=FF69B4&center=true&vCenter=true&width=600&lines=A+beautiful+Python+SDK+for+Pollinations.AI;Generate+Images%2C+Text+%26+Audio+with+AI;Beautifully+Simple+%E2%9C%A8" alt="Typing SVG" />
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
