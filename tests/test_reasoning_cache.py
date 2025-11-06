@@ -20,7 +20,7 @@ from blossom_ai.utils import (
 from blossom_ai.core.errors import BlossomError
 
 
-API_TOKEN = os.getenv("BLOSSOM_API_TOKEN", "pk_eLq5SS9zpYNvP6iKKsgwz9")
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN", "your-api-token")
 pytestmark = pytest.mark.api
 
 

@@ -1,22 +1,80 @@
+<div align="center">
+
 # 🌸 Blossom AI
+
+### A beautiful Python SDK for Pollinations.AI
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.4.1-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
+[![Version](https://img.shields.io/badge/version-0.4.4-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
 
-**A beautiful Python SDK for Pollinations.AI - Generate images, text, and audio with AI.**
+[![Downloads](https://img.shields.io/pypi/dm/eclips-blossom-ai.svg)](https://pypi.org/project/eclips-blossom-ai/)
+[![Stars](https://img.shields.io/github/stars/PrimeevolutionZ/blossom-ai?style=social)](https://github.com/PrimeevolutionZ/blossom-ai)
 
-Blossom AI is a comprehensive, easy-to-use Python library that provides unified access to Pollinations.AI's powerful AI generation services. Create stunning images, generate text with various models, and convert text to speech with multiple voices - all through a beautifully designed, intuitive API.
+**Generate images, text, and audio with AI - beautifully simple.**
+
+[🚀 Quick Start](#-quick-start) • [📚 Documentation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md) • [💡 Examples](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/EXAMPLES.md) • [📝 Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md)
+
+---
+
+</div>
 
 ## ✨ Features
 
-- 🖼️ **Image Generation** - Create stunning images from text descriptions
-- 🔗 **Image URL Generation** - Get direct links without downloading (v0.2.5!)
-- 📝 **Text Generation** - Generate text with various AI models
-- 🌊 **Streaming** - Real-time text generation with timeout protection
-- 🎙️ **Audio Generation** - Text-to-speech with multiple voices
-- 🚀 **Unified API** - Same code works in sync and async contexts
-- 🧹 **Clean** - Proper resource management and automatic cleanup
+<table>
+<tr>
+<td>
+
+🖼️ **Image Generation**
+- Create stunning images from text
+- Direct URL generation (no downloads!)
+- Save to file or get raw bytes
+
+</td>
+<td>
+
+📝 **Text Generation**
+- Multiple AI models support
+- Real-time streaming
+- Timeout protection
+
+</td>
+<td>
+
+🎙️ **Audio Generation**
+- Text-to-speech conversion
+- Multiple voice options
+- High-quality output
+
+</td>
+</tr>
+<tr>
+<td>
+
+🚀 **Unified API**
+- Sync & async support
+- Consistent interface
+- Easy to learn
+
+</td>
+<td>
+
+🧹 **Clean Code**
+- Proper resource management
+- Automatic cleanup
+- Type hints included
+
+</td>
+<td>
+
+⚡ **Fast & Reliable**
+- Optimized performance
+- Error handling
+- Production-ready
+
+</td>
+</tr>
+</table>
 
 ## 🚀 Quick Start
 
@@ -52,23 +110,98 @@ with Blossom() as ai:
         print(chunk, end='', flush=True)
 ```
 
+## 📊 Why Blossom AI?
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  ✓ Unified API for image, text, and audio generation   │
+│  ✓ Both sync and async support out of the box          │
+│  ✓ Clean, modern Python with type hints                │
+│  ✓ Active development and community support            │
+└─────────────────────────────────────────────────────────┘
+```
+
 ## 📚 Documentation
 
-- **[Documentation Index](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md)** - Start here for complete guide
-- **[Installation & Setup](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INSTALLATION.md)**
-- **[Examples](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/EXAMPLES.md)** - Practical code examples
-- **[Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md)**
+<div align="center">
+
+| Resource | Description |
+|----------|-------------|
+| [📖 Getting Started](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md) | Complete guide to using Blossom AI |
+| [⚙️ Installation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INSTALLATION.md) | Setup and configuration instructions |
+| [💡 Examples](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/EXAMPLES.md) | Practical code examples and use cases |
+| [🆕 V2 API Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/V2_MIGRATION_GUIDE.md) | Migrate to V2 API with new features |
+| [📝 Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md) | Version history and updates |
+
+</div>
+
+## 🌟 Showcase
+
+<details>
+<summary><b>🎨 Image Generation Examples</b></summary>
+
+```python
+# Generate artistic images
+ai.image.save("a cyberpunk city at night", "cyberpunk.jpg")
+ai.image.save("watercolor painting of mountains", "mountains.jpg")
+```
+
+</details>
+
+<details>
+<summary><b>💬 Text Generation Examples</b></summary>
+
+```python
+# Creative writing
+story = ai.text.generate("Write a short sci-fi story")
+
+# Code generation
+code = ai.text.generate("Create a Python function to sort a list")
+```
+
+</details>
+
+<details>
+<summary><b>🔊 Audio Generation Examples</b></summary>
+
+```python
+# Text-to-speech
+ai.audio.save("Hello, world!", "greeting.mp3")
+```
+
+</details>
 
 ## 🤝 Contributing
 
-Contributions welcome!
+Contributions are what make the open-source community amazing! Any contributions you make are **greatly appreciated**.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## 📄 License
 
-MIT License - see [LICENSE](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/LICENSE)
+Distributed under the MIT License. See [`LICENSE`](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/LICENSE) for more information.
+
+## 💖 Support
+
+If you find this project helpful, please consider:
+- ⭐ Starring the repository
+- 🐛 Reporting bugs
+- 💡 Suggesting new features
+- 📢 Sharing with others
 
 ---
 
-Made with 🌸 by [Eclips Team](https://github.com/PrimeevolutionZ)
+<div align="center">
 
-:D
+**Made with 🌸 and ❤️ by [Eclips Team](https://github.com/PrimeevolutionZ)**
+
+[![Made with Python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/)
+[![Powered by Pollinations.AI](https://img.shields.io/badge/Powered%20by-Pollinations.AI-blueviolet.svg)](https://pollinations.ai/)
+
+[⬆ Back to top](#-blossom-ai)
+
+</div>

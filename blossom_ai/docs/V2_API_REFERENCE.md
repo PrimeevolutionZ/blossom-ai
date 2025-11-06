@@ -739,7 +739,408 @@ if __name__ == "__main__":
         if e.suggestion:
             print(f"💡 Suggestion: {e.suggestion}")
 ```
+---
 
+## 🔧 Advanced Usage (v0.4.4+)
+
+For advanced V2 API usage with custom implementations and type safety.
+
+### V2 Parameter Builders
+
+Use V2-specific parameter builders with extended features:
+
+```python
+from blossom_ai.generators import ImageParamsV2, ChatParamsV2
+
+# V2 Image parameters with all features
+params = ImageParamsV2(
+    model="flux",
+    width=1024,
+    height=1024,
+    seed=42,
+    quality="hd",                    # V2 feature
+    guidance_scale=7.5,              # V2 feature
+    negative_prompt="blurry",        # V2 feature
+    transparent=True,                # V2 feature
+    enhance=True,
+    nologo=True,
+    nofeed=True
+)
+
+# Convert to request params (only non-defaults!)
+request_params = params.to_dict()
+print(request_params)
+# Output includes only specified non-default values:
+# {'width': 1024, 'height': 1024, 'seed': 42, 'quality': 'hd', 
+#  'guidance_scale': 7.5, 'negative_prompt': 'blurry', ...}
+```
+
+### V2 Chat Parameters with Advanced Features
+
+```python
+from blossom_ai.generators import ChatParamsV2
+
+# Chat with all V2 features
+params = ChatParamsV2(
+    model="openai",
+    messages=[
+        {"role": "system", "content": "You are helpful"},
+        {"role": "user", "content": "Hello!"}
+    ],
+    temperature=0.8,
+    max_tokens=500,
+    frequency_penalty=0.5,
+    presence_penalty=0.3,
+    top_p=0.9,
+    n=1,
+    # Function calling
+    tools=[{
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get weather",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string"}
+                }
+            }
+        }
+    }],
+    tool_choice="auto",
+    # Native reasoning (experimental)
+    thinking={
+        "type": "enabled",
+        "budget_tokens": 1000
+    }
+)
+
+# Convert to request body (smart filtering!)
+body = params.to_body()
+print(body)
+# Only non-default values included
+# Default values (temperature=1.0, n=1, etc.) are filtered out
+```
+
+### Smart Default Filtering
+
+Parameter builders automatically filter defaults:
+
+```python
+from blossom_ai.generators import ChatParamsV2
+
+# With defaults
+params1 = ChatParamsV2(
+    model="openai",
+    messages=[...],
+    temperature=1.0,      # This is default
+    frequency_penalty=0,  # This is default
+    presence_penalty=0    # This is default
+)
+
+body1 = params1.to_body()
+# Output: Only model and messages (defaults filtered!)
+
+# With custom values
+params2 = ChatParamsV2(
+    model="openai",
+    messages=[...],
+    temperature=0.7,      # Custom value
+    frequency_penalty=0.5 # Custom value
+)
+
+body2 = params2.to_body()
+# Output: Includes temperature and frequency_penalty
+```
+
+**Why this matters:**
+- ✅ Cleaner API requests (smaller payloads)
+- ✅ Explicit about what you're changing
+- ✅ Avoids overriding server-side defaults
+- ✅ Better API compatibility
+
+### V2 Streaming with Unified Parser
+
+```python
+from blossom_ai import Blossom
+from blossom_ai.generators import SSEParser
+
+# Manual streaming (advanced)
+client = Blossom(api_version="v2", api_token="token")
+
+# Get raw response
+import requests
+response = requests.post(
+    "https://enter.pollinations.ai/api/generate/v1/chat/completions",
+    json={
+        "model": "openai",
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": True
+    },
+    headers={"Authorization": f"Bearer {token}"},
+    stream=True
+)
+
+# Parse with unified SSE parser
+parser = SSEParser()
+for line in response.iter_lines(decode_unicode=True):
+    if line:
+        parsed = parser.parse_line(line)
+        if parsed and not parsed.get('done'):
+            content = parser.extract_content(parsed)
+            if content:
+                print(content, end='', flush=True)
+```
+
+### Custom V2 Generator
+
+Build custom V2 generators with mixins:
+
+```python
+from blossom_ai.generators import SyncGenerator, SyncStreamingMixin
+from blossom_ai.generators import SSEParser, ChatParamsV2
+from blossom_ai.core.config import ENDPOINTS
+
+class CustomV2Generator(SyncGenerator, SyncStreamingMixin):
+    """Custom V2 text generator with additional features"""
+    
+    def __init__(self, api_token: str):
+        super().__init__(ENDPOINTS.V2_BASE, timeout=30, api_token=api_token)
+        self._sse_parser = SSEParser()
+    
+    def generate_with_context(
+        self,
+        prompt: str,
+        context: str,
+        stream: bool = False,
+        **kwargs
+    ):
+        """Generate with automatic context injection"""
+        # Build messages with context
+        messages = [
+            {"role": "system", "content": f"Context: {context}"},
+            {"role": "user", "content": prompt}
+        ]
+        
+        # Use V2 parameter builder
+        params = ChatParamsV2(
+            model="openai",
+            messages=messages,
+            stream=stream,
+            **kwargs
+        )
+        
+        # Make request
+        url = f"{self.base_url}/generate/v1/chat/completions"
+        response = self._make_request(
+            "POST",
+            url,
+            json=params.to_body(),
+            headers={"Content-Type": "application/json"},
+            stream=stream
+        )
+        
+        if stream:
+            # Use unified streaming mixin
+            return self._stream_sse_chunked(response, self._sse_parser)
+        else:
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
+    
+    def _validate_prompt(self, prompt: str) -> None:
+        from blossom_ai.generators import ParameterValidator
+        ParameterValidator.validate_prompt_length(prompt, 5000, "prompt")
+
+# Usage
+gen = CustomV2Generator(api_token="your_token")
+
+# Streaming with context
+for chunk in gen.generate_with_context(
+    prompt="What is the capital?",
+    context="We're talking about France",
+    stream=True,
+    temperature=0.7
+):
+    print(chunk, end='', flush=True)
+```
+
+### V2 Validation Helpers
+
+Validate V2-specific parameters:
+
+```python
+from blossom_ai.generators import ParameterValidator
+from blossom_ai.core.errors import BlossomError
+
+def validate_v2_params(
+    prompt: str,
+    quality: str,
+    guidance_scale: float,
+    max_tokens: int
+):
+    """Validate all V2 parameters"""
+    try:
+        # Prompt
+        ParameterValidator.validate_prompt_length(prompt, 5000, "prompt")
+        
+        # Quality
+        valid_qualities = ["low", "medium", "high", "hd"]
+        if quality not in valid_qualities:
+            raise BlossomError(
+                message=f"Invalid quality: {quality}",
+                suggestion=f"Use one of: {', '.join(valid_qualities)}"
+            )
+        
+        # Guidance scale
+        if not (1.0 <= guidance_scale <= 20.0):
+            raise BlossomError(
+                message=f"Guidance scale must be 1.0-20.0, got {guidance_scale}",
+                suggestion="Use 7.5 for balanced results"
+            )
+        
+        # Max tokens
+        if not (1 <= max_tokens <= 4096):
+            raise BlossomError(
+                message=f"Max tokens must be 1-4096, got {max_tokens}",
+                suggestion="Use 2000 for long responses"
+            )
+        
+        return True
+        
+    except BlossomError as e:
+        print(f"Validation error: {e.message}")
+        print(f"Suggestion: {e.suggestion}")
+        return False
+
+# Usage
+if validate_v2_params(
+    prompt="Generate an image",
+    quality="hd",
+    guidance_scale=7.5,
+    max_tokens=1000
+):
+    # Proceed with generation
+    pass
+```
+
+### Testing V2 Components
+
+```python
+import pytest
+from blossom_ai.generators import ImageParamsV2, ChatParamsV2
+
+def test_image_params_v2():
+    """Test V2 image parameters"""
+    params = ImageParamsV2(
+        model="flux",
+        width=1024,
+        quality="hd",
+        guidance_scale=7.5,
+        negative_prompt="blurry",
+        transparent=True
+    )
+    
+    data = params.to_dict()
+    
+    # Check V2 features included
+    assert data['quality'] == 'hd'
+    assert data['guidance_scale'] == 7.5
+    assert data['negative_prompt'] == 'blurry'
+    assert data['transparent'] == 'true'
+    
+    # Check defaults filtered
+    assert 'seed' not in data  # Default seed=42
+    assert 'enhance' not in data  # Default False
+
+def test_chat_params_v2():
+    """Test V2 chat parameters"""
+    params = ChatParamsV2(
+        model="openai",
+        messages=[{"role": "user", "content": "Hi"}],
+        temperature=0.7,
+        max_tokens=500,
+        frequency_penalty=0.5
+    )
+    
+    body = params.to_body()
+    
+    # Non-defaults included
+    assert body['temperature'] == 0.7
+    assert body['max_tokens'] == 500
+    assert body['frequency_penalty'] == 0.5
+    
+    # Defaults filtered
+    assert 'n' not in body  # Default n=1
+    assert 'top_p' not in body  # Default 1.0
+    assert 'presence_penalty' not in body  # Default 0
+
+def test_chat_params_with_tools():
+    """Test function calling parameters"""
+    tools = [{
+        "type": "function",
+        "function": {
+            "name": "test",
+            "description": "Test function"
+        }
+    }]
+    
+    params = ChatParamsV2(
+        model="openai",
+        messages=[...],
+        tools=tools,
+        tool_choice="auto"
+    )
+    
+    body = params.to_body()
+    
+    assert 'tools' in body
+    assert body['tools'] == tools
+    assert body['tool_choice'] == "auto"
+```
+
+### Best Practices for V2
+
+**1. Use Parameter Builders**
+```python
+# ❌ Don't: Manual dict building
+params = {
+    "model": "flux",
+    "width": 1024,
+    "quality": "hd",
+    # ... forgot to filter defaults
+}
+
+# ✅ Do: Use builders
+params = ImageParamsV2(
+    model="flux",
+    width=1024,
+    quality="hd"
+).to_dict()  # Automatic filtering!
+```
+
+**2. Validate Early**
+```python
+# ✅ Validate before API call
+from blossom_ai.generators import ParameterValidator
+
+ParameterValidator.validate_prompt_length(user_input, 5000, "prompt")
+result = client.image.generate(user_input)
+```
+
+**3. Use Type Hints**
+```python
+from typing import Iterator
+from blossom_ai.generators import ChatParamsV2
+
+def generate_response(
+    messages: list,
+    params: ChatParamsV2
+) -> Iterator[str]:
+    """Type-safe V2 generation"""
+    # IDE knows params structure
+    body = params.to_body()
+    # ...
+```
 ---
 
 ## 🔗 Related Documentation

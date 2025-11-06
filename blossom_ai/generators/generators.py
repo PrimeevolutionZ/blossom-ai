@@ -1,16 +1,21 @@
 """
-Blossom AI - Generators (Refactored & Fixed)
-Clean implementation using centralized config and improved error handling
+Blossom AI - Generators V1 (Refactored)
+Clean implementation with separation of concerns
 """
 
 from typing import Optional, List, Dict, Any, Iterator, Union, AsyncIterator
 from urllib.parse import urlencode
 import json
-import asyncio
 
 from blossom_ai.generators.base_generator import SyncGenerator, AsyncGenerator, ModelAwareGenerator
+from blossom_ai.generators.streaming_mixin import (
+    SyncStreamingMixin, AsyncStreamingMixin, SSEParser
+)
+from blossom_ai.generators.parameter_builder import (
+    ImageParams, TextParams, ChatParams, AudioParams, ParameterValidator
+)
 from blossom_ai.core.config import ENDPOINTS, LIMITS, DEFAULTS
-from blossom_ai.core.errors import BlossomError, ErrorType, StreamError, print_warning, print_debug
+from blossom_ai.core.errors import print_warning
 from blossom_ai.core.models import (
     ImageModel, TextModel, Voice,
     DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS, DEFAULT_VOICES
@@ -18,58 +23,21 @@ from blossom_ai.core.models import (
 
 
 # ============================================================================
-# STREAMING UTILITIES
-# ============================================================================
-
-class StreamChunk:
-    """Represents chunk from streaming response"""
-    def __init__(self, content: str, done: bool = False, error: Optional[str] = None):
-        self.content = content
-        self.done = done
-        self.error = error
-
-    def __str__(self):
-        return self.content
-
-    def __repr__(self):
-        return f"StreamChunk(content={self.content!r}, done={self.done}, error={self.error!r})"
-
-
-def _parse_sse_line(line: str) -> Optional[dict]:
-    """Parse SSE line with error handling"""
-    if not line.strip():
-        return None
-
-    if line.startswith('data: '):
-        data_str = line[6:].strip()
-        if data_str == '[DONE]':
-            return {'done': True}
-        try:
-            return json.loads(data_str)
-        except json.JSONDecodeError as e:
-            print_debug(f"Invalid SSE JSON: {data_str[:100]} | Error: {e}")
-            return None
-    return None
-
-
-# ============================================================================
-# IMAGE GENERATOR
+# IMAGE GENERATOR (V1)
 # ============================================================================
 
 class ImageGenerator(SyncGenerator, ModelAwareGenerator):
-    """Generate images using Pollinations.AI (Synchronous)"""
+    """Generate images using Pollinations.AI V1 API (Synchronous)"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
         SyncGenerator.__init__(self, ENDPOINTS.IMAGE, timeout, api_token)
         ModelAwareGenerator.__init__(self, ImageModel, DEFAULT_IMAGE_MODELS)
 
     def _validate_prompt(self, prompt: str) -> None:
-        if len(prompt) > LIMITS.MAX_IMAGE_PROMPT_LENGTH:
-            raise BlossomError(
-                message=f"Prompt exceeds maximum length of {LIMITS.MAX_IMAGE_PROMPT_LENGTH} characters",
-                error_type=ErrorType.INVALID_PARAM,
-                suggestion="Please shorten your prompt."
-            )
+        """Validate prompt length"""
+        ParameterValidator.validate_prompt_length(
+            prompt, LIMITS.MAX_IMAGE_PROMPT_LENGTH, "prompt"
+        )
 
     def generate(
         self,
@@ -107,27 +75,23 @@ class ImageGenerator(SyncGenerator, ModelAwareGenerator):
             ...     f.write(img_data)
         """
         self._validate_prompt(prompt)
+
+        # Build parameters using parameter builder
+        params = ImageParams(
+            model=self._validate_model(model),
+            width=width,
+            height=height,
+            seed=seed,
+            nologo=nologo,
+            private=private,
+            enhance=enhance,
+            safe=safe
+        )
+
         encoded_prompt = self._encode_prompt(prompt)
         url = self._build_url(f"prompt/{encoded_prompt}")
 
-        params = {
-            "model": self._validate_model(model),
-            "width": width,
-            "height": height,
-        }
-
-        if seed is not None:
-            params["seed"] = seed
-        if nologo:
-            params["nologo"] = "true"
-        if private:
-            params["private"] = "true"
-        if enhance:
-            params["enhance"] = "true"
-        if safe:
-            params["safe"] = "true"
-
-        response = self._make_request("GET", url, params=params)
+        response = self._make_request("GET", url, params=params.to_dict())
         return response.content
 
     def generate_url(
@@ -161,42 +125,30 @@ class ImageGenerator(SyncGenerator, ModelAwareGenerator):
         Returns:
             str: Full URL of the generated image
 
-        Example:
-            >>> gen = ImageGenerator()
-            >>> url = gen.generate_url("a beautiful sunset", seed=42, nologo=True)
-            >>> print(url)
-            https://image.pollinations.ai/prompt/a%20beautiful%20sunset?model=flux&...
-
         Security Note:
             API tokens are NEVER included in URLs for security reasons.
-            URLs can be safely shared publicly. If you need authenticated features,
-            use generate() or save() methods instead.
+            URLs can be safely shared publicly.
         """
         self._validate_prompt(prompt)
+
+        # Build parameters
+        params = ImageParams(
+            model=self._validate_model(model),
+            width=width,
+            height=height,
+            seed=seed,
+            nologo=nologo,
+            private=private,
+            enhance=enhance,
+            safe=safe,
+            referrer=referrer
+        )
+
         encoded_prompt = self._encode_prompt(prompt)
         url = self._build_url(f"prompt/{encoded_prompt}")
 
-        params = {
-            "model": self._validate_model(model),
-            "width": width,
-            "height": height,
-        }
-
-        if seed is not None:
-            params["seed"] = seed
-        if nologo:
-            params["nologo"] = "true"
-        if private:
-            params["private"] = "true"
-        if enhance:
-            params["enhance"] = "true"
-        if safe:
-            params["safe"] = "true"
-        if referrer:
-            params["referrer"] = referrer
-
         # Security: NEVER include tokens in URLs
-        query_string = urlencode(params)
+        query_string = urlencode(params.to_dict())
         return f"{url}?{query_string}"
 
     def save(self, prompt: str, filename: str, **kwargs) -> str:
@@ -225,19 +177,17 @@ class ImageGenerator(SyncGenerator, ModelAwareGenerator):
 
 
 class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
-    """Generate images using Pollinations.AI (Asynchronous)"""
+    """Generate images using Pollinations.AI V1 API (Asynchronous)"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
         AsyncGenerator.__init__(self, ENDPOINTS.IMAGE, timeout, api_token)
         ModelAwareGenerator.__init__(self, ImageModel, DEFAULT_IMAGE_MODELS)
 
     def _validate_prompt(self, prompt: str) -> None:
-        if len(prompt) > LIMITS.MAX_IMAGE_PROMPT_LENGTH:
-            raise BlossomError(
-                message=f"Prompt exceeds maximum length of {LIMITS.MAX_IMAGE_PROMPT_LENGTH} characters",
-                error_type=ErrorType.INVALID_PARAM,
-                suggestion="Please shorten your prompt."
-            )
+        """Validate prompt length"""
+        ParameterValidator.validate_prompt_length(
+            prompt, LIMITS.MAX_IMAGE_PROMPT_LENGTH, "prompt"
+        )
 
     async def generate(
         self,
@@ -253,27 +203,22 @@ class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
     ) -> bytes:
         """Generate an image asynchronously"""
         self._validate_prompt(prompt)
+
+        params = ImageParams(
+            model=self._validate_model(model),
+            width=width,
+            height=height,
+            seed=seed,
+            nologo=nologo,
+            private=private,
+            enhance=enhance,
+            safe=safe
+        )
+
         encoded_prompt = self._encode_prompt(prompt)
         url = self._build_url(f"prompt/{encoded_prompt}")
 
-        params = {
-            "model": self._validate_model(model),
-            "width": width,
-            "height": height,
-        }
-
-        if seed is not None:
-            params["seed"] = seed
-        if nologo:
-            params["nologo"] = "true"
-        if private:
-            params["private"] = "true"
-        if enhance:
-            params["enhance"] = "true"
-        if safe:
-            params["safe"] = "true"
-
-        return await self._make_request("GET", url, params=params)
+        return await self._make_request("GET", url, params=params.to_dict())
 
     async def generate_url(
         self,
@@ -290,29 +235,23 @@ class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
     ) -> str:
         """Generate image URL without downloading (async version)"""
         self._validate_prompt(prompt)
+
+        params = ImageParams(
+            model=self._validate_model(model),
+            width=width,
+            height=height,
+            seed=seed,
+            nologo=nologo,
+            private=private,
+            enhance=enhance,
+            safe=safe,
+            referrer=referrer
+        )
+
         encoded_prompt = self._encode_prompt(prompt)
         url = self._build_url(f"prompt/{encoded_prompt}")
 
-        params = {
-            "model": self._validate_model(model),
-            "width": width,
-            "height": height,
-        }
-
-        if seed is not None:
-            params["seed"] = seed
-        if nologo:
-            params["nologo"] = "true"
-        if private:
-            params["private"] = "true"
-        if enhance:
-            params["enhance"] = "true"
-        if safe:
-            params["safe"] = "true"
-        if referrer:
-            params["referrer"] = referrer
-
-        query_string = urlencode(params)
+        query_string = urlencode(params.to_dict())
         return f"{url}?{query_string}"
 
     async def save(self, prompt: str, filename: str, **kwargs) -> str:
@@ -331,23 +270,22 @@ class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
 
 
 # ============================================================================
-# TEXT GENERATOR
+# TEXT GENERATOR (V1)
 # ============================================================================
 
-class TextGenerator(SyncGenerator, ModelAwareGenerator):
-    """Generate text using Pollinations.AI (Synchronous)"""
+class TextGenerator(SyncGenerator, SyncStreamingMixin, ModelAwareGenerator):
+    """Generate text using Pollinations.AI V1 API (Synchronous)"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
         SyncGenerator.__init__(self, ENDPOINTS.TEXT, timeout, api_token)
         ModelAwareGenerator.__init__(self, TextModel, DEFAULT_TEXT_MODELS)
+        self._sse_parser = SSEParser()
 
     def _validate_prompt(self, prompt: str) -> None:
-        if len(prompt) > LIMITS.MAX_TEXT_PROMPT_LENGTH:
-            raise BlossomError(
-                message=f"Prompt exceeds maximum length of {LIMITS.MAX_TEXT_PROMPT_LENGTH} characters",
-                error_type=ErrorType.INVALID_PARAM,
-                suggestion="Please shorten your prompt."
-            )
+        """Validate prompt length"""
+        ParameterValidator.validate_prompt_length(
+            prompt, LIMITS.MAX_TEXT_PROMPT_LENGTH, "prompt"
+        )
 
     def generate(
         self,
@@ -387,66 +325,28 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
             ...     print(chunk, end="", flush=True)
         """
         self._validate_prompt(prompt)
+
+        params = TextParams(
+            model=self._validate_model(model),
+            system=system,
+            seed=seed,
+            temperature=temperature,
+            json_mode=json_mode,
+            private=private,
+            stream=stream
+        )
+
         encoded_prompt = self._encode_prompt(prompt)
         url = self._build_url(encoded_prompt)
 
-        params = {"model": self._validate_model(model)}
-
-        if system:
-            params["system"] = system
-        if seed is not None:
-            params["seed"] = seed
-        if temperature is not None:
-            params["temperature"] = temperature
-        if json_mode:
-            params["json"] = "true"
-        if private:
-            params["private"] = "true"
-        if stream:
-            params["stream"] = "true"
-
-        response = self._make_request("GET", url, params=params, stream=stream)
+        response = self._make_request(
+            "GET", url, params=params.to_dict(), stream=stream
+        )
 
         if stream:
-            return self._stream_response(response)
+            return self._stream_sse_response(response, self._sse_parser)
         else:
             return response.text
-
-    def _stream_response(self, response) -> Iterator[str]:
-        """Process streaming response (SSE) - FIX: Proper cleanup"""
-        try:
-            for line in self._stream_with_timeout(response):
-                if not line or not line.strip():
-                    continue
-
-                parsed = _parse_sse_line(line)
-                if parsed is None:
-                    continue
-
-                if parsed.get('done'):
-                    break
-
-                # Extract content from OpenAI format
-                if 'choices' in parsed and len(parsed['choices']) > 0:
-                    delta = parsed['choices'][0].get('delta', {})
-                    content = delta.get('content', '')
-                    if content:
-                        yield content
-        except StreamError:
-            raise
-        except Exception as e:
-            raise StreamError(
-                message=f"Error during streaming: {str(e)}",
-                suggestion="Try non-streaming mode or check your connection",
-                original_error=e
-            )
-        finally:
-            # FIX: Always close response
-            if response and hasattr(response, 'close'):
-                try:
-                    response.close()
-                except:
-                    pass
 
     def chat(
         self,
@@ -480,34 +380,31 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
             >>> response = gen.chat(messages)
             >>> print(response)
         """
-        url = self._build_url("openai")
-
-        body = {
-            "model": self._validate_model(model),
-            "messages": messages,
-            "stream": stream
-        }
-
         if temperature is not None and temperature != DEFAULTS.TEMPERATURE:
             print_warning(f"Temperature {temperature} may not be supported. Using default.")
-        body["temperature"] = DEFAULTS.TEMPERATURE
 
-        if json_mode:
-            body["response_format"] = {"type": "json_object"}
-        if private:
-            body["private"] = private
+        params = ChatParams(
+            model=self._validate_model(model),
+            messages=messages,
+            temperature=DEFAULTS.TEMPERATURE,
+            stream=stream,
+            json_mode=json_mode,
+            private=private
+        )
+
+        url = self._build_url("openai")
 
         try:
             response = self._make_request(
                 "POST",
                 url,
-                json=body,
+                json=params.to_body(),
                 headers={"Content-Type": "application/json"},
                 stream=stream
             )
 
             if stream:
-                return self._stream_response(response)
+                return self._stream_sse_response(response, self._sse_parser)
             else:
                 result = response.json()
                 return result["choices"][0]["message"]["content"]
@@ -537,20 +434,19 @@ class TextGenerator(SyncGenerator, ModelAwareGenerator):
         return self._models_cache or self._fallback_models
 
 
-class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
-    """Generate text using Pollinations.AI (Asynchronous)"""
+class AsyncTextGenerator(AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerator):
+    """Generate text using Pollinations.AI V1 API (Asynchronous)"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
         AsyncGenerator.__init__(self, ENDPOINTS.TEXT, timeout, api_token)
         ModelAwareGenerator.__init__(self, TextModel, DEFAULT_TEXT_MODELS)
+        self._sse_parser = SSEParser()
 
     def _validate_prompt(self, prompt: str) -> None:
-        if len(prompt) > LIMITS.MAX_TEXT_PROMPT_LENGTH:
-            raise BlossomError(
-                message=f"Prompt exceeds maximum length of {LIMITS.MAX_TEXT_PROMPT_LENGTH} characters",
-                error_type=ErrorType.INVALID_PARAM,
-                suggestion="Please shorten your prompt."
-            )
+        """Validate prompt length"""
+        ParameterValidator.validate_prompt_length(
+            prompt, LIMITS.MAX_TEXT_PROMPT_LENGTH, "prompt"
+        )
 
     async def generate(
         self,
@@ -565,80 +461,28 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
     ) -> Union[str, AsyncIterator[str]]:
         """Generate text from a prompt (async)"""
         self._validate_prompt(prompt)
+
+        params = TextParams(
+            model=self._validate_model(model),
+            system=system,
+            seed=seed,
+            temperature=temperature,
+            json_mode=json_mode,
+            private=private,
+            stream=stream
+        )
+
         encoded_prompt = self._encode_prompt(prompt)
         url = self._build_url(encoded_prompt)
 
-        params = {"model": self._validate_model(model)}
-
-        if system:
-            params["system"] = system
-        if seed is not None:
-            params["seed"] = seed
-        if temperature is not None:
-            params["temperature"] = temperature
-        if json_mode:
-            params["json"] = "true"
-        if private:
-            params["private"] = "true"
         if stream:
-            params["stream"] = "true"
-
-        if stream:
-            return self._stream_response(url, params)
-        else:
-            data = await self._make_request("GET", url, params=params)
-            return data.decode('utf-8')
-
-    async def _stream_response(self, url: str, params: dict) -> AsyncIterator[str]:
-        """Async generator for streaming response - FIX: Proper cleanup"""
-        response = None
-        try:
-            response = await self._make_request("GET", url, params=params, stream=True)
-
-            last_data_time = asyncio.get_event_loop().time()
-
-            async for line in response.content:
-                current_time = asyncio.get_event_loop().time()
-
-                if current_time - last_data_time > LIMITS.STREAM_CHUNK_TIMEOUT:
-                    raise StreamError(
-                        message=f"Stream timeout: no data for {LIMITS.STREAM_CHUNK_TIMEOUT}s",
-                        suggestion="Check connection or increase timeout"
-                    )
-
-                line_str = line.decode('utf-8').strip()
-                if not line_str:
-                    continue
-
-                last_data_time = current_time
-                parsed = _parse_sse_line(line_str)
-                if parsed is None:
-                    continue
-
-                if parsed.get('done'):
-                    break
-
-                if 'choices' in parsed and len(parsed['choices']) > 0:
-                    delta = parsed['choices'][0].get('delta', {})
-                    content = delta.get('content', '')
-                    if content:
-                        yield content
-
-        except StreamError:
-            raise
-        except Exception as e:
-            raise StreamError(
-                message=f"Error during async streaming: {str(e)}",
-                suggestion="Try non-streaming mode or check your connection",
-                original_error=e
+            response = await self._make_request(
+                "GET", url, params=params.to_dict(), stream=True
             )
-        finally:
-            # FIX: Always close response
-            if response and not response.closed:
-                try:
-                    await response.close()
-                except:
-                    pass
+            return self._stream_sse_response(response, self._sse_parser)
+        else:
+            data = await self._make_request("GET", url, params=params.to_dict())
+            return data.decode('utf-8')
 
     async def chat(
         self,
@@ -650,107 +494,55 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
         private: bool = False
     ) -> Union[str, AsyncIterator[str]]:
         """Chat completion (async)"""
-        url = self._build_url("openai")
-
-        body = {
-            "model": self._validate_model(model),
-            "messages": messages,
-            "stream": stream
-        }
-
         if temperature is not None and temperature != DEFAULTS.TEMPERATURE:
             print_warning(f"Temperature {temperature} may not be supported. Using default.")
-        body["temperature"] = DEFAULTS.TEMPERATURE
 
-        if json_mode:
-            body["response_format"] = {"type": "json_object"}
-        if private:
-            body["private"] = private
+        params = ChatParams(
+            model=self._validate_model(model),
+            messages=messages,
+            temperature=DEFAULTS.TEMPERATURE,
+            stream=stream,
+            json_mode=json_mode,
+            private=private
+        )
 
-        if stream:
-            return self._stream_chat_response(url, body)
-        else:
-            try:
+        url = self._build_url("openai")
+
+        try:
+            if stream:
+                response = await self._make_request(
+                    "POST",
+                    url,
+                    json=params.to_body(),
+                    headers={"Content-Type": "application/json"},
+                    stream=True
+                )
+                return self._stream_sse_response(response, self._sse_parser)
+            else:
                 data = await self._make_request(
                     "POST",
                     url,
-                    json=body,
+                    json=params.to_body(),
                     headers={"Content-Type": "application/json"}
                 )
                 result = json.loads(data.decode('utf-8'))
                 return result["choices"][0]["message"]["content"]
-            except Exception as e:
-                print_warning(f"Chat endpoint failed, falling back to GET method: {e}")
-                user_msg = next((m["content"] for m in messages if m.get("role") == "user"), None)
-                system_msg = next((m["content"] for m in messages if m.get("role") == "system"), None)
 
-                if user_msg:
-                    return await self.generate(
-                        prompt=user_msg,
-                        model=model,
-                        system=system_msg,
-                        json_mode=json_mode,
-                        private=private,
-                        stream=False
-                    )
-                raise
-
-    async def _stream_chat_response(self, url: str, body: dict) -> AsyncIterator[str]:
-        """Async generator for streaming chat response - FIX: Proper cleanup"""
-        response = None
-        try:
-            response = await self._make_request(
-                "POST",
-                url,
-                json=body,
-                headers={"Content-Type": "application/json"},
-                stream=True
-            )
-
-            last_data_time = asyncio.get_event_loop().time()
-
-            async for line in response.content:
-                current_time = asyncio.get_event_loop().time()
-
-                if current_time - last_data_time > LIMITS.STREAM_CHUNK_TIMEOUT:
-                    raise StreamError(
-                        message=f"Stream timeout: no data for {LIMITS.STREAM_CHUNK_TIMEOUT}s",
-                        suggestion="Check connection or increase timeout"
-                    )
-
-                line_str = line.decode('utf-8').strip()
-                if not line_str:
-                    continue
-
-                last_data_time = current_time
-                parsed = _parse_sse_line(line_str)
-                if parsed is None:
-                    continue
-
-                if parsed.get('done'):
-                    break
-
-                if 'choices' in parsed and len(parsed['choices']) > 0:
-                    delta = parsed['choices'][0].get('delta', {})
-                    content = delta.get('content', '')
-                    if content:
-                        yield content
-
-        except StreamError:
-            raise
         except Exception as e:
-            raise StreamError(
-                message=f"Error during async chat streaming: {str(e)}",
-                suggestion="Try non-streaming mode or check your connection",
-                original_error=e
-            )
-        finally:
-            # FIX: Always close response
-            if response and not response.closed:
-                try:
-                    await response.close()
-                except:
-                    pass
+            print_warning(f"Chat endpoint failed, falling back to GET method: {e}")
+            user_msg = next((m["content"] for m in messages if m.get("role") == "user"), None)
+            system_msg = next((m["content"] for m in messages if m.get("role") == "system"), None)
+
+            if user_msg:
+                return await self.generate(
+                    prompt=user_msg,
+                    model=model,
+                    system=system_msg,
+                    json_mode=json_mode,
+                    private=private,
+                    stream=False
+                )
+            raise
 
     async def models(self) -> List[str]:
         """Get list of available text models (async)"""
@@ -761,7 +553,7 @@ class AsyncTextGenerator(AsyncGenerator, ModelAwareGenerator):
 
 
 # ============================================================================
-# AUDIO GENERATOR
+# AUDIO GENERATOR (V1)
 # ============================================================================
 
 class AudioGenerator(SyncGenerator, ModelAwareGenerator):
@@ -798,15 +590,16 @@ class AudioGenerator(SyncGenerator, ModelAwareGenerator):
             ...     f.write(audio)
         """
         text = text.rstrip('.!?;:,')
+
+        params = AudioParams(
+            voice=self._validate_model(voice),
+            model=model
+        )
+
         encoded_text = self._encode_prompt(text)
         url = self._build_url(encoded_text)
 
-        params = {
-            "model": model,
-            "voice": self._validate_model(voice)
-        }
-
-        response = self._make_request("GET", url, params=params)
+        response = self._make_request("GET", url, params=params.to_dict())
         return response.content
 
     def save(self, text: str, filename: str, **kwargs) -> str:
@@ -842,15 +635,16 @@ class AsyncAudioGenerator(AsyncGenerator, ModelAwareGenerator):
     ) -> bytes:
         """Generate audio from text (async)"""
         text = text.rstrip('.!?;:,')
+
+        params = AudioParams(
+            voice=self._validate_model(voice),
+            model=model
+        )
+
         encoded_text = self._encode_prompt(text)
         url = self._build_url(encoded_text)
 
-        params = {
-            "model": model,
-            "voice": self._validate_model(voice)
-        }
-
-        return await self._make_request("GET", url, params=params)
+        return await self._make_request("GET", url, params=params.to_dict())
 
     async def save(self, text: str, filename: str, **kwargs) -> str:
         """Generate and save audio to file (async)"""
@@ -865,3 +659,21 @@ class AsyncAudioGenerator(AsyncGenerator, ModelAwareGenerator):
             voices = await self._fetch_list("voices", self._fallback_models)
             self._update_known_models(voices)
         return self._models_cache or self._fallback_models
+
+
+# ============================================================================
+# STREAM CHUNK (для обратной совместимости)
+# ============================================================================
+
+class StreamChunk:
+    """Represents chunk from streaming response"""
+    def __init__(self, content: str, done: bool = False, error: Optional[str] = None):
+        self.content = content
+        self.done = done
+        self.error = error
+
+    def __str__(self):
+        return self.content
+
+    def __repr__(self):
+        return f"StreamChunk(content={self.content!r}, done={self.done}, error={self.error!r})"

@@ -1,36 +1,24 @@
 """
-Blossom AI - V2 Generators (enter.pollinations.ai API)
+Blossom AI - V2 Generators (Refactored)
+enter.pollinations.ai API with clean architecture
 """
 
 from typing import Optional, List, Dict, Any, Iterator, Union, AsyncIterator
 import json
-import asyncio
-import time
 
 from blossom_ai.generators.base_generator import SyncGenerator, AsyncGenerator, ModelAwareGenerator
-from blossom_ai.core.config import ENDPOINTS, LIMITS, DEFAULTS
-from blossom_ai.core.errors import BlossomError, ErrorType, StreamError, print_warning, print_debug
-from blossom_ai.core.models import (
-    ImageModel, TextModel, Voice,
-    DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS, DEFAULT_VOICES
+from blossom_ai.generators.streaming_mixin import (
+    SyncStreamingMixin, AsyncStreamingMixin, SSEParser
 )
-
-
-def _parse_sse_line(line: str) -> Optional[dict]:
-    """Parse SSE line with error handling"""
-    if not line.strip():
-        return None
-
-    if line.startswith('data: '):
-        data_str = line[6:].strip()
-        if data_str == '[DONE]':
-            return {'done': True}
-        try:
-            return json.loads(data_str)
-        except json.JSONDecodeError as e:
-            print_debug(f"Invalid SSE JSON: {data_str[:100]} | Error: {e}")
-            return None
-    return None
+from blossom_ai.generators.parameter_builder import (
+    ImageParamsV2, ChatParamsV2, ParameterValidator
+)
+from blossom_ai.core.config import ENDPOINTS, LIMITS, DEFAULTS
+from blossom_ai.core.errors import print_warning
+from blossom_ai.core.models import (
+    ImageModel, TextModel,
+    DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS
+)
 
 
 # ============================================================================
@@ -45,12 +33,10 @@ class ImageGeneratorV2(SyncGenerator, ModelAwareGenerator):
         ModelAwareGenerator.__init__(self, ImageModel, DEFAULT_IMAGE_MODELS)
 
     def _validate_prompt(self, prompt: str) -> None:
-        if len(prompt) > LIMITS.MAX_IMAGE_PROMPT_LENGTH:
-            raise BlossomError(
-                message=f"Prompt exceeds maximum length of {LIMITS.MAX_IMAGE_PROMPT_LENGTH} characters",
-                error_type=ErrorType.INVALID_PARAM,
-                suggestion="Please shorten your prompt."
-            )
+        """Validate prompt length"""
+        ParameterValidator.validate_prompt_length(
+            prompt, LIMITS.MAX_IMAGE_PROMPT_LENGTH, "prompt"
+        )
 
     def generate(
         self,
@@ -70,32 +56,52 @@ class ImageGeneratorV2(SyncGenerator, ModelAwareGenerator):
         transparent: bool = False,
         guidance_scale: Optional[float] = None
     ) -> bytes:
-        """Generate image using V2 API"""
+        """
+        Generate image using V2 API with extended features
+
+        Args:
+            prompt: Text description
+            model: Model to use
+            width: Image width
+            height: Image height
+            seed: Random seed (default: 42)
+            enhance: Enhance prompt
+            negative_prompt: Negative prompt for guidance
+            private: Private generation
+            nologo: Remove watermark
+            nofeed: Don't add to public feed
+            safe: Enable safety filter
+            quality: Image quality (low/medium/high/hd)
+            image: Input image URL for img2img
+            transparent: Generate with transparent background
+            guidance_scale: Guidance scale for generation
+
+        Returns:
+            bytes: Image data
+        """
         self._validate_prompt(prompt)
+
+        params = ImageParamsV2(
+            model=self._validate_model(model),
+            width=width,
+            height=height,
+            seed=seed,
+            enhance=enhance,
+            negative_prompt=negative_prompt,
+            private=private,
+            nologo=nologo,
+            nofeed=nofeed,
+            safe=safe,
+            quality=quality,
+            image=image,
+            transparent=transparent,
+            guidance_scale=guidance_scale
+        )
+
         encoded_prompt = self._encode_prompt(prompt)
         url = f"{self.base_url}/{encoded_prompt}"
 
-        params = {
-            "model": self._validate_model(model),
-            "width": width,
-            "height": height,
-            "seed": seed,
-            "enhance": str(enhance).lower(),
-            "negative_prompt": negative_prompt,
-            "private": str(private).lower(),
-            "nologo": str(nologo).lower(),
-            "nofeed": str(nofeed).lower(),
-            "safe": str(safe).lower(),
-            "quality": quality,
-            "transparent": str(transparent).lower(),
-        }
-
-        if image:
-            params["image"] = image
-        if guidance_scale is not None:
-            params["guidance_scale"] = guidance_scale
-
-        response = self._make_request("GET", url, params=params)
+        response = self._make_request("GET", url, params=params.to_dict())
         return response.content
 
     def models(self) -> List[str]:
@@ -132,12 +138,10 @@ class AsyncImageGeneratorV2(AsyncGenerator, ModelAwareGenerator):
         ModelAwareGenerator.__init__(self, ImageModel, DEFAULT_IMAGE_MODELS)
 
     def _validate_prompt(self, prompt: str) -> None:
-        if len(prompt) > LIMITS.MAX_IMAGE_PROMPT_LENGTH:
-            raise BlossomError(
-                message=f"Prompt exceeds maximum length of {LIMITS.MAX_IMAGE_PROMPT_LENGTH} characters",
-                error_type=ErrorType.INVALID_PARAM,
-                suggestion="Please shorten your prompt."
-            )
+        """Validate prompt length"""
+        ParameterValidator.validate_prompt_length(
+            prompt, LIMITS.MAX_IMAGE_PROMPT_LENGTH, "prompt"
+        )
 
     async def generate(
         self,
@@ -159,30 +163,28 @@ class AsyncImageGeneratorV2(AsyncGenerator, ModelAwareGenerator):
     ) -> bytes:
         """Generate image using V2 API (async)"""
         self._validate_prompt(prompt)
+
+        params = ImageParamsV2(
+            model=self._validate_model(model),
+            width=width,
+            height=height,
+            seed=seed,
+            enhance=enhance,
+            negative_prompt=negative_prompt,
+            private=private,
+            nologo=nologo,
+            nofeed=nofeed,
+            safe=safe,
+            quality=quality,
+            image=image,
+            transparent=transparent,
+            guidance_scale=guidance_scale
+        )
+
         encoded_prompt = self._encode_prompt(prompt)
         url = f"{self.base_url}/{encoded_prompt}"
 
-        params = {
-            "model": self._validate_model(model),
-            "width": width,
-            "height": height,
-            "seed": seed,
-            "enhance": str(enhance).lower(),
-            "negative_prompt": negative_prompt,
-            "private": str(private).lower(),
-            "nologo": str(nologo).lower(),
-            "nofeed": str(nofeed).lower(),
-            "safe": str(safe).lower(),
-            "quality": quality,
-            "transparent": str(transparent).lower(),
-        }
-
-        if image:
-            params["image"] = image
-        if guidance_scale is not None:
-            params["guidance_scale"] = guidance_scale
-
-        return await self._make_request("GET", url, params=params)
+        return await self._make_request("GET", url, params=params.to_dict())
 
     async def models(self) -> List[str]:
         """Get available image models from V2 API (async)"""
@@ -214,20 +216,19 @@ class AsyncImageGeneratorV2(AsyncGenerator, ModelAwareGenerator):
 # V2 TEXT GENERATOR
 # ============================================================================
 
-class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
+class TextGeneratorV2(SyncGenerator, SyncStreamingMixin, ModelAwareGenerator):
     """Generate text using V2 API (OpenAI-compatible)"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
         SyncGenerator.__init__(self, ENDPOINTS.V2_BASE, timeout, api_token)
         ModelAwareGenerator.__init__(self, TextModel, DEFAULT_TEXT_MODELS)
+        self._sse_parser = SSEParser()
 
     def _validate_prompt(self, prompt: str) -> None:
-        if len(prompt) > LIMITS.MAX_TEXT_PROMPT_LENGTH:
-            raise BlossomError(
-                message=f"Prompt exceeds maximum length of {LIMITS.MAX_TEXT_PROMPT_LENGTH} characters",
-                error_type=ErrorType.INVALID_PARAM,
-                suggestion="Please shorten your prompt."
-            )
+        """Validate prompt length"""
+        ParameterValidator.validate_prompt_length(
+            prompt, LIMITS.MAX_TEXT_PROMPT_LENGTH, "prompt"
+        )
 
     def generate(
         self,
@@ -241,7 +242,23 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
         tools: Optional[List[Dict]] = None,
         **kwargs
     ) -> Union[str, Iterator[str]]:
-        """Generate text using V2 OpenAI-compatible endpoint"""
+        """
+        Generate text using V2 OpenAI-compatible endpoint
+
+        Args:
+            prompt: Input prompt
+            model: Model to use
+            system: System prompt
+            temperature: Temperature (0-2)
+            max_tokens: Max tokens in response
+            stream: Enable streaming
+            json_mode: Enable JSON output
+            tools: Function calling tools
+            **kwargs: Additional parameters
+
+        Returns:
+            str if stream=False, Iterator[str] if stream=True
+        """
         self._validate_prompt(prompt)
 
         messages = []
@@ -295,144 +312,47 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
             n: Number of completions
             thinking: Native reasoning config
             **kwargs: Additional parameters
+
+        Returns:
+            str if stream=False, Iterator[str] if stream=True
         """
+        params = ChatParamsV2(
+            model=self._validate_model(model),
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=stream,
+            json_mode=json_mode,
+            tools=tools,
+            tool_choice=tool_choice,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            top_p=top_p,
+            n=n,
+            thinking=thinking,
+            extra_params=kwargs
+        )
 
-        body = {
-            "model": self._validate_model(model),
-            "messages": messages,
-            "stream": stream,
-        }
-
-        # Only add non-default values to reduce payload
-        if temperature != 1.0:
-            body["temperature"] = temperature
-        if max_tokens is not None:
-            body["max_tokens"] = max_tokens
-        if n != 1:
-            body["n"] = n
-        if top_p != 1.0:
-            body["top_p"] = top_p
-        if frequency_penalty != 0:
-            body["frequency_penalty"] = frequency_penalty
-        if presence_penalty != 0:
-            body["presence_penalty"] = presence_penalty
-
-        if json_mode:
-            body["response_format"] = {"type": "json_object"}
-
-        if tools:
-            body["tools"] = tools
-            if tool_choice:
-                body["tool_choice"] = tool_choice
-
-        if thinking:
-            body["thinking"] = thinking
-
-        # Add stream_options for better streaming support
-        if stream:
-            body["stream_options"] = {"include_usage": True}
-
-        # Add any additional kwargs
-        for key, value in kwargs.items():
-            if value is not None and value != 0 and value != False and value != 1.0:
-                body[key] = value
-
-        # FIXED: Use correct V2 endpoint
         chat_url = f"{self.base_url}/generate/v1/chat/completions"
 
         response = self._make_request(
             "POST",
             chat_url,
-            json=body,
+            json=params.to_body(),
             headers={"Content-Type": "application/json"},
             stream=stream
         )
 
         if stream:
-            return self._stream_response(response)
+            return self._stream_sse_chunked(response, self._sse_parser)
         else:
             result = response.json()
             return result["choices"][0]["message"]["content"]
-
-    def _stream_response(self, response) -> Iterator[str]:
-        """
-        Process streaming response (SSE) - FIXED VERSION
-
-        V2 API uses Server-Sent Events (SSE) format:
-        data: {"choices":[{"delta":{"content":"text"}}]}
-        data: [DONE]
-        """
-        buffer = ""
-        last_data_time = time.time()
-
-        try:
-            # Use iter_content for better streaming support
-            for chunk in response.iter_content(chunk_size=None, decode_unicode=False):
-                current_time = time.time()
-
-                # Timeout check
-                if current_time - last_data_time > LIMITS.STREAM_CHUNK_TIMEOUT:
-                    raise StreamError(
-                        message=f"Stream timeout: no data for {LIMITS.STREAM_CHUNK_TIMEOUT}s",
-                        suggestion="Check connection or increase timeout"
-                    )
-
-                if not chunk:
-                    continue
-
-                last_data_time = current_time
-
-                # Decode chunk
-                try:
-                    chunk_str = chunk.decode('utf-8')
-                except UnicodeDecodeError:
-                    chunk_str = chunk.decode('utf-8', errors='ignore')
-
-                buffer += chunk_str
-
-                # Process complete lines
-                while '\n' in buffer:
-                    line, buffer = buffer.split('\n', 1)
-                    line = line.strip()
-
-                    if not line:
-                        continue
-
-                    # Parse SSE line
-                    parsed = _parse_sse_line(line)
-                    if parsed is None:
-                        continue
-
-                    if parsed.get('done'):
-                        return
-
-                    # Extract content from delta
-                    if 'choices' in parsed and len(parsed['choices']) > 0:
-                        delta = parsed['choices'][0].get('delta', {})
-                        content = delta.get('content', '')
-                        if content:
-                            yield content
-
-        except StreamError:
-            raise
-        except Exception as e:
-            raise StreamError(
-                message=f"Error during streaming: {str(e)}",
-                suggestion="Try non-streaming mode or check your connection",
-                original_error=e
-            )
-        finally:
-            if response and hasattr(response, 'close'):
-                try:
-                    response.close()
-                except:
-                    pass
 
     def models(self) -> List[str]:
         """Get available text models from V2 API"""
         if self._models_cache is None:
             try:
-                # FIXED: Use correct endpoint
                 models_url = f"{self.base_url}/generate/v1/models"
                 response = self._make_request("GET", models_url)
                 data = response.json()
@@ -457,20 +377,19 @@ class TextGeneratorV2(SyncGenerator, ModelAwareGenerator):
         return self._models_cache
 
 
-class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
+class AsyncTextGeneratorV2(AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerator):
     """Async text generator for V2 API"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
         AsyncGenerator.__init__(self, ENDPOINTS.V2_BASE, timeout, api_token)
         ModelAwareGenerator.__init__(self, TextModel, DEFAULT_TEXT_MODELS)
+        self._sse_parser = SSEParser()
 
     def _validate_prompt(self, prompt: str) -> None:
-        if len(prompt) > LIMITS.MAX_TEXT_PROMPT_LENGTH:
-            raise BlossomError(
-                message=f"Prompt exceeds maximum length of {LIMITS.MAX_TEXT_PROMPT_LENGTH} characters",
-                error_type=ErrorType.INVALID_PARAM,
-                suggestion="Please shorten your prompt."
-            )
+        """Validate prompt length"""
+        ParameterValidator.validate_prompt_length(
+            prompt, LIMITS.MAX_TEXT_PROMPT_LENGTH, "prompt"
+        )
 
     async def generate(
         self,
@@ -521,134 +440,43 @@ class AsyncTextGeneratorV2(AsyncGenerator, ModelAwareGenerator):
         **kwargs
     ) -> Union[str, AsyncIterator[str]]:
         """Chat using V2 API (async) with optional native reasoning"""
+        params = ChatParamsV2(
+            model=self._validate_model(model),
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=stream,
+            json_mode=json_mode,
+            tools=tools,
+            tool_choice=tool_choice,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            top_p=top_p,
+            n=n,
+            thinking=thinking,
+            extra_params=kwargs
+        )
 
-        body = {
-            "model": self._validate_model(model),
-            "messages": messages,
-            "stream": stream,
-        }
-
-        if temperature != 1.0:
-            body["temperature"] = temperature
-        if max_tokens is not None:
-            body["max_tokens"] = max_tokens
-        if n != 1:
-            body["n"] = n
-        if top_p != 1.0:
-            body["top_p"] = top_p
-        if frequency_penalty != 0:
-            body["frequency_penalty"] = frequency_penalty
-        if presence_penalty != 0:
-            body["presence_penalty"] = presence_penalty
-
-        if json_mode:
-            body["response_format"] = {"type": "json_object"}
-
-        if tools:
-            body["tools"] = tools
-            if tool_choice:
-                body["tool_choice"] = tool_choice
-
-        if thinking:
-            body["thinking"] = thinking
-
-        # Add stream_options for better streaming support
-        if stream:
-            body["stream_options"] = {"include_usage": True}
-
-        for key, value in kwargs.items():
-            if value is not None and value != 0 and value != False and value != 1.0:
-                body[key] = value
-
-        # FIXED: Use correct endpoint
         chat_url = f"{self.base_url}/generate/v1/chat/completions"
 
         if stream:
-            return self._stream_response(body, chat_url)
+            response = await self._make_request(
+                "POST",
+                chat_url,
+                json=params.to_body(),
+                headers={"Content-Type": "application/json"},
+                stream=True
+            )
+            return self._stream_sse_chunked(response, self._sse_parser)
         else:
             data = await self._make_request(
                 "POST",
                 chat_url,
-                json=body,
+                json=params.to_body(),
                 headers={"Content-Type": "application/json"}
             )
             result = json.loads(data.decode('utf-8'))
             return result["choices"][0]["message"]["content"]
-
-    async def _stream_response(self, body: dict, chat_url: str) -> AsyncIterator[str]:
-        """Async streaming response - FIXED VERSION"""
-        response = None
-        buffer = ""
-
-        try:
-            response = await self._make_request(
-                "POST",
-                chat_url,
-                json=body,
-                headers={"Content-Type": "application/json"},
-                stream=True
-            )
-
-            last_data_time = asyncio.get_event_loop().time()
-
-            # Read response content line by line
-            async for chunk in response.content.iter_any():
-                current_time = asyncio.get_event_loop().time()
-
-                if current_time - last_data_time > LIMITS.STREAM_CHUNK_TIMEOUT:
-                    raise StreamError(
-                        message=f"Stream timeout: no data for {LIMITS.STREAM_CHUNK_TIMEOUT}s",
-                        suggestion="Check connection or increase timeout"
-                    )
-
-                if not chunk:
-                    continue
-
-                last_data_time = current_time
-
-                # Decode chunk
-                try:
-                    chunk_str = chunk.decode('utf-8')
-                except UnicodeDecodeError:
-                    chunk_str = chunk.decode('utf-8', errors='ignore')
-
-                buffer += chunk_str
-
-                # Process complete lines
-                while '\n' in buffer:
-                    line, buffer = buffer.split('\n', 1)
-                    line = line.strip()
-
-                    if not line:
-                        continue
-
-                    parsed = _parse_sse_line(line)
-                    if parsed is None:
-                        continue
-
-                    if parsed.get('done'):
-                        return
-
-                    if 'choices' in parsed and len(parsed['choices']) > 0:
-                        delta = parsed['choices'][0].get('delta', {})
-                        content = delta.get('content', '')
-                        if content:
-                            yield content
-
-        except StreamError:
-            raise
-        except Exception as e:
-            raise StreamError(
-                message=f"Error during async streaming: {str(e)}",
-                suggestion="Try non-streaming mode or check your connection",
-                original_error=e
-            )
-        finally:
-            if response and not response.closed:
-                try:
-                    await response.close()
-                except:
-                    pass
 
     async def models(self) -> List[str]:
         """Get available text models from V2 API (async)"""

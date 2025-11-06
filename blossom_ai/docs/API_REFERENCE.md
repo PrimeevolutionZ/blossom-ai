@@ -451,7 +451,321 @@ async def main():
 
 asyncio.run(main())
 ```
+---
 
+## 🔧 Advanced Usage (v0.4.4+)
+
+For advanced users who want more control or are building custom generators.
+
+### Parameter Validation
+
+Validate parameters before making API calls:
+
+```python
+from blossom_ai.generators import ParameterValidator
+from blossom_ai.core.errors import BlossomError
+
+try:
+    # Validate prompt length
+    ParameterValidator.validate_prompt_length(
+        prompt="Your long prompt...",
+        max_length=1000,
+        param_name="prompt"
+    )
+    
+    # Validate image dimensions
+    ParameterValidator.validate_dimensions(
+        width=1024,
+        height=1024,
+        min_size=64,
+        max_size=2048
+    )
+    
+    # Validate temperature
+    ParameterValidator.validate_temperature(temperature=0.7)
+    
+    # If all valid, proceed with generation
+    result = client.text.generate(prompt)
+    
+except BlossomError as e:
+    print(f"Validation failed: {e.message}")
+    print(f"Suggestion: {e.suggestion}")
+```
+
+### Type-Safe Parameters
+
+Use dataclass builders for type safety and validation:
+
+```python
+from blossom_ai.generators import ImageParams, TextParams
+
+# V1 Image parameters
+params = ImageParams(
+    model="flux",
+    width=1024,
+    height=1024,
+    seed=42,
+    nologo=True,
+    enhance=True
+)
+
+# Convert to dict (only non-default values!)
+request_params = params.to_dict()
+print(request_params)
+# Output: {'width': 1024, 'height': 1024, 'seed': 42, 'nologo': 'true', 'enhance': 'true'}
+# Note: 'model' is not included (it's the default value)
+
+# V1 Text parameters
+text_params = TextParams(
+    model="openai",
+    system="You are a helpful assistant",
+    temperature=0.7,
+    json_mode=True
+)
+
+# Smart conversion (json_mode → json parameter)
+request_params = text_params.to_dict()
+print(request_params)
+# Output: {'system': '...', 'temperature': 0.7, 'json': 'true'}
+```
+
+### Custom SSE Parsing
+
+Parse Server-Sent Events streams manually:
+
+```python
+from blossom_ai.generators import SSEParser
+
+parser = SSEParser()
+
+# Parse individual lines
+for line in your_stream_lines:
+    parsed = parser.parse_line(line)
+    
+    if parsed is None:
+        # Invalid or empty line
+        continue
+    
+    if parsed.get('done'):
+        # Stream finished
+        break
+    
+    # Extract content (OpenAI format)
+    content = parser.extract_content(parsed)
+    if content:
+        print(content, end='', flush=True)
+```
+
+**Example with requests:**
+```python
+import requests
+from blossom_ai.generators import SSEParser
+
+response = requests.get("https://api.example.com/stream", stream=True)
+parser = SSEParser()
+
+for line in response.iter_lines(decode_unicode=True):
+    if line:
+        parsed = parser.parse_line(line)
+        if parsed:
+            content = parser.extract_content(parsed)
+            if content:
+                yield content
+```
+
+### Custom Generator with Streaming
+
+Extend base generators with your own logic:
+
+```python
+from blossom_ai.generators import SyncGenerator, SyncStreamingMixin
+from blossom_ai.generators import SSEParser
+from blossom_ai.core.config import ENDPOINTS
+
+class MyCustomGenerator(SyncGenerator, SyncStreamingMixin):
+    """Custom generator with specialized logic"""
+    
+    def __init__(self, timeout=30):
+        super().__init__(ENDPOINTS.TEXT, timeout)
+        self._sse_parser = SSEParser()
+    
+    def generate_with_metadata(self, prompt: str, stream: bool = False):
+        """Generate text with custom metadata"""
+        # Custom request building
+        url = f"{self.base_url}/custom-endpoint"
+        params = {
+            "prompt": prompt,
+            "custom_param": "value"
+        }
+        
+        response = self._make_request("GET", url, params=params, stream=stream)
+        
+        if stream:
+            # Use unified streaming from mixin
+            return self._stream_sse_response(response, self._sse_parser)
+        else:
+            return response.text
+    
+    def _validate_prompt(self, prompt: str) -> None:
+        """Custom validation"""
+        from blossom_ai.generators import ParameterValidator
+        ParameterValidator.validate_prompt_length(prompt, 2000, "prompt")
+
+# Usage
+gen = MyCustomGenerator()
+result = gen.generate_with_metadata("Hello", stream=True)
+
+for chunk in result:
+    print(chunk, end='', flush=True)
+```
+
+### Async Custom Generator
+
+Same pattern for async generators:
+
+```python
+from blossom_ai.generators import AsyncGenerator, AsyncStreamingMixin
+from blossom_ai.generators import SSEParser
+
+class MyAsyncGenerator(AsyncGenerator, AsyncStreamingMixin):
+    """Async custom generator"""
+    
+    def __init__(self):
+        super().__init__("https://api.example.com", timeout=30)
+        self._sse_parser = SSEParser()
+    
+    async def custom_generate(self, prompt: str, stream: bool = False):
+        url = f"{self.base_url}/endpoint"
+        
+        if stream:
+            response = await self._make_request("GET", url, stream=True)
+            # Use async streaming mixin
+            return self._stream_sse_response(response, self._sse_parser)
+        else:
+            data = await self._make_request("GET", url)
+            return data.decode('utf-8')
+
+# Usage
+import asyncio
+
+async def main():
+    gen = MyAsyncGenerator()
+    
+    # Streaming
+    async for chunk in await gen.custom_generate("Hello", stream=True):
+        print(chunk, end='', flush=True)
+    
+    await gen.close()
+
+asyncio.run(main())
+```
+
+### Why Use These Utilities?
+
+**Parameter Builders:**
+- ✅ Type hints and IDE autocomplete
+- ✅ Automatic validation
+- ✅ Filter out None and default values
+- ✅ Consistent parameter handling
+
+**SSE Parser:**
+- ✅ Reusable across projects
+- ✅ Handles [DONE] markers
+- ✅ Robust JSON parsing
+- ✅ OpenAI format compatible
+
+**Streaming Mixins:**
+- ✅ Timeout handling built-in
+- ✅ Proper resource cleanup
+- ✅ Unicode error handling
+- ✅ Works with both line-based and chunk-based streams
+
+### Testing Components
+
+These utilities are easy to unit test:
+
+```python
+import pytest
+from blossom_ai.generators import SSEParser, ImageParams, ParameterValidator
+from blossom_ai.core.errors import BlossomError
+
+def test_sse_parser():
+    parser = SSEParser()
+    
+    # Test valid line
+    line = 'data: {"choices":[{"delta":{"content":"Hello"}}]}'
+    parsed = parser.parse_line(line)
+    assert parsed is not None
+    assert parser.extract_content(parsed) == "Hello"
+    
+    # Test [DONE] marker
+    done_line = 'data: [DONE]'
+    parsed = parser.parse_line(done_line)
+    assert parsed['done'] is True
+
+def test_image_params():
+    params = ImageParams(
+        width=512,
+        height=512,
+        nologo=True
+    )
+    
+    data = params.to_dict()
+    
+    # Default model not included
+    assert 'model' not in data
+    # Custom values included
+    assert data['width'] == 512
+    assert data['height'] == 512
+    assert data['nologo'] == 'true'  # Boolean converted to string
+
+def test_validator():
+    # Valid prompt
+    ParameterValidator.validate_prompt_length("Short", 1000, "prompt")
+    
+    # Too long prompt
+    with pytest.raises(BlossomError) as exc:
+        ParameterValidator.validate_prompt_length("x" * 2000, 1000, "prompt")
+    
+    assert "exceeds maximum length" in str(exc.value)
+```
+
+### When to Use Advanced Features
+
+**Use parameter validation when:**
+- Building user-facing applications
+- Need early error detection
+- Want clear error messages
+- Implementing input forms
+
+**Use parameter builders when:**
+- Building SDKs or libraries
+- Need type safety
+- Want IDE autocomplete
+- Have complex parameter logic
+
+**Use SSE parser when:**
+- Building custom streaming clients
+- Integrating with other APIs
+- Need standalone parsing logic
+- Testing streaming implementations
+
+**Use streaming mixins when:**
+- Extending Blossom generators
+- Building custom API clients
+- Need reliable streaming with timeouts
+- Want consistent error handling
+
+---
+
+## 📚 Related Documentation
+
+- **[Refactoring Summary](REFACTORING.md)** - Architecture details
+- **[V2 API Reference](V2_API_REFERENCE.md)** - V2-specific advanced usage
+- **[Error Handling](ERROR_HANDLING.md)** - Error handling patterns
+- **[Contributing Guide](../../CONTRIBUTING.md)** - How to contribute
+
+---
 ---
 
 ## Notes
