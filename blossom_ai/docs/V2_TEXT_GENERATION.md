@@ -47,16 +47,16 @@ client.close_sync()
 
 ## ✨ New V2 Features
 
-| Feature | Description | Example |
-|---------|-------------|---------|
-| **max_tokens** | Limit response length | `100`, `500`, `2000` |
-| **frequency_penalty** | Reduce word repetition | `0.0` - `2.0` |
-| **presence_penalty** | Encourage topic diversity | `0.0` - `2.0` |
-| **top_p** | Nucleus sampling | `0.1` - `1.0` |
-| **tools** | Function calling | Tool definitions |
-| **tool_choice** | Control function use | `"auto"`, `"none"`, specific tool |
-| **json_mode** | Structured output | `True` / `False` |
-| **n** | Multiple completions | `1` - `128` |
+| Feature               | Description               | Example                           |
+|-----------------------|---------------------------|-----------------------------------|
+| **max_tokens**        | Limit response length     | `100`, `500`, `2000`              |
+| **frequency_penalty** | Reduce word repetition    | `0.0` - `2.0`                     |
+| **presence_penalty**  | Encourage topic diversity | `0.0` - `2.0`                     |
+| **top_p**             | Nucleus sampling          | `0.1` - `1.0`                     |
+| **tools**             | Function calling          | Tool definitions                  |
+| **tool_choice**       | Control function use      | `"auto"`, `"none"`, specific tool |
+| **json_mode**         | Structured output         | `True` / `False`                  |
+| **n**                 | Multiple completions      | `1` - `128`                       |
 
 ---
 

@@ -1,6 +1,5 @@
 """
-Blossom AI - Base Generator Classes (Refactored & Fixed)
-Cleaner architecture with DRY principles and proper resource management
+Blossom AI - Base Generator Classes
 """
 
 import json
@@ -19,25 +18,48 @@ import aiohttp
 from blossom_ai.core.session_manager import SyncSessionManager, AsyncSessionManager
 from blossom_ai.core.config import LIMITS
 from blossom_ai.core.errors import (
-    BlossomError, ErrorType, StreamError,
+    BlossomError, ErrorType, StreamError, RateLimitError,
     handle_request_error, print_info, print_warning, print_debug
 )
 from blossom_ai.core.models import DynamicModel
 
 
 # ============================================================================
-# RETRY DECORATOR (IMPROVED)
+# RETRY DECORATOR (FIXED)
 # ============================================================================
 
 def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
-    """Decorator for retry logic with exponential backoff and jitter"""
+    """
+    Decorator for retry logic with exponential backoff and jitter
+
+    FIXES:
+    - Now respects retry_after from RateLimitError
+    - Better logging of retry reasons
+    - Handles both BlossomError and HTTP errors
+    """
     def decorator(func: Callable):
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             last_exception = None
+
             for attempt in range(max_attempts):
                 try:
                     return func(*args, **kwargs)
+
+                # FIX: Handle RateLimitError specially
+                except RateLimitError as e:
+                    last_exception = e
+
+                    if attempt < max_attempts - 1:
+                        # FIX: Use retry_after from error if available
+                        wait_time = e.retry_after if e.retry_after else 60
+                        print_info(
+                            f"Rate limited. Waiting {wait_time}s before retry "
+                            f"(attempt {attempt + 1}/{max_attempts})"
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    raise
 
                 except requests.exceptions.HTTPError as e:
                     last_exception = e
@@ -45,7 +67,6 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
                     # Retry on 502, 503, 504
                     if e.response.status_code in [502, 503, 504]:
                         if attempt < max_attempts - 1:
-                            # FIX: Better backoff with jitter
                             wait_time = min(2 ** attempt + random.uniform(0, 1), 32)
                             print_info(
                                 f"Retrying {e.response.status_code} error "
@@ -60,7 +81,10 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
                     last_exception = e
                     if attempt < max_attempts - 1:
                         wait_time = min(2 ** attempt + random.uniform(0, 1), 16)
-                        print_info(f"Retrying chunked encoding error (attempt {attempt + 1}/{max_attempts})...")
+                        print_info(
+                            f"Retrying chunked encoding error "
+                            f"(attempt {attempt + 1}/{max_attempts})..."
+                        )
                         time.sleep(wait_time)
                         continue
                     raise
@@ -74,16 +98,31 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             last_exception = None
+
             for attempt in range(max_attempts):
                 try:
                     return await func(*args, **kwargs)
+
+                # FIX: Handle RateLimitError specially
+                except RateLimitError as e:
+                    last_exception = e
+
+                    if attempt < max_attempts - 1:
+                        # FIX: Use retry_after from error if available
+                        wait_time = e.retry_after if e.retry_after else 60
+                        print_info(
+                            f"Rate limited. Waiting {wait_time}s before retry "
+                            f"(attempt {attempt + 1}/{max_attempts})"
+                        )
+                        await asyncio.sleep(wait_time)
+                        continue
+                    raise
 
                 except aiohttp.ClientResponseError as e:
                     last_exception = e
 
                     if e.status in [502, 503, 504]:
                         if attempt < max_attempts - 1:
-                            # FIX: Better backoff with jitter
                             wait_time = min(2 ** attempt + random.uniform(0, 1), 32)
                             print_info(
                                 f"Retrying {e.status} error "
@@ -98,7 +137,10 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
                     last_exception = e
                     if attempt < max_attempts - 1:
                         wait_time = min(2 ** attempt + random.uniform(0, 1), 16)
-                        print_info(f"Retrying connection error (attempt {attempt + 1}/{max_attempts})...")
+                        print_info(
+                            f"Retrying connection error "
+                            f"(attempt {attempt + 1}/{max_attempts})..."
+                        )
                         await asyncio.sleep(wait_time)
                         continue
                     raise
@@ -151,33 +193,26 @@ class BaseGenerator(ABC):
         return 'enter.pollinations.ai' in self.base_url
 
     def _add_auth_params(self, params: Dict[str, Any], method: str = 'GET') -> Dict[str, Any]:
-        """Add authentication parameters based on method"""
-        if not self.api_token:
-            return params
+        """
+        Add authentication parameters based on method
 
-        # V2 API uses Bearer header ONLY (no query params for auth)
-        # V1 API uses 'token' query param for GET
-        if self._is_v2_api():
-            # V2: Don't add token to params, it goes in Authorization header only
-            pass
-        else:
-            # V1 API - add token to query params for non-POST
-            if method.upper() != 'POST':
-                params['token'] = self.api_token
-
+        FIX: Never add tokens to query params for security
+        Tokens should ONLY go in Authorization header
+        """
+        # All auth now goes through headers only
         return params
 
     def _get_auth_headers(self, method: str = 'GET', request_id: Optional[str] = None) -> Dict[str, str]:
-        """Get authentication headers with request ID"""
+        """
+        Get authentication headers with request ID
+
+        FIX: Always use Authorization header for tokens (never query params)
+        """
         headers = {}
 
         if self.api_token:
-            # V2 API always uses Bearer header (preferred method)
-            if self._is_v2_api():
-                headers['Authorization'] = f'Bearer {self.api_token}'
-            # V1 API uses Bearer only for POST
-            elif method.upper() == 'POST':
-                headers['Authorization'] = f'Bearer {self.api_token}'
+            # FIX: Always use Bearer header for all APIs and methods
+            headers['Authorization'] = f'Bearer {self.api_token}'
 
         if request_id:
             headers['X-Request-ID'] = request_id
@@ -185,18 +220,22 @@ class BaseGenerator(ABC):
         return headers
 
     def _handle_http_error(self, status_code: int, response_data: Optional[bytes] = None) -> None:
-        """Common HTTP error handling (OPTIMIZED)"""
+        """
+        Common HTTP error handling (IMPROVED)
+
+        FIXES:
+        - Raises proper BlossomError subclasses
+        - Extracts retry_after properly
+        """
         if status_code == 402:
             error_msg = "Payment Required"
 
-            # FIX: Decode once and reuse
             if response_data:
                 try:
                     decoded = response_data.decode('utf-8')
                     error_data = json.loads(decoded)
                     error_msg = error_data.get('error', error_msg)
                 except (json.JSONDecodeError, UnicodeDecodeError):
-                    # If JSON parsing fails, try to use raw text
                     try:
                         error_msg = response_data.decode('utf-8', errors='ignore')[:200]
                     except:
@@ -209,7 +248,7 @@ class BaseGenerator(ABC):
             )
 
         if status_code == 429:
-            # FIX: Extract retry-after from response if available
+            # FIX: Extract retry-after from response properly
             retry_after = 60
             if response_data:
                 try:
@@ -219,11 +258,10 @@ class BaseGenerator(ABC):
                 except:
                     pass
 
-            raise BlossomError(
+            # FIX: Raise RateLimitError (not generic BlossomError)
+            raise RateLimitError(
                 message="Rate limit exceeded",
-                error_type=ErrorType.RATE_LIMIT,
-                retry_after=retry_after,
-                suggestion=f"Wait {retry_after} seconds before retrying"
+                retry_after=retry_after
             )
 
 
@@ -262,6 +300,7 @@ class SyncGenerator(BaseGenerator):
 
         if params is None:
             params = {}
+
         params = self._add_auth_params(params, method)
 
         headers = kwargs.get('headers', {})
@@ -304,7 +343,6 @@ class SyncGenerator(BaseGenerator):
                     last_data_time = current_time
                     yield line
         finally:
-            # FIX: Always close response
             if not response.raw.closed:
                 response.close()
 
@@ -386,6 +424,7 @@ class AsyncGenerator(BaseGenerator):
         if params is None:
             params = {}
 
+        # FIX: Don't add auth to params (security)
         params = self._add_auth_params(params, method)
         headers.update(self._get_auth_headers(method, request_id))
 

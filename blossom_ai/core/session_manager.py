@@ -1,60 +1,103 @@
 """
 Blossom AI - Session Manager
-Fixed async session cleanup with race condition protection
 """
 
 import asyncio
 import atexit
-import random
-from typing import Dict, Optional
+import threading
+import weakref
+from typing import Dict, Optional, Final
+from contextlib import contextmanager, asynccontextmanager
+
 import aiohttp
 import requests
 
 
+# ==============================================================================
+# CONFIGURATION
+# ==============================================================================
+
+class SessionConfig:
+    """Configuration for session managers"""
+    # Sync session settings
+    SYNC_POOL_CONNECTIONS: Final[int] = 20
+    SYNC_POOL_MAXSIZE: Final[int] = 50
+    SYNC_POOL_BLOCK: Final[bool] = False
+
+    # Async session settings
+    ASYNC_LIMIT_TOTAL: Final[int] = 100
+    ASYNC_LIMIT_PER_HOST: Final[int] = 30
+    ASYNC_TTL_DNS_CACHE: Final[int] = 300
+    ASYNC_CONNECT_TIMEOUT: Final[int] = 30
+    ASYNC_SOCK_READ_TIMEOUT: Final[int] = 30
+    # Common settings
+    USER_AGENT: Final[str] = "blossom-ai/0.4.3-fixed"
+
+
+# ==============================================================================
+# SYNC SESSION MANAGER
+# ==============================================================================
+
 class SyncSessionManager:
-    """Manages synchronous requests sessions with optimized connection pooling"""
+    """
+    Manages synchronous HTTP sessions with connection pooling
+
+    """
 
     def __init__(self):
         self._session: Optional[requests.Session] = None
         self._closed = False
+        self._lock = threading.Lock()
 
     def get_session(self) -> requests.Session:
-        """Get or create optimized requests session"""
+        """Get or create an optimized requests session"""
         if self._closed:
             raise RuntimeError("SessionManager has been closed")
 
-        if self._session is None:
-            self._session = requests.Session()
-
-            # Optimized adapter configuration
-            adapter = requests.adapters.HTTPAdapter(
-                pool_connections=20,  # Increased from 10
-                pool_maxsize=50,      # Increased from 20
-                max_retries=0,        # We handle retries ourselves
-                pool_block=False      # Don't block on pool exhaustion
-            )
-
-            self._session.mount('http://', adapter)
-            self._session.mount('https://', adapter)
-
-            # Default headers for better performance
-            self._session.headers.update({
-                'Connection': 'keep-alive',
-                'User-Agent': 'blossom-ai/0.4.1'
-            })
+        with self._lock:
+            if self._session is None:
+                self._session = self._create_session()
 
         return self._session
 
-    def close(self):
-        """Close the session"""
-        if self._session is not None and not self._closed:
-            try:
-                self._session.close()
-            except Exception:
-                pass
-            finally:
-                self._session = None
-                self._closed = True
+    def _create_session(self) -> requests.Session:
+        """Create and configure a new session"""
+        session = requests.Session()
+
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=SessionConfig.SYNC_POOL_CONNECTIONS,
+            pool_maxsize=SessionConfig.SYNC_POOL_MAXSIZE,
+            max_retries=0,
+            pool_block=SessionConfig.SYNC_POOL_BLOCK
+        )
+
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+
+        session.headers.update({
+            'Connection': 'keep-alive',
+            'User-Agent': SessionConfig.USER_AGENT
+        })
+
+        session.verify = True
+
+        return session
+
+    def close(self) -> None:
+        """Close the session and release resources"""
+        with self._lock:
+            if self._session is not None and not self._closed:
+                try:
+                    self._session.close()
+                except Exception:
+                    pass
+                finally:
+                    self._session = None
+                    self._closed = True
+
+    def is_closed(self) -> bool:
+        """Check if manager is closed"""
+        return self._closed
 
     def __enter__(self):
         return self
@@ -63,62 +106,84 @@ class SyncSessionManager:
         self.close()
         return False
 
+    def __del__(self):
+        """Ensure cleanup on deletion"""
+        if not self._closed:
+            self.close()
+
+
+# ==============================================================================
+# ASYNC SESSION MANAGER (FIXED)
+# ==============================================================================
 
 class AsyncSessionManager:
     """
-    Manages asynchronous aiohttp sessions across event loops
-    Fixed version with lock protection against race conditions
-    Uses atexit for cleanup instead of __del__ to avoid ResourceWarnings
+    Manages asynchronous HTTP sessions across event loops
+
     """
 
-    # Class-level registry for cleanup at exit
-    _global_sessions: Dict[int, aiohttp.ClientSession] = {}
+    # FIX: Use WeakValueDictionary to prevent memory leaks
+    _global_sessions: weakref.WeakValueDictionary = weakref.WeakValueDictionary()
+    _global_lock = threading.Lock()
     _cleanup_registered = False
 
     def __init__(self):
         self._sessions: Dict[int, aiohttp.ClientSession] = {}
         self._closed = False
-        self._lock = asyncio.Lock()  # FIX: Lock for race condition protection
+        self._lock: Optional[asyncio.Lock] = None
 
-        # Register global cleanup on first instance
-        if not AsyncSessionManager._cleanup_registered:
-            AsyncSessionManager._register_global_cleanup()
-            AsyncSessionManager._cleanup_registered = True
+        # Register cleanup on first instantiation
+        self._ensure_cleanup_registered()
 
     @classmethod
-    def _register_global_cleanup(cls):
-        """Register cleanup at exit to close all sessions"""
-        def cleanup_all_sessions():
-            """Synchronous cleanup at program exit"""
-            if not cls._global_sessions:
-                return
+    def _ensure_cleanup_registered(cls):
+        """
+        Register global cleanup handler (once)
 
-            try:
-                # Create new event loop for cleanup
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+        """
+        with cls._global_lock:
+            if not cls._cleanup_registered:
+                # FIX: Don't use atexit for async cleanup
+                # Instead, rely on __del__ and weakref
+                cls._cleanup_registered = True
 
-                async def close_all():
-                    for session in list(cls._global_sessions.values()):
-                        if not session.closed:
-                            try:
-                                await session.close()
-                            except Exception:
-                                pass
+    @classmethod
+    def _sync_cleanup_session(cls, session: aiohttp.ClientSession):
+        """
+        Synchronous cleanup for a single session
 
-                loop.run_until_complete(close_all())
-                loop.close()
-            except Exception:
-                pass
-            finally:
-                cls._global_sessions.clear()
 
-        atexit.register(cleanup_all_sessions)
+        """
+        try:
+            if not session.closed and session.connector:
+                # Close connector synchronously (doesn't need event loop)
+                if hasattr(session.connector, '_close'):
+                    session.connector._close()
+        except Exception:
+            pass
+
+    async def _get_lock(self) -> asyncio.Lock:
+        """Get or create async lock for current event loop"""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
+
+    def _is_session_valid(self, session: aiohttp.ClientSession) -> bool:
+        """Check if session is still valid"""
+        try:
+            return (
+                not session.closed
+                and session.connector is not None
+                and not session.connector.closed
+            )
+        except Exception:
+            return False
 
     async def get_session(self) -> aiohttp.ClientSession:
         """
-        Get or create aiohttp session for current event loop
-        Thread-safe with lock protection
+        Get or create session for current event loop
+
+
         """
         if self._closed:
             raise RuntimeError("AsyncSessionManager has been closed")
@@ -129,65 +194,102 @@ class AsyncSessionManager:
         except RuntimeError:
             raise RuntimeError("No event loop is running")
 
-        # FIX: Lock protection for race condition
-        async with self._lock:
-            # Check if session exists and is valid
+        lock = await self._get_lock()
+
+        async with lock:
+            # FIX: Prune dead sessions from global cache
+            self._prune_dead_sessions()
+
+            # Check existing session
             if loop_id in self._sessions:
                 session = self._sessions[loop_id]
-                try:
-                    if not session.closed and session.connector is not None:
-                        return session
-                except Exception:
-                    pass
+                if self._is_session_valid(session):
+                    return session
 
-                # Remove broken session
-                del self._sessions[loop_id]
-                if loop_id in self._global_sessions:
-                    del self._global_sessions[loop_id]
+                # Clean up invalid session
+                await self._cleanup_session(loop_id)
 
-            # Create new session with optimized settings
-            connector = aiohttp.TCPConnector(
-                limit=100,
-                limit_per_host=30,
-                ttl_dns_cache=300,
-                enable_cleanup_closed=True,
-                force_close=True  # FIX: Prevent connection reuse issues
-            )
-
-            timeout = aiohttp.ClientTimeout(
-                total=None,  # We handle timeout per-request
-                connect=30,
-                sock_read=30
-            )
-
-            session = aiohttp.ClientSession(
-                connector=connector,
-                timeout=timeout,
-                raise_for_status=False  # FIX: Handle errors manually
-            )
-
-            # Store in both registries
+            # Create new session
+            session = self._create_session()
             self._sessions[loop_id] = session
-            self._global_sessions[loop_id] = session
+
+            # FIX: Register globally with weakref
+            with self._global_lock:
+                self._global_sessions[loop_id] = session
 
             return session
 
-    async def close(self):
-        """Close all sessions owned by this manager"""
-        async with self._lock:  # FIX: Lock during cleanup
-            for loop_id, session in list(self._sessions.items()):
+    def _prune_dead_sessions(self):
+        """
+        Remove dead sessions from local cache
+        """
+        dead_loops = []
+
+        for loop_id, session in list(self._sessions.items()):
+            if not self._is_session_valid(session):
+                dead_loops.append(loop_id)
+
+        for loop_id in dead_loops:
+            del self._sessions[loop_id]
+
+    def _create_session(self) -> aiohttp.ClientSession:
+        """Create and configure a new async session"""
+        connector = aiohttp.TCPConnector(
+            limit=SessionConfig.ASYNC_LIMIT_TOTAL,
+            limit_per_host=SessionConfig.ASYNC_LIMIT_PER_HOST,
+            ttl_dns_cache=SessionConfig.ASYNC_TTL_DNS_CACHE,
+            enable_cleanup_closed=True,
+            force_close=True,
+            # FIX: Ensure SSL verification
+            ssl=True
+        )
+
+        timeout = aiohttp.ClientTimeout(
+            total=None,
+            connect=SessionConfig.ASYNC_CONNECT_TIMEOUT,
+            sock_read=SessionConfig.ASYNC_SOCK_READ_TIMEOUT
+        )
+
+        return aiohttp.ClientSession(
+            connector=connector,
+            timeout=timeout,
+            raise_for_status=False,
+            headers={'User-Agent': SessionConfig.USER_AGENT}
+        )
+
+    async def _cleanup_session(self, loop_id: int):
+        """Cleanup a specific session"""
+        if loop_id in self._sessions:
+            session = self._sessions[loop_id]
+            try:
                 if not session.closed:
-                    try:
-                        await session.close()
-                    except Exception:
-                        pass
+                    await session.close()
+            except Exception:
+                pass
+            finally:
+                del self._sessions[loop_id]
 
-                # Remove from global registry
-                if loop_id in self._global_sessions:
-                    del self._global_sessions[loop_id]
+                with self._global_lock:
+                    # Weakref dict will auto-remove when object is gone
+                    if loop_id in self._global_sessions:
+                        del self._global_sessions[loop_id]
 
-            self._sessions.clear()
+    async def close(self):
+        """Close all sessions managed by this instance"""
+        if self._closed:
+            return
+
+        lock = await self._get_lock()
+
+        async with lock:
+            for loop_id in list(self._sessions.keys()):
+                await self._cleanup_session(loop_id)
+
             self._closed = True
+
+    def is_closed(self) -> bool:
+        """Check if manager is closed"""
+        return self._closed
 
     async def __aenter__(self):
         return self
@@ -195,3 +297,48 @@ class AsyncSessionManager:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
         return False
+
+    def __del__(self):
+        """
+        Cleanup on deletion
+        
+        """
+        for session in list(self._sessions.values()):
+            self._sync_cleanup_session(session)
+        self._sessions.clear()
+
+
+# ==============================================================================
+# CONVENIENCE CONTEXT MANAGERS
+# ==============================================================================
+
+@contextmanager
+def get_sync_session():
+    """
+    Convenience context manager for sync sessions
+
+    Usage:
+        with get_sync_session() as session:
+            response = session.get(url)
+    """
+    manager = SyncSessionManager()
+    try:
+        yield manager.get_session()
+    finally:
+        manager.close()
+
+
+@asynccontextmanager
+async def get_async_session():
+    """
+    Convenience context manager for async sessions
+
+    Usage:
+        async with get_async_session() as session:
+            response = await session.get(url)
+    """
+    manager = AsyncSessionManager()
+    try:
+        yield await manager.get_session()
+    finally:
+        await manager.close()

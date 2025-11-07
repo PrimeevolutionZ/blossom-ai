@@ -23,16 +23,16 @@ All errors inherit from the base `BlossomError` class, which provides context an
 
 ### Available Error Classes
 
-| Error Type | Description | When It Occurs |
-|------------|-------------|----------------|
-| `BlossomError` | Base error class | All errors inherit from this |
-| `NetworkError` | Network/connection issues | Connection failed, timeout |
-| `APIError` | API-related errors | Invalid response, server error |
-| `AuthenticationError` | Authentication failures | Invalid/missing API token |
-| `ValidationError` | Invalid parameters | Bad prompt, invalid model |
-| `RateLimitError` | Rate limit exceeded | Too many requests |
-| `StreamError` | Streaming issues | Stream timeout, connection lost |
-| `FileTooLargeError` | File content too large | File exceeds API limits |
+| Error Type            | Description               | When It Occurs                  |
+|-----------------------|---------------------------|---------------------------------|
+| `BlossomError`        | Base error class          | All errors inherit from this    |
+| `NetworkError`        | Network/connection issues | Connection failed, timeout      |
+| `APIError`            | API-related errors        | Invalid response, server error  |
+| `AuthenticationError` | Authentication failures   | Invalid/missing API token       |
+| `ValidationError`     | Invalid parameters        | Bad prompt, invalid model       |
+| `RateLimitError`      | Rate limit exceeded       | Too many requests               |
+| `StreamError`         | Streaming issues          | Stream timeout, connection lost |
+| `FileTooLargeError`   | File content too large    | File exceeds API limits         |
 
 ### Error Attributes
 

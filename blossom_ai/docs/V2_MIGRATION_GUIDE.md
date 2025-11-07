@@ -144,45 +144,45 @@ print(f"Text: {text_models}")
 
 ### Image Generation
 
-| Feature | V1 | V2 | Notes |
-|---------|----|----|-------|
-| Basic generation | ✅ | ✅ | Both work |
-| Width/Height control | ✅ | ✅ | Both work |
-| Seed control | ✅ | ✅ | Both work |
-| Model selection | ✅ | ✅ | Both work |
-| Quality levels | ❌ | ✅ | `low`, `medium`, `high`, `hd` |
-| Guidance scale | ❌ | ✅ | 1.0-20.0 range |
-| Negative prompts | ❌ | ✅ | Exclude unwanted elements |
-| Transparent backgrounds | ❌ | ✅ | PNG with alpha channel |
-| Image-to-image | ❌ | ✅ | Transform existing images |
-| Feed control (nofeed) | ❌ | ✅ | Keep private |
-| Logo removal (nologo) | ✅ | ✅ | Both work |
-| Private generation | ✅ | ✅ | Both work |
-| Safe mode | ✅ | ✅ | Both work |
+| Feature                 | V1 | V2 | Notes                         |
+|-------------------------|----|----|-------------------------------|
+| Basic generation        | ✅  | ✅  | Both work                     |
+| Width/Height control    | ✅  | ✅  | Both work                     |
+| Seed control            | ✅  | ✅  | Both work                     |
+| Model selection         | ✅  | ✅  | Both work                     |
+| Quality levels          | ❌  | ✅  | `low`, `medium`, `high`, `hd` |
+| Guidance scale          | ❌  | ✅  | 1.0-20.0 range                |
+| Negative prompts        | ❌  | ✅  | Exclude unwanted elements     |
+| Transparent backgrounds | ❌  | ✅  | PNG with alpha channel        |
+| Image-to-image          | ❌  | ✅  | Transform existing images     |
+| Feed control (nofeed)   | ❌  | ✅  | Keep private                  |
+| Logo removal (nologo)   | ✅  | ✅  | Both work                     |
+| Private generation      | ✅  | ✅  | Both work                     |
+| Safe mode               | ✅  | ✅  | Both work                     |
 
 ### Text Generation
 
-| Feature | V1 | V2 | Notes |
-|---------|----|----|-------|
-| Basic generation | ✅ | ✅ | Both work |
-| Streaming | ✅ | ✅ | V2 more stable |
-| Chat/Conversation | ✅ | ✅ | Both work |
-| JSON mode | ✅ | ✅ | V2 more reliable |
-| System messages | ✅ | ✅ | Both work |
-| Function calling | ❌ | ✅ | **NEW in V2** |
-| Max tokens control | ❌ | ✅ | Limit response length |
-| Frequency penalty | ❌ | ✅ | Reduce repetition |
-| Presence penalty | ❌ | ✅ | Topic diversity |
-| Top-p sampling | ❌ | ✅ | Nucleus sampling |
-| Temperature 0-2 | ❌ | ✅ | Extended range |
-| Model aliases | ❌ | ✅ | Multiple names per model |
+| Feature            | V1 | V2 | Notes                    |
+|--------------------|----|----|--------------------------|
+| Basic generation   | ✅  | ✅  | Both work                |
+| Streaming          | ✅  | ✅  | V2 more stable           |
+| Chat/Conversation  | ✅  | ✅  | Both work                |
+| JSON mode          | ✅  | ✅  | V2 more reliable         |
+| System messages    | ✅  | ✅  | Both work                |
+| Function calling   | ❌  | ✅  | **NEW in V2**            |
+| Max tokens control | ❌  | ✅  | Limit response length    |
+| Frequency penalty  | ❌  | ✅  | Reduce repetition        |
+| Presence penalty   | ❌  | ✅  | Topic diversity          |
+| Top-p sampling     | ❌  | ✅  | Nucleus sampling         |
+| Temperature 0-2    | ❌  | ✅  | Extended range           |
+| Model aliases      | ❌  | ✅  | Multiple names per model |
 
 ### Audio Generation
 
-| Feature | V1 | V2 | Status |
-|---------|----|----|--------|
-| Text-to-speech | ✅ | 🚧 | Coming soon to V2 |
-| Voice selection | ✅ | 🚧 | V1 still recommended |
+| Feature         | V1 | V2 | Status               |
+|-----------------|----|----|----------------------|
+| Text-to-speech  | ✅  | 🚧 | Coming soon to V2    |
+| Voice selection | ✅  | 🚧 | V1 still recommended |
 
 ---
 

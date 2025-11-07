@@ -7,12 +7,12 @@ Thank you for your interest in contributing to Blossom AI! We welcome contributi
 - [Code of Conduct](#code-of-conduct)
 - [Getting Started](#getting-started)
 - [Development Setup](#development-setup)
+- [Running Tests](#running-tests)
 - [How to Contribute](#how-to-contribute)
 - [Code Style Guidelines](#code-style-guidelines)
 - [Testing](#testing)
 - [Pull Request Process](#pull-request-process)
 - [Reporting Bugs](#reporting-bugs)
-- [Suggesting Features](#suggesting-features)
 
 ## Code of Conduct
 
@@ -41,7 +41,7 @@ By participating in this project, you agree to maintain a respectful, inclusive,
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.12 or higher
 - pip package manager
 - Git
 
@@ -57,6 +57,12 @@ By participating in this project, you agree to maintain a respectful, inclusive,
    ```bash
    pip install -e .
    pip install requests aiohttp
+   
+   # Install test dependencies (v0.4.5+)
+   pip install pytest pytest-asyncio vcrpy
+   
+   # Optional: development tools
+   pip install black ruff mypy
    ```
 
 3. Verify installation:
@@ -66,13 +72,71 @@ By participating in this project, you agree to maintain a respectful, inclusive,
 
 ### Optional: Get API Token
 
-For testing audio generation features:
-1. Visit [Pollinations Auth](https://auth.pollinations.ai)
+For testing features that require authentication:
+1. Visit [Pollinations Auth](https://enter.pollinations.ai)
 2. Get your API token
-3. Set environment variable or use in tests:
+3. Set environment variable:
    ```bash
-   export BLOSSOM_API_TOKEN="your-token-here"
+   export POLLINATIONS_API_KEY="your-token-here"
    ```
+
+## Running Tests
+
+**v0.4.5+ includes comprehensive integration tests:**
+
+### Quick Test Run
+
+```bash
+# Run all integration tests
+pytest tests/test_integration.py -v
+
+# Run specific category
+pytest tests/test_integration.py -k "test_text" -v
+pytest tests/test_integration.py -k "test_image" -v
+
+# With coverage
+pytest tests/test_integration.py --cov=blossom_ai --cov-report=html
+```
+
+### Test Recording (VCR.py)
+
+**First run:** Records API interactions to cassettes
+```bash
+# Set your API token
+export POLLINATIONS_API_KEY="your_token"
+
+# Run and record
+pytest tests/test_integration.py --record-mode=once -v
+```
+
+**Subsequent runs:** Use cached responses (instant)
+```bash
+# No API token needed - uses cassettes
+pytest tests/test_integration.py -v
+```
+
+**Update cassettes:**
+```bash
+# Re-record all interactions
+pytest tests/test_integration.py --record-mode=rewrite -v
+```
+
+
+### Running Specific Tests
+
+```bash
+# Test text generation
+pytest tests/test_integration.py::test_text_generate_simple -v
+
+# Test streaming
+pytest tests/test_integration.py::test_text_generate_stream -v
+
+# Test security (tokens not in URLs)
+pytest tests/test_integration.py::test_token_not_in_url -v
+
+# Test async
+pytest tests/test_integration.py::test_async_text_generate -v
+```
 
 ## How to Contribute
 
@@ -84,7 +148,7 @@ We appreciate all kinds of contributions:
 - **New features** - Add support for new Pollinations API features
 - **Documentation** - Improve or add documentation
 - **Examples** - Add practical examples and tutorials
-- **Tests** - Improve test coverage
+- **Tests** - Improve test coverage (**v0.4.5 priority!**)
 - **Performance** - Optimize code for better performance
 - **Code quality** - Refactoring, type hints, better error handling
 
@@ -153,79 +217,80 @@ class ExampleGenerator:
 2. **Type hints** - Help users understand function signatures
 3. **Error handling** - Use custom exceptions from `errors.py`
 4. **Resource management** - Always clean up resources properly
-5. **No `__del__` methods** - Use context managers or explicit cleanup
-
-### Code Organization
-
-```
-blossom_ai/
-├── core/                  # Core functionality
-│   ├── __init__.py
-│   ├── config.py         # Configuration constants
-│   ├── models.py         # Data models and available options
-│   └── session_manager.py # Session management
-├── generators/            # Generator classes
-│   ├── __init__.py
-│   ├── base_generator.py # Base class for generators
-│   └── generators.py     # Image, Text, Audio generators
-└── blossom.py            # Main unified client
-```
+5. **No `__del__` methods** - Use context managers or explicit cleanup (v0.4.5+)
+6. **Security first** - Never log tokens, always use headers for auth
 
 ## Testing
 
-### Running Tests
-
-We provide a comprehensive test suite:
-
-```bash
-# Run all tests
-python blossom_ai/test_examples.py
-
-# Run specific test categories
-python blossom_ai/test_examples.py --sync
-python blossom_ai/test_examples.py --async
-python blossom_ai/test_examples.py --streaming
-python blossom_ai/test_examples.py --v024
-
-# With API token
-python blossom_ai/test_examples.py --token YOUR_TOKEN
-```
-
 ### Writing Tests
 
-When adding new features:
+When adding new features, **always add tests** (v0.4.5 requirement):
 
-1. **Add tests** for new functionality
+1. **Add integration test** in `tests/test_integration.py`
 2. **Test both sync and async** - Our hybrid API needs both
 3. **Test error cases** - Not just happy paths
 4. **Test resource cleanup** - Verify no resource leaks
+5. **Use VCR.py** - Record API interactions
 
 Example test structure:
 
 ```python
-def test_new_feature_sync():
-    """Test new feature in synchronous mode"""
-    with Blossom() as ai:
-        result = ai.feature.new_method()
+import pytest
+import vcr
+from blossom_ai import Blossom
+
+# VCR configuration
+vcr_config = vcr.VCR(
+    cassette_library_dir="tests/cassettes",
+    record_mode='once'
+)
+
+@vcr_config.use_cassette("my_test.yaml")
+def test_new_feature():
+    """Test new feature with VCR recording"""
+    with Blossom(api_version="v2", api_token="token") as client:
+        result = client.feature.new_method()
         assert result is not None
         assert len(result) > 0
 
-async def _test_new_feature_async():
-    """Test new feature in asynchronous mode"""
-    async with Blossom() as ai:
-        result = await ai.feature.new_method()
+@pytest.mark.asyncio
+@vcr_config.use_cassette("my_test_async.yaml")
+async def test_new_feature_async():
+    """Test new feature in async mode"""
+    async with Blossom(api_version="v2", api_token="token") as client:
+        result = await client.feature.new_method()
         assert result is not None
-        return True
 ```
 
-### Test Coverage Areas
+### Test Coverage Areas (v0.4.5)
 
 - ✅ Basic functionality (generate, save)
 - ✅ Error handling (validation, network, auth)
 - ✅ Streaming (sync and async)
 - ✅ Resource cleanup (context managers)
 - ✅ Timeout protection
-- ✅ Rate limiting
+- ✅ Rate limiting with retry_after
+- ✅ **Security (tokens not in URLs)** 🆕
+- ✅ **Memory management** 🆕
+- ✅ **Model caching with TTL** 🆕
+
+### Security Testing
+
+**v0.4.5 requires security tests:**
+
+```python
+def test_token_security():
+    """Verify tokens are never in URLs"""
+    client = Blossom(api_version="v2", api_token="test_token_123")
+    
+    url = client.image.generate_url("test")
+    
+    # Token should NOT be in URL
+    assert "test_token_123" not in url
+    assert "token=" not in url.lower()
+    
+    client.close_sync()
+```
 
 ## Pull Request Process
 
@@ -241,8 +306,20 @@ git checkout -b fix/bug-description
 
 - Write clean, documented code
 - Follow the style guidelines
-- Add tests if applicable
+- **Add tests** (v0.4.5 requirement!)
 - Update documentation if needed
+- **Run tests locally** before pushing
+
+```bash
+# Format code
+black blossom_ai/
+
+# Lint code
+ruff check blossom_ai/
+
+# Run tests
+pytest tests/test_integration.py -v
+```
 
 ### 3. Commit Your Changes
 
@@ -256,10 +333,11 @@ git commit -m "Fix: description of what you fixed"
 ```
 
 Good commit message examples:
-- `Add: URL generation for image generator`
+- `Add: Integration tests with VCR.py (v0.4.5)`
 - `Fix: Memory leak in async session cleanup`
-- `Docs: Add Discord bot tutorial`
-- `Test: Add streaming timeout protection tests`
+- `Security: Tokens only in headers, never in URLs`
+- `Docs: Update installation guide for test dependencies`
+- `Test: Add security test for token exposure`
 - `Refactor: Improve error handling structure`
 
 ### 4. Push to Your Fork
@@ -284,17 +362,27 @@ Brief description of changes
 - [ ] New feature
 - [ ] Documentation update
 - [ ] Performance improvement
+- [ ] Security fix
+- [ ] Test addition/improvement
 
 ## Testing
 - [ ] Tests pass locally
 - [ ] Added new tests for features
 - [ ] Manual testing completed
+- [ ] VCR cassettes recorded (if applicable)
+
+## Security Checklist (v0.4.5)
+- [ ] No tokens in URLs
+- [ ] No sensitive data in logs
+- [ ] SSL verification enforced
+- [ ] Resource cleanup verified
 
 ## Checklist
 - [ ] Code follows style guidelines
 - [ ] Documentation updated
 - [ ] No breaking changes (or documented)
 - [ ] Commit messages are clear
+- [ ] Tests added/updated
 ```
 
 ### 6. Review Process
@@ -310,8 +398,9 @@ Found a bug? Help us fix it!
 ### Before Reporting
 
 1. **Search existing issues** - It might already be reported
-2. **Try latest version** - Bug might be fixed
+2. **Try latest version** - Bug might be fixed in v0.4.5
 3. **Minimal reproduction** - Isolate the issue
+4. **Run tests** - `pytest tests/test_integration.py -v`
 
 ### Bug Report Template
 
@@ -329,7 +418,7 @@ Steps to reproduce:
 ```python
 from blossom_ai import Blossom
 
-with Blossom() as ai:
+with Blossom(api_version="v2", api_token="token") as ai:
     # Code that causes the bug
     ai.text.generate("...")
 ```
@@ -342,8 +431,9 @@ What actually happens
 
 **Environment**
 - OS: [e.g. Windows 10, Ubuntu 22.04, macOS 13]
-- Python version: [e.g. 3.8.10]
-- Blossom AI version: [e.g. 0.3.0]
+- Python version: [e.g. 3.9.10]
+- Blossom AI version: [e.g. 0.4.5]
+- Test results: [paste pytest output if relevant]
 
 **Additional context**
 Error messages, stack traces, etc.
@@ -368,9 +458,12 @@ How would you like it to work?
 **Example Usage**
 ```python
 # Show how the feature would be used
-with Blossom() as ai:
+with Blossom(api_version="v2") as ai:
     result = ai.new_feature.method()
 ```
+
+**Testing Considerations**
+How would this feature be tested?
 
 **Alternatives Considered**
 Other ways to solve the problem
@@ -385,7 +478,7 @@ Screenshots, links, references
 
 - `README.md` - Main project overview
 - `docs/` - Detailed documentation
-- `examples.py` - Practical code examples
+- `tests/` - Test examples with VCR.py (v0.4.5+)
 - Inline docstrings - API documentation
 
 ### Improving Documentation
@@ -396,7 +489,8 @@ Good documentation contributions:
 - Add practical examples
 - Improve error messages
 - Add tutorials for specific use cases
-- Translate documentation
+- Update installation guides for new features (v0.4.5)
+- Document security best practices
 
 ## Community
 
@@ -404,17 +498,36 @@ Good documentation contributions:
 
 - **Issues** - [GitHub Issues](https://github.com/PrimeevolutionZ/blossom-ai/issues)
 - **Discussions** - Use GitHub Discussions for questions
-- **Examples** - Check `docs/EXAMPLES.md` for code samples
+- **Examples** - Check `docs/` for code samples
+- **Tests** - Check `tests/test_integration.py` for usage examples (v0.4.5+)
 
 ### Staying Updated
 
 - Star the repository to get notifications
-- Watch for new releases
+- Watch for new releases (v0.4.5 just released!)
 - Check the [CHANGELOG](docs/CHANGELOG.md)
 
 ## Recognition
 
 All contributors will be recognized in our release notes and documentation. We appreciate every contribution, no matter how small!
+
+## v0.4.5 Contribution Priorities
+
+**High Priority:**
+1. 🧪 Adding more integration tests
+2. 📚 Improving documentation
+3. 🔒 Security enhancements
+4. 🐛 Bug fixes
+
+**Medium Priority:**
+1. ⚡ Performance optimizations
+2. 🎨 Code quality improvements
+3. 📦 New features
+
+**Always Welcome:**
+1. 📝 Documentation fixes
+2. 🧹 Code cleanup
+3. 🔧 Dev tools improvements
 
 ## License
 

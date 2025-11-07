@@ -50,14 +50,14 @@ client.close_sync()
 
 ## ✨ New V2 Features
 
-| Feature | Description | Example Value |
-|---------|-------------|---------------|
-| **quality** | Output quality level | `"low"`, `"medium"`, `"high"`, `"hd"` |
-| **guidance_scale** | Prompt adherence strength | `1.0` - `20.0` (default: `7.5`) |
-| **negative_prompt** | Elements to exclude | `"blurry, low quality"` |
-| **transparent** | PNG with alpha channel | `True` / `False` |
-| **image** | Image-to-image transformation | URL of source image |
-| **nofeed** | Keep private (don't add to feed) | `True` / `False` |
+| Feature             | Description                      | Example Value                         |
+|---------------------|----------------------------------|---------------------------------------|
+| **quality**         | Output quality level             | `"low"`, `"medium"`, `"high"`, `"hd"` |
+| **guidance_scale**  | Prompt adherence strength        | `1.0` - `20.0` (default: `7.5`)       |
+| **negative_prompt** | Elements to exclude              | `"blurry, low quality"`               |
+| **transparent**     | PNG with alpha channel           | `True` / `False`                      |
+| **image**           | Image-to-image transformation    | URL of source image                   |
+| **nofeed**          | Keep private (don't add to feed) | `True` / `False`                      |
 
 ---
 
@@ -95,12 +95,12 @@ image = client.image.generate(
 
 ### Quality Comparison
 
-| Level | Speed | File Size | Use Case |
-|-------|-------|-----------|----------|
-| `low` | ⚡⚡⚡ Fast | ~10-30 KB | Previews, thumbnails, testing |
-| `medium` | ⚡⚡ Moderate | ~30-100 KB | General use, web images |
-| `high` | ⚡ Slower | ~100-300 KB | Detailed artwork, prints |
-| `hd` | 🐢 Slowest | ~300-500 KB | Professional use, large displays |
+| Level    | Speed       | File Size   | Use Case                         |
+|----------|-------------|-------------|----------------------------------|
+| `low`    | ⚡⚡⚡ Fast    | ~10-30 KB   | Previews, thumbnails, testing    |
+| `medium` | ⚡⚡ Moderate | ~30-100 KB  | General use, web images          |
+| `high`   | ⚡ Slower    | ~100-300 KB | Detailed artwork, prints         |
+| `hd`     | 🐢 Slowest  | ~300-500 KB | Professional use, large displays |
 
 ### Example: Quality Progression
 

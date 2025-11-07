@@ -727,7 +727,7 @@ with Blossom(api_version="v2", api_token="your_token") as client:
 ## 📗 Related Documentation
 
 - **[V2 Text Generation](V2_TEXT_GENERATION.md)** - Advanced text features
-- **[Caching Guide](CACHING.md)** - Cache AI responses
+- **[Caching Guide](CAHCING.md)** - Cache AI responses
 - **[V2 API Reference](V2_API_REFERENCE.md)** - Complete API docs
 
 ---

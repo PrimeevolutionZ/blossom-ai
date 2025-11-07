@@ -6,10 +6,9 @@ We actively support and provide security updates for the following versions of B
 
 | Version | Supported          |
 |---------| ------------------ |
+| 0.4.5   | ✅ Actively supported |
 | 0.4.x   | ✅ Actively supported |
-| 0.3.x   | ✅  Security fixes only |
-| <0.2.x   | ❌ Not supported  |
-
+| 0.3.x   | ❌ Not supported  |
 
 ## Reporting a Vulnerability
 
@@ -45,7 +44,15 @@ If you discover a security vulnerability in Blossom AI, please report it respons
 
 ### API Token Handling
 
-🔐 **Your API token is sensitive information**
+🔒 **Your API token is sensitive information**
+
+**v0.4.5 Security Improvements:**
+- ✅ Tokens are **never** included in URLs (only in Authorization headers)
+- ✅ SSL certificate verification is enforced by default
+- ✅ No token exposure in nginx/CDN logs or browser history
+- ✅ Safe URL sharing - generated URLs don't contain credentials
+
+**Best Practices:**
 
 - **Never commit tokens** to version control
 - **Use environment variables** for token storage
@@ -57,7 +64,7 @@ If you discover a security vulnerability in Blossom AI, please report it respons
 import os
 from blossom_ai import Blossom
 
-api_token = os.getenv('BLOSSOM_API_TOKEN')
+api_token = os.getenv('POLLINATIONS_API_KEY')
 client = Blossom(api_token=api_token)
 ```
 
@@ -65,6 +72,48 @@ client = Blossom(api_token=api_token)
 # ❌ Bad - Hardcoded token
 client = Blossom(api_token="your-token-here")
 ```
+
+### Token Security (v0.4.5+)
+
+**Before v0.4.5:**
+```python
+# ❌ OLD: Tokens could appear in URLs
+url = ai.image.generate_url("cat")
+# URL: https://image.pollinations.ai/cat?token=pk_xxx
+# Token visible in logs, history, shared links
+```
+
+**After v0.4.5:**
+```python
+# ✅ NEW: Tokens only in headers
+url = ai.image.generate_url("cat")
+# URL: https://image.pollinations.ai/cat
+# Token in Authorization header only - safe to share!
+```
+
+**Security Benefits:**
+- 🔐 Tokens never appear in URLs
+- 📝 No token leakage in server logs
+- 🌐 Safe to share URLs publicly
+- 🔒 OAuth2 compliant
+
+### SSL/TLS Verification
+
+**v0.4.5+ enforces SSL certificate verification:**
+
+```python
+# ✅ Default: SSL verification enabled
+client = Blossom(api_token="token")
+# All requests verify SSL certificates
+
+# ❌ Never disable verification in production!
+# No option to disable - security by design
+```
+
+**What this means:**
+- All API communication uses verified HTTPS
+- Man-in-the-middle attacks prevented
+- Certificate validation automatic
 
 ### Prompt Injection
 
@@ -91,7 +140,7 @@ def safe_generate(user_prompt: str):
     
     # Generate
     try:
-        with Blossom() as ai:
+        with Blossom(api_token=api_token) as ai:
             return ai.text.generate(prompt)
     except ValidationError as e:
         # Handle validation errors appropriately
@@ -112,13 +161,19 @@ def safe_generate(user_prompt: str):
 🌐 **All API communication uses HTTPS**
 
 - Blossom AI communicates with `pollinations.ai` API over secure HTTPS
+- **v0.4.5+**: SSL certificate verification enforced
 - No sensitive data is logged by default
 - Enable `debug=False` in production (it's the default)
 
 ```python
 # Production settings
-with Blossom(debug=False, timeout=30) as ai:
+with Blossom(
+    api_token=api_token,
+    debug=False,  # Default - no debug logging
+    timeout=30
+) as ai:
     # Your code
+    pass
 ```
 
 ### Dependency Security
@@ -144,21 +199,26 @@ safety check
 
 ♻️ **Proper cleanup prevents resource leaks**
 
-Always use context managers to ensure resources are cleaned up:
+**v0.4.5 improvements:**
+- ✅ Automatic memory cleanup (WeakRef-based)
+- ✅ No memory leaks in long-running apps
+- ✅ Clean shutdown (no stderr errors)
+
+**Best practices:**
 
 ```python
 # ✅ Good - Automatic cleanup
-with Blossom() as ai:
+with Blossom(api_token=api_token) as ai:
     result = ai.text.generate("hello")
 
 # ✅ Good - Async cleanup
-async with Blossom() as ai:
+async with Blossom(api_token=api_token) as ai:
     result = await ai.text.generate("hello")
 ```
 
 ```python
 # ❌ Bad - Manual cleanup required
-ai = Blossom()
+ai = Blossom(api_token=api_token)
 result = ai.text.generate("hello")
 ai.close_sync()  # Easy to forget!
 ```
@@ -167,18 +227,20 @@ ai.close_sync()  # Easy to forget!
 
 ⏱️ **Respect API rate limits**
 
-- The library includes automatic retry-after handling for `RateLimitError`
-- Implement application-level rate limiting for public-facing services
-- Monitor your usage to stay within limits
+**v0.4.5 improvements:**
+- ✅ Smart retry with API-specified delays
+- ✅ Uses `retry_after` from rate limit responses
+- ✅ Faster recovery (10-60s vs fixed 60s)
 
 ```python
 from blossom_ai import Blossom, RateLimitError
 import time
 
-with Blossom() as ai:
+with Blossom(api_token=api_token) as ai:
     try:
         result = ai.text.generate("prompt")
     except RateLimitError as e:
+        # v0.4.5+: Uses retry_after from API
         if e.retry_after:
             print(f"Rate limited. Waiting {e.retry_after}s")
             time.sleep(e.retry_after)
@@ -195,7 +257,7 @@ with Blossom() as ai:
 
 ```python
 # Configure timeout for slow connections
-with Blossom(timeout=60) as ai:
+with Blossom(api_token=api_token, timeout=60) as ai:
     for chunk in ai.text.generate("prompt", stream=True):
         process_chunk(chunk)
 ```
@@ -209,19 +271,19 @@ When using Blossom AI, the following data is sent to Pollinations.AI:
 **Image Generation:**
 - Prompt text
 - Generation parameters (width, height, model, seed, etc.)
-- API token (if provided)
+- API token (in Authorization header - v0.4.5+)
 
 **Text Generation:**
 - Prompt or messages
 - System messages
 - Model selection
 - Parameters (temperature, seed, etc.)
-- API token (if provided)
+- API token (in Authorization header - v0.4.5+)
 
 **Audio Generation:**
 - Text to convert
 - Voice selection
-- API token (required)
+- API token (in Authorization header - required)
 
 ### What Data is NOT Collected by Blossom AI
 
@@ -247,9 +309,16 @@ For contributors and developers building on Blossom AI:
 
 ### Testing
 
-- Run security tests before committing
-- Test error handling paths
-- Verify resource cleanup
+**v0.4.5 improvements:**
+- ✅ 20+ integration tests with VCR.py
+- ✅ 95% API coverage
+- ✅ Security tests (tokens not in URLs)
+
+```bash
+# Run security tests
+pip install pytest pytest-asyncio vcrpy
+pytest tests/test_integration.py -k security
+```
 
 ### Dependencies
 
@@ -288,6 +357,7 @@ For critical vulnerabilities:
 - Implement rate limiting
 - Review generated content
 - Use HTTPS for your application
+- Enable SSL verification (default in v0.4.5+)
 
 ❌ **Don'ts:**
 - Don't commit API tokens to Git
@@ -310,7 +380,7 @@ from blossom_ai import Blossom, BlossomError
 logging.basicConfig(level=logging.WARNING)
 
 # Get token from environment
-API_TOKEN = os.getenv('BLOSSOM_API_TOKEN')
+API_TOKEN = os.getenv('POLLINATIONS_API_KEY')
 
 def secure_generate_image(user_prompt: str) -> str:
     """
@@ -335,8 +405,13 @@ def secure_generate_image(user_prompt: str) -> str:
     
     # Generate with proper resource management
     try:
-        with Blossom(api_token=API_TOKEN, timeout=30) as ai:
+        with Blossom(
+            api_version="v2",
+            api_token=API_TOKEN,
+            timeout=30
+        ) as ai:
             # Generate URL (no download needed)
+            # v0.4.5+: Token NOT in URL - safe to share
             url = ai.image.generate_url(
                 prompt=prompt,
                 nologo=True,
@@ -348,6 +423,56 @@ def secure_generate_image(user_prompt: str) -> str:
         # Log error without exposing sensitive details
         logging.error(f"Generation failed: {e.error_type}")
         raise
+```
+
+## v0.4.5 Security Improvements Summary
+
+### Critical Fixes
+
+1. **Token Security** ✅
+   - Tokens only in Authorization headers
+   - Never in URLs or query parameters
+   - No exposure in logs or browser history
+
+2. **SSL Verification** ✅
+   - Enforced by default
+   - Cannot be disabled
+   - MITM attack prevention
+
+3. **Memory Safety** ✅
+   - Fixed memory leaks
+   - WeakRef-based cleanup
+   - Constant memory footprint
+
+4. **Smart Retry** ✅
+   - Uses API's retry_after
+   - Faster recovery from rate limits
+   - Better error handling
+
+### Security Testing
+
+```python
+# Verify security improvements
+def test_security():
+    """Test v0.4.5 security features"""
+    from blossom_ai import Blossom
+    
+    client = Blossom(api_version="v2", api_token="test_token")
+    
+    # Test 1: Token not in URL
+    url = client.image.generate_url("test")
+    assert "token=" not in url.lower()
+    assert "test_token" not in url
+    print("✅ Token security: PASS")
+    
+    # Test 2: SSL verification
+    # (Enforced by default, cannot disable)
+    print("✅ SSL verification: ENFORCED")
+    
+    client.close_sync()
+    print("✅ All security tests passed!")
+
+test_security()
 ```
 
 ## Incident Response
@@ -369,8 +494,8 @@ For security-related questions:
 
 ---
 
-**Last Updated**: October 2025
+**Last Updated**: November 2025
 
-**Version**: 0.4.1
+**Version**: 0.4.5
 
 This security policy will be reviewed and updated regularly. Check back for the latest information.

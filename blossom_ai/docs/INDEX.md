@@ -10,8 +10,8 @@ Welcome to the Blossom AI documentation! This guide will help you get started wi
 
 Perfect for newcomers to Blossom AI.
 
-| Guide                                      | Description |
-|--------------------------------------------|-------------|
+| Guide                                       | Description                                        |
+|---------------------------------------------|----------------------------------------------------|
 | **[Installation & Setup](INSTALLATION.md)** | Install the package and configure your environment |
 
 ---
@@ -20,12 +20,12 @@ Perfect for newcomers to Blossom AI.
 
 The new Pollinations V2 API brings powerful improvements and new features.
 
-| Guide | Description |
-|-------|-------------|
-| **[V2 Migration Guide](V2_MIGRATION_GUIDE.md)** | Migrate from V1 to V2 - step by step guide |
+| Guide                                             | Description                                                |
+|---------------------------------------------------|------------------------------------------------------------|
+| **[V2 Migration Guide](V2_MIGRATION_GUIDE.md)**   | Migrate from V1 to V2 - step by step guide                 |
 | **[V2 Image Generation](V2_IMAGE_GENERATION.md)** | HD quality, guidance scale, negative prompts, transparency |
-| **[V2 Text Generation](V2_TEXT_GENERATION.md)** | Function calling, advanced parameters, better streaming |
-| **[V2 API Reference](V2_API_REFERENCE.md)** | Complete V2 API documentation with all parameters |
+| **[V2 Text Generation](V2_TEXT_GENERATION.md)**   | Function calling, advanced parameters, better streaming    |
+| **[V2 API Reference](V2_API_REFERENCE.md)**       | Complete V2 API documentation with all parameters          |
 
 ### What's New in V2?
 
@@ -50,27 +50,27 @@ The new Pollinations V2 API brings powerful improvements and new features.
 Learn how to use each generation type with the legacy V1 API.
 
 ### Image Generation
-| Guide | Description |
-|-------|-------------|
-| **[Image Generation Guide](IMAGE_GENERATION.md)** | Create stunning images from text prompts |
-| 🔗 URL Generation | Get instant image URLs without downloading |
-| 💾 Save to File | Generate and save images locally |
-| 🎯 Advanced Parameters | Control dimensions, models, seeds, and more |
+| Guide                                             | Description                                 |
+|---------------------------------------------------|---------------------------------------------|
+| **[Image Generation Guide](IMAGE_GENERATION.md)** | Create stunning images from text prompts    |
+| 🔗 URL Generation                                 | Get instant image URLs without downloading  |
+| 💾 Save to File                                   | Generate and save images locally            |
+| 🎯 Advanced Parameters                            | Control dimensions, models, seeds, and more |
 
 ### Text Generation
-| Guide | Description |
-|-------|-------------|
-| **[Text Generation Guide](TEXT_GENERATION.md)** | Generate text with various AI models |
-| 🌊 Streaming | Real-time text generation with chunks |
-| 💬 Chat Mode | Multi-turn conversations with context |
-| 🎯 JSON Mode | Structured output for applications |
+| Guide                                           | Description                           |
+|-------------------------------------------------|---------------------------------------|
+| **[Text Generation Guide](TEXT_GENERATION.md)** | Generate text with various AI models  |
+| 🌊 Streaming                                    | Real-time text generation with chunks |
+| 💬 Chat Mode                                    | Multi-turn conversations with context |
+| 🎯 JSON Mode                                    | Structured output for applications    |
 
 ### Audio Generation
-| Guide | Description |
-|-------|-------------|
+| Guide                                             | Description                         |
+|---------------------------------------------------|-------------------------------------|
 | **[Audio Generation Guide](AUDIO_GENERATION.md)** | Text-to-speech with multiple voices |
-| 🎙️ Voice Selection | Choose from various voice models |
-| 🔐 Authentication | Requires API token |
+| 🎙️ Voice Selection                               | Choose from various voice models    |
+| 🔐 Authentication                                 | Requires API token                  |
 
 ---
 
@@ -78,14 +78,14 @@ Learn how to use each generation type with the legacy V1 API.
 
 Tools to enhance your workflows.
 
-| Guide | Description |
-|-------|-------------|
+| Guide                                     | Description                                                                    |
+|-------------------------------------------|--------------------------------------------------------------------------------|
 | **[File Content Reader](FILE_READER.md)** | Read text files and integrate them with AI prompts while respecting API limits |
-| **[Reasoning Module](REASONING.md)** | **NEW!** Enhance prompts with structured thinking for better responses |
-| **[Caching Module](CACHING.md)** | **NEW!** Cache AI responses to reduce costs and improve performance |
-| 📄 File Validation | Automatic size and encoding validation |
-| ✂️ Auto-Truncation | Handle large files gracefully |
-| 📦 Multiple Files | Combine and process multiple files |
+| **[Reasoning Module](REASONING.md)**      | **NEW!** Enhance prompts with structured thinking for better responses         |
+| **[Caching Module](CAHCING.md)**          | **NEW!** Cache AI responses to reduce costs and improve performance            |
+| 📄 File Validation                        | Automatic size and encoding validation                                         |
+| ✂️ Auto-Truncation                        | Handle large files gracefully                                                  |
+| 📦 Multiple Files                         | Combine and process multiple files                                             |
 
 ### ✨ New in v0.4.1: Reasoning & Caching
 
@@ -108,12 +108,12 @@ Tools to enhance your workflows.
 
 Build real-world applications.
 
-| Guide | Description |
-|-------|-------------|
-| **[Discord Bot Tutorial](DISCORD_BOT.md)** | Create an AI image generation bot for Discord |
-| **[Telegram Bot Tutorial](TELEGRAM_BOT.md)** | Build a Telegram bot with image generation |
-| **[Resource Management](RESOURCE_MANAGEMENT.md)** | Best practices for production applications |
-| **[Error Handling](ERROR_HANDLING.md)** | Handle errors gracefully (V1 & V2) |
+| Guide                                             | Description                                   |
+|---------------------------------------------------|-----------------------------------------------|
+| **[Discord Bot Tutorial](DISCORD_BOT.md)**        | Create an AI image generation bot for Discord |
+| **[Telegram Bot Tutorial](TELEGRAM_BOT.md)**      | Build a Telegram bot with image generation    |
+| **[Resource Management](RESOURCE_MANAGEMENT.md)** | Best practices for production applications    |
+| **[Error Handling](ERROR_HANDLING.md)**           | Handle errors gracefully (V1 & V2)            |
 
 ---
 
@@ -121,11 +121,11 @@ Build real-world applications.
 
 Technical details and API specifications.
 
-| Document | Description |
-|----------|-------------|
-| **[API Reference](API_REFERENCE.md)** | Complete V1 API documentation for all methods |
-| **[V2 API Reference](V2_API_REFERENCE.md)** | Complete V2 API documentation |
-| **[Changelog](CHANGELOG.md)** | Version history and updates |
+| Document                                    | Description                                   |
+|---------------------------------------------|-----------------------------------------------|
+| **[API Reference](API_REFERENCE.md)**       | Complete V1 API documentation for all methods |
+| **[V2 API Reference](V2_API_REFERENCE.md)** | Complete V2 API documentation                 |
+| **[Changelog](CHANGELOG.md)**               | Version history and updates                   |
 
 ---
 
@@ -133,10 +133,10 @@ Technical details and API specifications.
 
 Get involved and keep the project secure.
 
-| Document | Description |
-|----------|-------------|
-| **[Contributing Guide](../../CONTRIBUTING.md)** | How to contribute code, docs, and ideas |
-| **[Security Policy](../../SECURITY.md)** | Report vulnerabilities and security best practices |
+| Document                                        | Description                                        |
+|-------------------------------------------------|----------------------------------------------------|
+| **[Contributing Guide](../../CONTRIBUTING.md)** | How to contribute code, docs, and ideas            |
+| **[Security Policy](../../SECURITY.md)**        | Report vulnerabilities and security best practices |
 
 > **Note:** These files are located in the project root (`blossom-ai/`), one level above the package directory.
 
@@ -162,8 +162,8 @@ Get involved and keep the project secure.
 
 #### Utilities (New!)
 - **Add reasoning to prompts:** [Reasoning - Quick Start](REASONING.md#-quick-start)
-- **Cache AI responses:** [Caching - Quick Start](CACHING.md#-quick-start)
-- **Reduce API costs:** [Caching - Best Practices](CACHING.md#-best-practices)
+- **Cache AI responses:** [Caching - Quick Start](CAHCING.md#-quick-start)
+- **Reduce API costs:** [Caching - Best Practices](CAHCING.md#-best-practices)
 - **Deep problem solving:** [Reasoning - Multi-Step](REASONING.md#-advanced-features)
 
 #### Contributing
@@ -172,19 +172,19 @@ Get involved and keep the project secure.
 
 ### Examples by Use Case
 
-| Use Case | Guide |
-|----------|-------|
-| **Web Application (V2)** | [V2 API Reference - Complete Example](V2_API_REFERENCE.md#-complete-example) |
-| **HD Image Generation** | [V2 Image Generation - Quality](V2_IMAGE_GENERATION.md#-quality-levels) |
-| **AI Chatbot with Tools** | [V2 Text Generation - Function Calling](V2_TEXT_GENERATION.md#-function-calling) |
-| **Chat Bot (Discord)** | [Discord Bot Tutorial](DISCORD_BOT.md) |
-| **Chat Bot (Telegram)** | [Telegram Bot Tutorial](TELEGRAM_BOT.md) |
-| **CLI Tool** | [Resource Management - Sync Usage](RESOURCE_MANAGEMENT.md#synchronous-context-manager) |
-| **Background Worker** | [Resource Management - Long-Running Apps](RESOURCE_MANAGEMENT.md#for-long-running-applications-eg-bots) |
-| **Code Analysis** | [File Reader - Code Analysis](FILE_READER.md#1-code-analysis) |
-| **Document Processing** | [File Reader - Document Summarization](FILE_READER.md#2-document-summarization) |
-| **Cached Responses** | [Caching - Use Cases](CACHING.md#-use-cases) |
-| **Structured Thinking** | [Reasoning - Examples](REASONING.md#-usage-examples) |
+| Use Case                  | Guide                                                                                                   |
+|---------------------------|---------------------------------------------------------------------------------------------------------|
+| **Web Application (V2)**  | [V2 API Reference - Complete Example](V2_API_REFERENCE.md#-complete-example)                            |
+| **HD Image Generation**   | [V2 Image Generation - Quality](V2_IMAGE_GENERATION.md#-quality-levels)                                 |
+| **AI Chatbot with Tools** | [V2 Text Generation - Function Calling](V2_TEXT_GENERATION.md#-function-calling)                        |
+| **Chat Bot (Discord)**    | [Discord Bot Tutorial](DISCORD_BOT.md)                                                                  |
+| **Chat Bot (Telegram)**   | [Telegram Bot Tutorial](TELEGRAM_BOT.md)                                                                |
+| **CLI Tool**              | [Resource Management - Sync Usage](RESOURCE_MANAGEMENT.md#synchronous-context-manager)                  |
+| **Background Worker**     | [Resource Management - Long-Running Apps](RESOURCE_MANAGEMENT.md#for-long-running-applications-eg-bots) |
+| **Code Analysis**         | [File Reader - Code Analysis](FILE_READER.md#1-code-analysis)                                           |
+| **Document Processing**   | [File Reader - Document Summarization](FILE_READER.md#2-document-summarization)                         |
+| **Cached Responses**      | [Caching - Use Cases](CAHCING.md#-use-cases)                                                            |
+| **Structured Thinking**   | [Reasoning - Examples](REASONING.md#-usage-examples)                                                    |
 
 ---
 
@@ -307,25 +307,25 @@ print(f"Memory: {stats.memory_usage} items")
 
 ## 📄 Version Comparison
 
-| Feature | V1 (Legacy) | V2 (New) | Utils |
-|---------|-------------|----------|-------|
-| **Image Quality Control** | ❌ | ✅ (low/medium/high/hd) | - |
-| **Guidance Scale** | ❌ | ✅ (1.0-20.0) | - |
-| **Negative Prompts** | ❌ | ✅ | - |
-| **Transparent Images** | ❌ | ✅ | - |
-| **Image-to-Image** | ❌ | ✅ | - |
-| **Function Calling** | ❌ | ✅ | - |
-| **Max Tokens Control** | ❌ | ✅ | - |
-| **Frequency Penalty** | ❌ | ✅ (0-2) | - |
-| **Presence Penalty** | ❌ | ✅ (0-2) | - |
-| **Top-P Sampling** | ❌ | ✅ | - |
-| **Temperature Range** | 0-1 | 0-2 (extended) | - |
-| **Basic Generation** | ✅ | ✅ | - |
-| **Streaming** | ✅ | ✅ (improved) | - |
-| **JSON Mode** | ✅ | ✅ (more reliable) | - |
-| **Reasoning Enhancement** | - | - | ✅ **NEW!** |
-| **Response Caching** | - | - | ✅ **NEW!** |
-| **File Reading** | - | - | ✅ |
+| Feature                   | V1 (Legacy) | V2 (New)               | Utils      |
+|---------------------------|-------------|------------------------|------------|
+| **Image Quality Control** | ❌           | ✅ (low/medium/high/hd) | -          |
+| **Guidance Scale**        | ❌           | ✅ (1.0-20.0)           | -          |
+| **Negative Prompts**      | ❌           | ✅                      | -          |
+| **Transparent Images**    | ❌           | ✅                      | -          |
+| **Image-to-Image**        | ❌           | ✅                      | -          |
+| **Function Calling**      | ❌           | ✅                      | -          |
+| **Max Tokens Control**    | ❌           | ✅                      | -          |
+| **Frequency Penalty**     | ❌           | ✅ (0-2)                | -          |
+| **Presence Penalty**      | ❌           | ✅ (0-2)                | -          |
+| **Top-P Sampling**        | ❌           | ✅                      | -          |
+| **Temperature Range**     | 0-1         | 0-2 (extended)         | -          |
+| **Basic Generation**      | ✅           | ✅                      | -          |
+| **Streaming**             | ✅           | ✅ (improved)           | -          |
+| **JSON Mode**             | ✅           | ✅ (more reliable)      | -          |
+| **Reasoning Enhancement** | -           | -                      | ✅ **NEW!** |
+| **Response Caching**      | -           | -                      | ✅ **NEW!** |
+| **File Reading**          | -           | -                      | ✅          |
 
 **Recommendation:** Use V2 for new projects. Add Reasoning + Caching for production apps.
 

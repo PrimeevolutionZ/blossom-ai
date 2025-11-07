@@ -760,7 +760,6 @@ def test_validator():
 
 ## 📚 Related Documentation
 
-- **[Refactoring Summary](REFACTORING.md)** - Architecture details
 - **[V2 API Reference](V2_API_REFERENCE.md)** - V2-specific advanced usage
 - **[Error Handling](ERROR_HANDLING.md)** - Error handling patterns
 - **[Contributing Guide](../../CONTRIBUTING.md)** - How to contribute

@@ -37,12 +37,12 @@ client = Blossom(
 
 #### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `api_version` | `str` | `"v1"` | API version: `"v1"` (legacy) or `"v2"` (new) |
-| `api_token` | `Optional[str]` | `None` | API token from enter.pollinations.ai |
-| `timeout` | `int` | `30` | Request timeout in seconds |
-| `debug` | `bool` | `False` | Enable debug logging |
+| Parameter     | Type            | Default | Description                                  |
+|---------------|-----------------|---------|----------------------------------------------|
+| `api_version` | `str`           | `"v1"`  | API version: `"v1"` (legacy) or `"v2"` (new) |
+| `api_token`   | `Optional[str]` | `None`  | API token from enter.pollinations.ai         |
+| `timeout`     | `int`           | `30`    | Request timeout in seconds                   |
+| `debug`       | `bool`          | `False` | Enable debug logging                         |
 
 #### Returns
 
@@ -96,23 +96,23 @@ image_bytes = client.image.generate(
 
 #### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `prompt` | `str` | **Required** | Text description of desired image (max 200 chars) |
-| `model` | `str` | `"flux"` | Model to use: `"flux"`, `"turbo"`, etc. |
-| `width` | `int` | `1024` | Image width in pixels |
-| `height` | `int` | `1024` | Image height in pixels |
-| `seed` | `int` | `42` | Random seed for reproducibility |
-| `enhance` | `bool` | `False` | Enhance prompt automatically |
-| `negative_prompt` | `str` | `"worst quality, blurry"` | Elements to exclude |
-| `private` | `bool` | `False` | Make generation private |
-| `nologo` | `bool` | `False` | Remove Pollinations watermark |
-| `nofeed` | `bool` | `False` | Don't add to public feed (**V2 only**) |
-| `safe` | `bool` | `False` | Enable safety filter |
-| `quality` | `str` | `"medium"` | Quality: `"low"`, `"medium"`, `"high"`, `"hd"` (**V2 only**) |
-| `image` | `Optional[str]` | `None` | Source image URL for img2img (**V2 only**) |
-| `transparent` | `bool` | `False` | Generate with transparency (**V2 only**) |
-| `guidance_scale` | `Optional[float]` | `None` | Prompt adherence (1.0-20.0) (**V2 only**) |
+| Parameter         | Type              | Default                   | Description                                                  |
+|-------------------|-------------------|---------------------------|--------------------------------------------------------------|
+| `prompt`          | `str`             | **Required**              | Text description of desired image (max 200 chars)            |
+| `model`           | `str`             | `"flux"`                  | Model to use: `"flux"`, `"turbo"`, etc.                      |
+| `width`           | `int`             | `1024`                    | Image width in pixels                                        |
+| `height`          | `int`             | `1024`                    | Image height in pixels                                       |
+| `seed`            | `int`             | `42`                      | Random seed for reproducibility                              |
+| `enhance`         | `bool`            | `False`                   | Enhance prompt automatically                                 |
+| `negative_prompt` | `str`             | `"worst quality, blurry"` | Elements to exclude                                          |
+| `private`         | `bool`            | `False`                   | Make generation private                                      |
+| `nologo`          | `bool`            | `False`                   | Remove Pollinations watermark                                |
+| `nofeed`          | `bool`            | `False`                   | Don't add to public feed (**V2 only**)                       |
+| `safe`            | `bool`            | `False`                   | Enable safety filter                                         |
+| `quality`         | `str`             | `"medium"`                | Quality: `"low"`, `"medium"`, `"high"`, `"hd"` (**V2 only**) |
+| `image`           | `Optional[str]`   | `None`                    | Source image URL for img2img (**V2 only**)                   |
+| `transparent`     | `bool`            | `False`                   | Generate with transparency (**V2 only**)                     |
+| `guidance_scale`  | `Optional[float]` | `None`                    | Prompt adherence (1.0-20.0) (**V2 only**)                    |
 
 #### Returns
 
@@ -161,8 +161,8 @@ filepath = client.image.save(
 
 Same as `generate()`, plus:
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
+| Parameter  | Type  | Default      | Description                  |
+|------------|-------|--------------|------------------------------|
 | `filename` | `str` | **Required** | Path where to save the image |
 
 #### Returns
@@ -222,26 +222,26 @@ response = client.text.generate(
 
 #### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `prompt` | `str` | **Required** | Input text prompt (max 10,000 chars) |
-| `model` | `str` | `"openai"` | Model: `"openai"`, `"deepseek"`, `"qwen-coder"`, etc. |
-| `system` | `Optional[str]` | `None` | System message for behavior |
-| `temperature` | `float` | `1.0` | Randomness (0.0-2.0, V2 extended range) |
-| `max_tokens` | `Optional[int]` | `None` | Maximum response length (**V2 only**) |
-| `stream` | `bool` | `False` | Enable streaming |
-| `json_mode` | `bool` | `False` | Force JSON output |
-| `tools` | `Optional[List[Dict]]` | `None` | Function definitions (**V2 only**) |
+| Parameter     | Type                   | Default      | Description                                           |
+|---------------|------------------------|--------------|-------------------------------------------------------|
+| `prompt`      | `str`                  | **Required** | Input text prompt (max 10,000 chars)                  |
+| `model`       | `str`                  | `"openai"`   | Model: `"openai"`, `"deepseek"`, `"qwen-coder"`, etc. |
+| `system`      | `Optional[str]`        | `None`       | System message for behavior                           |
+| `temperature` | `float`                | `1.0`        | Randomness (0.0-2.0, V2 extended range)               |
+| `max_tokens`  | `Optional[int]`        | `None`       | Maximum response length (**V2 only**)                 |
+| `stream`      | `bool`                 | `False`      | Enable streaming                                      |
+| `json_mode`   | `bool`                 | `False`      | Force JSON output                                     |
+| `tools`       | `Optional[List[Dict]]` | `None`       | Function definitions (**V2 only**)                    |
 
 #### Additional V2 Parameters (via **kwargs)
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `frequency_penalty` | `float` | `0.0` | Reduce word repetition (0.0-2.0) |
-| `presence_penalty` | `float` | `0.0` | Encourage topic diversity (0.0-2.0) |
-| `top_p` | `float` | `1.0` | Nucleus sampling (0.1-1.0) |
-| `n` | `int` | `1` | Number of completions |
-| `tool_choice` | `Union[str, Dict]` | `None` | Tool selection: `"auto"`, `"none"`, or specific tool |
+| Parameter           | Type               | Default | Description                                          |
+|---------------------|--------------------|---------|------------------------------------------------------|
+| `frequency_penalty` | `float`            | `0.0`   | Reduce word repetition (0.0-2.0)                     |
+| `presence_penalty`  | `float`            | `0.0`   | Encourage topic diversity (0.0-2.0)                  |
+| `top_p`             | `float`            | `1.0`   | Nucleus sampling (0.1-1.0)                           |
+| `n`                 | `int`              | `1`     | Number of completions                                |
+| `tool_choice`       | `Union[str, Dict]` | `None`  | Tool selection: `"auto"`, `"none"`, or specific tool |
 
 #### Returns
 
@@ -317,20 +317,20 @@ response = client.text.chat(
 
 #### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `messages` | `List[Dict[str, Any]]` | **Required** | Conversation history |
-| `model` | `str` | `"openai"` | Model to use |
-| `temperature` | `float` | `1.0` | Randomness (0.0-2.0) |
-| `max_tokens` | `Optional[int]` | `None` | Maximum response length (**V2 only**) |
-| `stream` | `bool` | `False` | Enable streaming |
-| `json_mode` | `bool` | `False` | Force JSON output |
-| `tools` | `Optional[List[Dict]]` | `None` | Function calling definitions (**V2 only**) |
-| `tool_choice` | `Optional[Union[str, Dict]]` | `None` | Tool selection (**V2 only**) |
-| `frequency_penalty` | `float` | `0.0` | Reduce repetition (**V2 only**) |
-| `presence_penalty` | `float` | `0.0` | Topic diversity (**V2 only**) |
-| `top_p` | `float` | `1.0` | Nucleus sampling (**V2 only**) |
-| `n` | `int` | `1` | Number of completions (**V2 only**) |
+| Parameter           | Type                         | Default      | Description                                |
+|---------------------|------------------------------|--------------|--------------------------------------------|
+| `messages`          | `List[Dict[str, Any]]`       | **Required** | Conversation history                       |
+| `model`             | `str`                        | `"openai"`   | Model to use                               |
+| `temperature`       | `float`                      | `1.0`        | Randomness (0.0-2.0)                       |
+| `max_tokens`        | `Optional[int]`              | `None`       | Maximum response length (**V2 only**)      |
+| `stream`            | `bool`                       | `False`      | Enable streaming                           |
+| `json_mode`         | `bool`                       | `False`      | Force JSON output                          |
+| `tools`             | `Optional[List[Dict]]`       | `None`       | Function calling definitions (**V2 only**) |
+| `tool_choice`       | `Optional[Union[str, Dict]]` | `None`       | Tool selection (**V2 only**)               |
+| `frequency_penalty` | `float`                      | `0.0`        | Reduce repetition (**V2 only**)            |
+| `presence_penalty`  | `float`                      | `0.0`        | Topic diversity (**V2 only**)              |
+| `top_p`             | `float`                      | `1.0`        | Nucleus sampling (**V2 only**)             |
+| `n`                 | `int`                        | `1`          | Number of completions (**V2 only**)        |
 
 #### Message Format
 
@@ -469,9 +469,9 @@ asyncio.run(stream_text())
 
 All streaming methods support the same parameters as their non-streaming counterparts, plus:
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `stream` | `bool` | `False` | Enable streaming mode |
+| Parameter | Type   | Default | Description           |
+|-----------|--------|---------|-----------------------|
+| `stream`  | `bool` | `False` | Enable streaming mode |
 
 ---
 
@@ -544,14 +544,14 @@ All methods can raise the following errors:
 
 ### Error Types
 
-| Error Class | When Raised | Attributes |
-|-------------|-------------|------------|
-| `NetworkError` | Connection issues | `.message`, `.suggestion`, `.context` |
-| `APIError` | API errors (4xx, 5xx) | `.message`, `.context.status_code` |
-| `AuthenticationError` | Invalid/missing token | `.message`, `.suggestion` |
-| `ValidationError` | Invalid parameters | `.message`, `.suggestion` |
-| `RateLimitError` | Too many requests | `.message`, `.retry_after` |
-| `StreamError` | Streaming failures | `.message`, `.original_error` |
+| Error Class           | When Raised           | Attributes                            |
+|-----------------------|-----------------------|---------------------------------------|
+| `NetworkError`        | Connection issues     | `.message`, `.suggestion`, `.context` |
+| `APIError`            | API errors (4xx, 5xx) | `.message`, `.context.status_code`    |
+| `AuthenticationError` | Invalid/missing token | `.message`, `.suggestion`             |
+| `ValidationError`     | Invalid parameters    | `.message`, `.suggestion`             |
+| `RateLimitError`      | Too many requests     | `.message`, `.retry_after`            |
+| `StreamError`         | Streaming failures    | `.message`, `.original_error`         |
 
 ### Error Example
 
@@ -593,15 +593,15 @@ except APIError as e:
 
 ### HTTP Status Codes
 
-| Status | Error Type | Description |
-|--------|-----------|-------------|
-| 400 | `APIError` | Bad request (invalid parameters) |
-| 401 | `AuthenticationError` | Unauthorized (invalid token) |
-| 402 | `APIError` | Payment required (upgrade needed) |
-| 429 | `RateLimitError` | Too many requests |
-| 500 | `APIError` | Server error |
-| 502 | `APIError` | Bad gateway (retry with backoff) |
-| 503 | `APIError` | Service unavailable |
+| Status | Error Type            | Description                       |
+|--------|-----------------------|-----------------------------------|
+| 400    | `APIError`            | Bad request (invalid parameters)  |
+| 401    | `AuthenticationError` | Unauthorized (invalid token)      |
+| 402    | `APIError`            | Payment required (upgrade needed) |
+| 429    | `RateLimitError`      | Too many requests                 |
+| 500    | `APIError`            | Server error                      |
+| 502    | `APIError`            | Bad gateway (retry with backoff)  |
+| 503    | `APIError`            | Service unavailable               |
 
 ---
 
