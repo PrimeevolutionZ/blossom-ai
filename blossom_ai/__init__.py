@@ -83,7 +83,7 @@ from blossom_ai.utils import (
     cached,
 )
 
-__version__ = "0.4.5"
+__version__ = "0.4.6"
 __author__ = "Blossom AI Team"
 __license__ = "MIT"
 

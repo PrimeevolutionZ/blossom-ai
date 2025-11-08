@@ -1,5 +1,5 @@
 """
-Blossom AI - Universal Client (Updated with V2 API Support)
+Blossom AI - Universal Client (Fixed V2 Audio Issue)
 Supports both legacy and new enter.pollinations.ai API
 """
 
@@ -166,9 +166,20 @@ class Blossom:
             sync_text = TextGeneratorV2(timeout=timeout, api_token=api_token)
             async_text = AsyncTextGeneratorV2(timeout=timeout, api_token=api_token)
 
-            # V2 doesn't have audio endpoint yet, use V1
-            sync_audio = AudioGenerator(timeout=timeout, api_token=api_token)
-            async_audio = AsyncAudioGenerator(timeout=timeout, api_token=api_token)
+            # ✅ FIX: V2 doesn't support audio, use V1 fallback only if needed
+            # For now, use None to avoid breaking initialization
+            try:
+                from blossom_ai.core.config import ENDPOINTS
+                if hasattr(ENDPOINTS, 'AUDIO'):
+                    sync_audio = AudioGenerator(timeout=timeout, api_token=api_token)
+                    async_audio = AsyncAudioGenerator(timeout=timeout, api_token=api_token)
+                else:
+                    # Audio not available in V2
+                    sync_audio = None
+                    async_audio = None
+            except (ImportError, AttributeError):
+                sync_audio = None
+                async_audio = None
 
         else:  # v1 (legacy)
             sync_image = ImageGenerator(timeout=timeout, api_token=api_token)
@@ -180,10 +191,16 @@ class Blossom:
 
         self.image = HybridImageGenerator(sync_image, async_image)
         self.text = HybridTextGenerator(sync_text, async_text)
-        self.audio = HybridAudioGenerator(sync_audio, async_audio)
 
-        self._async_generators = [async_image, async_text, async_audio]
-        self._sync_generators = [sync_image, sync_text, sync_audio]
+        # ✅ FIX: Only create audio generator if available
+        if sync_audio and async_audio:
+            self.audio = HybridAudioGenerator(sync_audio, async_audio)
+            self._async_generators = [async_image, async_text, async_audio]
+            self._sync_generators = [sync_image, sync_text, sync_audio]
+        else:
+            self.audio = None  # Audio not available in V2
+            self._async_generators = [async_image, async_text]
+            self._sync_generators = [sync_image, sync_text]
 
     async def __aenter__(self):
         return self
@@ -205,6 +222,8 @@ class Blossom:
         This is safe to call from __exit__ or manually
         """
         for gen in self._sync_generators:
+            if gen is None:
+                continue
             if hasattr(gen, '_session_manager'):
                 try:
                     gen._session_manager.close()
@@ -222,6 +241,8 @@ class Blossom:
         Must be called from async context
         """
         for gen in self._async_generators:
+            if gen is None:
+                continue
             if hasattr(gen, '_session_manager'):
                 try:
                     await gen._session_manager.close()
@@ -235,9 +256,10 @@ class Blossom:
 
     def __repr__(self) -> str:
         token_status = "with token" if self.api_token else "without token"
+        audio_status = "with audio" if self.audio else "without audio"
         return (
             f"<Blossom AI Client (api_version={self.api_version}, "
-            f"timeout={self.timeout}s, {token_status})>"
+            f"timeout={self.timeout}s, {token_status}, {audio_status})>"
         )
 
 

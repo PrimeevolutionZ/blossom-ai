@@ -196,6 +196,17 @@ class DynamicModel(ABC):
                 cls._initialized = True
                 return False
 
+    # ------------------------------------------------------------------
+    #  ➜  НОВЫЙ МЕТОД (нужен base_generator.py)
+    # ------------------------------------------------------------------
+    @classmethod
+    def update_known_values(cls, models: List[str]) -> None:
+        """Добавить/обновить список известных моделей вручную"""
+        with cls._init_lock:
+            cls._known_values.update(models)
+            cls._initialized = True
+            cls._cache_timestamp = time.time()
+
     @classmethod
     def from_string(cls, value: str) -> str:
         """

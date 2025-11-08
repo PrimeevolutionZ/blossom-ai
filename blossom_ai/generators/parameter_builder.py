@@ -1,6 +1,6 @@
 """
-Blossom AI - Parameter Builders
-Type-safe parameter construction with validation
+Blossom AI - Parameter Builders (FIXED)
+Type-safe parameter construction with proper boolean handling for V2 API
 """
 
 from typing import Optional, Dict, Any, List, Union
@@ -39,10 +39,8 @@ class BaseParams:
             if not include_defaults and self._is_default_value(key, value):
                 continue
 
-            # Convert booleans to strings for URL params if needed
-            if isinstance(value, bool):
-                value = str(value).lower()
-
+            # FIX: Keep booleans as-is (don't convert to strings)
+            # The API expects true/false, not "true"/"false"
             result[key] = value
 
         return result
@@ -71,6 +69,17 @@ class ImageParams(BaseParams):
     safe: bool = False
     referrer: Optional[str] = None
 
+    def to_dict(self, include_none: bool = False, include_defaults: bool = False) -> Dict[str, Any]:
+        """Override to convert booleans to lowercase strings for V1 API"""
+        result = super().to_dict(include_none, include_defaults)
+
+        # V1 API expects "true"/"false" strings in URL params
+        for key, value in list(result.items()):
+            if isinstance(value, bool):
+                result[key] = str(value).lower()
+
+        return result
+
     def _is_default_value(self, key: str, value: Any) -> bool:
         """Check if value matches default"""
         defaults = {
@@ -86,7 +95,7 @@ class ImageParams(BaseParams):
 
 
 # ============================================================================
-# IMAGE PARAMETERS (V2)
+# IMAGE PARAMETERS (V2) - FIXED
 # ============================================================================
 
 @dataclass
@@ -107,6 +116,26 @@ class ImageParamsV2(BaseParams):
     image: Optional[str] = None
     transparent: bool = False
     guidance_scale: Optional[float] = None
+
+    def to_dict(self, include_none: bool = False, include_defaults: bool = False) -> Dict[str, Any]:
+        """
+        FIX: V2 API needs proper types, NOT string conversion
+        The API expects: ?nologo=true (boolean), not ?nologo="true" (string)
+        """
+        result = {}
+
+        for key, value in asdict(self).items():
+            if value is None and not include_none:
+                continue
+
+            if not include_defaults and self._is_default_value(key, value):
+                continue
+
+            # FIX: Keep booleans as actual booleans for V2 API
+            # requests library will convert them correctly in URL params
+            result[key] = value
+
+        return result
 
     def _is_default_value(self, key: str, value: Any) -> bool:
         """Check if value matches default"""
@@ -152,6 +181,11 @@ class TextParams(BaseParams):
             if result['json_mode']:
                 result['json'] = 'true'
             result.pop('json_mode')
+
+        # V1 API expects "true"/"false" strings
+        for key, value in list(result.items()):
+            if isinstance(value, bool):
+                result[key] = str(value).lower()
 
         return result
 
@@ -281,6 +315,16 @@ class AudioParams(BaseParams):
 
     voice: str = DEFAULTS.AUDIO_VOICE
     model: str = DEFAULTS.AUDIO_MODEL
+
+    def to_dict(self, include_none: bool = False, include_defaults: bool = False) -> Dict[str, Any]:
+        """Override to convert booleans to strings for V1 API"""
+        result = super().to_dict(include_none, include_defaults)
+
+        for key, value in list(result.items()):
+            if isinstance(value, bool):
+                result[key] = str(value).lower()
+
+        return result
 
     def _is_default_value(self, key: str, value: Any) -> bool:
         """Check if value matches default"""

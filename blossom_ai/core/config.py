@@ -35,17 +35,17 @@ class APIEndpoints:
     """
 
     # Legacy API (v1) - image.pollinations.ai, text.pollinations.ai
-    V1_IMAGE: str = "https://image.pollinations.ai"
-    V1_TEXT: str = "https://text.pollinations.ai"
-    V1_AUDIO: str = "https://text.pollinations.ai"
+    # V1 endpoints (legacy)
+    IMAGE = "https://image.pollinations.ai"
+    TEXT = "https://text.pollinations.ai"
+    AUDIO = "https://text.pollinations.ai"
 
     # New API (v2) - enter.pollinations.ai
-    V2_BASE: str = "https://enter.pollinations.ai/api"
-    V2_IMAGE: str = "https://enter.pollinations.ai/api/generate/image"
-    V2_TEXT: str = "https://enter.pollinations.ai/api/generate/text"
-    V2_CHAT: str = "https://enter.pollinations.ai/api/generate/v1/chat/completions"
-    V2_IMAGE_MODELS: str = "https://enter.pollinations.ai/api/generate/image/models"
-    V2_TEXT_MODELS: str = "https://enter.pollinations.ai/api/generate/v1/models"
+    V2_BASE = "https://enter.pollinations.ai/api"
+    V2_IMAGE = f"{V2_BASE}/generate/image"
+    V2_TEXT = f"{V2_BASE}/generate/text"
+    V2_IMAGE_MODELS = f"{V2_BASE}/generate/image/models"
+    V2_TEXT_MODELS = f"{V2_BASE}/generate/v1/models"
 
     # Auth
     AUTH: str = "https://auth.pollinations.ai"

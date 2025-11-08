@@ -1,236 +1,144 @@
 """
-Simple V2 API Test - Quick validation (Pytest compatible)
+Blossom AI V2 – локальные быстрые тесты
+Токен оставлен в коде для локального запуска
 """
 
+from pathlib import Path
 from blossom_ai import Blossom
 
-API_TOKEN = "yoru_token_here"
+API_TOKEN = "plln_sk_DWA2waYqiWBgSeS2C2Ir6X04bBdI5dDJmwwGffCkXpOKsxVmy0c3ZWjjcdsHesmF"
+
+OUTPUT_DIR = Path(__file__).with_suffix("")  # папка рядом с файлом
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+client: Blossom | None = None
 
 
-def test_v2_image_simple():
-    """Quick V2 image test"""
-    print("\n🎨 Testing V2 Image Generation...")
+# ---------- helpers ---------------------------------------------------------
 
-    client = Blossom(api_version="v2", api_token=API_TOKEN)
+def _get_client() -> Blossom:
+    global client
+    if client is None:
+        client = Blossom(api_version="v2", api_token=API_TOKEN)
+    return client
+
+
+def _close_client() -> None:
+    global client
+    if client is not None:
+        client.close_sync()
+        client = None
+
+
+# ---------- тесты ------------------------------------------------------------
+
+def test_v2_image_simple() -> None:
+    """Генерация картинки: минимум параметров, проверка контента."""
+    print("\n🎨 V2 Image (flux) …")
+    c = _get_client()
 
     try:
-        image = client.image.generate(
+        img_bytes = c.image.generate(
             prompt="a cute cat",
-            model="flux",
-            width=512,
-            height=512,
-            seed=42,
-            quality="medium",
-            nologo=True
+            model="flux",  # V2 пока принимает только model + prompt
         )
-
-        print(f"✅ Image generated: {len(image)} bytes")
-
-        assert len(image) > 0, "Image should not be empty"
-
-        with open("test_v2_cat.png", "wb") as f:
-            f.write(image)
-        print(f"💾 Saved to test_v2_cat.png")
-
+        assert isinstance(img_bytes, bytes) and len(img_bytes) > 1_000
+        out_file = OUTPUT_DIR / "test_v2_cat.png"
+        out_file.write_bytes(img_bytes)
+        print(f"✅ сохранено: {out_file}  ({len(img_bytes)} B)")
     finally:
-        client.close_sync()
+        _close_client()
 
 
-def test_v2_text_simple():
-    """Quick V2 text test"""
-    print("\n💬 Testing V2 Text Generation...")
+def test_v2_text_simple() -> None:
+    print("\n💬 V2 Text …")
+    c = _get_client()
 
-    client = Blossom(api_version="v2", api_token=API_TOKEN)
-
-    try:
-        response = client.text.generate(
-            prompt="Say hello in one sentence",
-            model="openai",
-            max_tokens=50
-        )
-
-        print(f"✅ Response: {response}")
-        assert len(response) > 0, "Response should not be empty"
-        assert isinstance(response, str), "Response should be a string"
-
-    finally:
-        client.close_sync()
+    reply = c.text.generate("Say hello in one sentence", model="openai")
+    assert isinstance(reply, str) and len(reply.strip()) > 0
+    print(f"✅ {reply.strip()}")
 
 
-def test_v2_json_simple():
-    """Quick V2 JSON mode test"""
-    print("\n📋 Testing V2 JSON Mode...")
+def test_v2_json_mode() -> None:
+    print("\n📋 V2 JSON mode …")
+    c = _get_client()
 
-    client = Blossom(api_version="v2", api_token=API_TOKEN)
+    raw = c.text.generate(
+        "Return JSON: name and age",
+        model="openai",
+        json_mode=True,
+        max_tokens=60,
+    )
+    import json
 
-    try:
-        response = client.text.generate(
-            prompt="Generate JSON with name and age",
-            model="openai",
-            json_mode=True,
-            max_tokens=100
-        )
-
-        print(f"✅ JSON Response: {response}")
-
-        # Try parse
-        import json
-        parsed = json.loads(response)
-        print(f"✅ Valid JSON: {parsed}")
-
-        assert isinstance(parsed, dict), "Parsed JSON should be a dict"
-        assert len(parsed) > 0, "JSON should not be empty"
-
-    finally:
-        client.close_sync()
+    data = json.loads(raw)
+    assert isinstance(data, dict) and data
+    print(f"✅ {data}")
 
 
-def test_v2_streaming():
-    """Test V2 streaming"""
-    print("\n🌊 Testing V2 Streaming...")
+def test_v2_stream() -> None:
+    print("\n🌊 V2 Stream …")
+    c = _get_client()
 
-    client = Blossom(api_version="v2", api_token=API_TOKEN)
+    chunks: list[str] = []
+    for ch in c.text.generate("Count 1 2 3", model="openai", stream=True):
+        chunks.append(ch)
+        print(ch, end="", flush=True)
 
-    try:
-        print("Stream output: ", end="", flush=True)
-
-        chunks = []
-
-        # Simplified request - just basic parameters
-        for chunk in client.text.generate(
-            prompt="Count: 1, 2, 3",
-            model="openai",
-            stream=True
-        ):
-            print(chunk, end="", flush=True)
-            chunks.append(chunk)
-
-        print()  # newline
-
-        full_text = "".join(chunks)
-        print(f"✅ Received {len(chunks)} chunks")
-        print(f"✅ Full text: {full_text}")
-
-        assert len(chunks) > 0, "Should receive at least one chunk"
-        assert len(full_text) > 0, "Full text should not be empty"
-
-    except Exception as e:
-        print(f"\n⚠️  Streaming failed (known issue): {e}")
-        print("   This is a server-side issue with V2 streaming")
-        # Don't fail the test - it's a known limitation
-
-    finally:
-        client.close_sync()
+    full = "".join(chunks)
+    assert len(chunks) > 0 and len(full) > 0
+    print("\n✅ завершено")
 
 
-def test_v2_chat():
-    """Test V2 chat with history"""
-    print("\n💭 Testing V2 Chat...")
+def test_v2_chat() -> None:
+    print("\n💭 V2 Chat …")
+    c = _get_client()
 
-    client = Blossom(api_version="v2", api_token=API_TOKEN)
-
-    try:
-        # Simplified messages - only essential fields
-        messages = [
-            {"role": "user", "content": "Hi! My name is Alex"},
-            {"role": "assistant", "content": "Hello Alex!"},
-            {"role": "user", "content": "What's my name?"}
-        ]
-
-        response = client.text.chat(
-            messages=messages,
-            model="openai"
-        )
-
-        print(f"✅ Response: {response}")
-
-        assert len(response) > 0, "Response should not be empty"
-
-        # Check if it remembers the name (optional, might fail)
-        if "alex" in response.lower():
-            print("✅ Correctly remembered name!")
-        else:
-            print("⚠️  Didn't remember name (but chat works)")
-
-    except Exception as e:
-        print(f"❌ Chat failed: {e}")
-        print("   Trying without system message...")
-
-        # Fallback: try simpler chat
-        try:
-            messages = [
-                {"role": "user", "content": "Say hello"}
-            ]
-            response = client.text.chat(messages=messages, model="openai")
-            print(f"✅ Simple chat works: {response}")
-            assert len(response) > 0
-        except Exception as e2:
-            print(f"❌ Simple chat also failed: {e2}")
-            raise
-
-    finally:
-        client.close_sync()
+    messages = [
+        {"role": "user", "content": "Hi, I am Alex"},
+        {"role": "assistant", "content": "Hello Alex!"},
+        {"role": "user", "content": "What is my name?"},
+    ]
+    answer = c.text.chat(messages, model="openai")
+    assert "alex" in answer.lower()
+    print(f"✅ {answer.strip()}")
 
 
-def test_v2_models():
-    """Test getting V2 models list"""
-    print("\n📋 Testing V2 Models List...")
+def test_v2_models() -> None:
+    print("\n📋 V2 Models …")
+    c = _get_client()
 
-    client = Blossom(api_version="v2", api_token=API_TOKEN)
+    img_models = c.image.models()
+    txt_models = c.text.models()
 
-    try:
-        # Image models
-        print("\n📸 Image Models:")
-        image_models = client.image.models()
-        print(f"   Models: {image_models}")
+    assert isinstance(img_models, list) and len(img_models) > 0
+    assert isinstance(txt_models, list) and len(txt_models) > 0
 
-        assert isinstance(image_models, list), "Should return a list"
-        assert len(image_models) > 0, "Should have at least one model"
-
-        # Text models
-        print("\n💬 Text Models:")
-        text_models = client.text.models()
-        print(f"   Models: {text_models}")
-
-        assert isinstance(text_models, list), "Should return a list"
-        assert len(text_models) > 0, "Should have at least one model"
-
-        print(f"\n✅ Found {len(image_models)} image models and {len(text_models)} text models")
-
-    finally:
-        client.close_sync()
+    print(f"✅ Image: {len(img_models)}  |  Text: {len(txt_models)}")
 
 
-# For running without pytest
+# ---------- запуск -----------------------------------------------------------
+
 if __name__ == "__main__":
-    print("="*60)
-    print("🌸 BLOSSOM AI V2 - Quick Tests")
-    print("="*60)
-
     tests = [
-        ("V2 Image", test_v2_image_simple),
-        ("V2 Text", test_v2_text_simple),
-        ("V2 JSON", test_v2_json_simple),
-        ("V2 Streaming", test_v2_streaming),
-        ("V2 Chat", test_v2_chat),
-        ("V2 Models", test_v2_models),
+        test_v2_image_simple,
+        test_v2_text_simple,
+        test_v2_json_mode,
+        test_v2_stream,
+        test_v2_chat,
+        test_v2_models,
     ]
 
-    passed = 0
-    failed = 0
-
-    for name, test_func in tests:
+    passed = failed = 0
+    for t in tests:
         try:
-            test_func()
-            print(f"✅ {name} - PASSED\n")
+            t()
+            print("✅ PASSED\n")
             passed += 1
-        except AssertionError as e:
-            print(f"❌ {name} - FAILED: {e}\n")
-            failed += 1
-        except Exception as e:
-            print(f"❌ {name} - ERROR: {e}\n")
+        except Exception as exc:
+            print(f"❌ FAILED: {exc}\n")
             failed += 1
 
-    print("="*60)
-    print(f"📊 Results: {passed} passed, {failed} failed")
-    print("="*60)
+    print("=" * 50)
+    print(f"📊 {passed} passed  |  {failed} failed")
+    print("=" * 50)

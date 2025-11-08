@@ -1,9 +1,10 @@
 """
-Blossom AI - V2 Generators (Refactored)
+Blossom AI - V2 Generators (Fixed with generate_url)
 enter.pollinations.ai API with clean architecture
 """
 
 from typing import Optional, List, Dict, Any, Iterator, Union, AsyncIterator
+from urllib.parse import urlencode
 import json
 
 from blossom_ai.generators.base_generator import SyncGenerator, AsyncGenerator, ModelAwareGenerator
@@ -104,6 +105,64 @@ class ImageGeneratorV2(SyncGenerator, ModelAwareGenerator):
         response = self._make_request("GET", url, params=params.to_dict())
         return response.content
 
+    def generate_url(
+        self,
+        prompt: str,
+        model: str = DEFAULTS.IMAGE_MODEL,
+        width: int = DEFAULTS.IMAGE_WIDTH,
+        height: int = DEFAULTS.IMAGE_HEIGHT,
+        seed: int = 42,
+        enhance: bool = False,
+        negative_prompt: str = "worst quality, blurry",
+        private: bool = False,
+        nologo: bool = False,
+        nofeed: bool = False,
+        safe: bool = False,
+        quality: str = "medium",
+        image: Optional[str] = None,
+        transparent: bool = False,
+        guidance_scale: Optional[float] = None
+    ) -> str:
+        """
+        Generate image URL without downloading (V2)
+
+        Security Note:
+            API tokens are NEVER included in URLs for security reasons.
+            URLs can be safely shared publicly.
+        """
+        self._validate_prompt(prompt)
+
+        params = ImageParamsV2(
+            model=self._validate_model(model),
+            width=width,
+            height=height,
+            seed=seed,
+            enhance=enhance,
+            negative_prompt=negative_prompt,
+            private=private,
+            nologo=nologo,
+            nofeed=nofeed,
+            safe=safe,
+            quality=quality,
+            image=image,
+            transparent=transparent,
+            guidance_scale=guidance_scale
+        )
+
+        encoded_prompt = self._encode_prompt(prompt)
+        url = f"{self.base_url}/{encoded_prompt}"
+
+        # Security: NEVER include tokens in URLs
+        query_string = urlencode(params.to_dict())
+        return f"{url}?{query_string}"
+
+    def save(self, prompt: str, filename: str, **kwargs) -> str:
+        """Generate and save image to file"""
+        image_data = self.generate(prompt, **kwargs)
+        with open(filename, 'wb') as f:
+            f.write(image_data)
+        return str(filename)
+
     def models(self) -> List[str]:
         """Get available image models from V2 API"""
         if self._models_cache is None:
@@ -185,6 +244,57 @@ class AsyncImageGeneratorV2(AsyncGenerator, ModelAwareGenerator):
         url = f"{self.base_url}/{encoded_prompt}"
 
         return await self._make_request("GET", url, params=params.to_dict())
+
+    async def generate_url(
+        self,
+        prompt: str,
+        model: str = DEFAULTS.IMAGE_MODEL,
+        width: int = DEFAULTS.IMAGE_WIDTH,
+        height: int = DEFAULTS.IMAGE_HEIGHT,
+        seed: int = 42,
+        enhance: bool = False,
+        negative_prompt: str = "worst quality, blurry",
+        private: bool = False,
+        nologo: bool = False,
+        nofeed: bool = False,
+        safe: bool = False,
+        quality: str = "medium",
+        image: Optional[str] = None,
+        transparent: bool = False,
+        guidance_scale: Optional[float] = None
+    ) -> str:
+        """Generate image URL without downloading (async)"""
+        self._validate_prompt(prompt)
+
+        params = ImageParamsV2(
+            model=self._validate_model(model),
+            width=width,
+            height=height,
+            seed=seed,
+            enhance=enhance,
+            negative_prompt=negative_prompt,
+            private=private,
+            nologo=nologo,
+            nofeed=nofeed,
+            safe=safe,
+            quality=quality,
+            image=image,
+            transparent=transparent,
+            guidance_scale=guidance_scale
+        )
+
+        encoded_prompt = self._encode_prompt(prompt)
+        url = f"{self.base_url}/{encoded_prompt}"
+
+        query_string = urlencode(params.to_dict())
+        return f"{url}?{query_string}"
+
+    async def save(self, prompt: str, filename: str, **kwargs) -> str:
+        """Generate and save image to file (async)"""
+        image_data = await self.generate(prompt, **kwargs)
+        with open(filename, 'wb') as f:
+            f.write(image_data)
+        return str(filename)
 
     async def models(self) -> List[str]:
         """Get available image models from V2 API (async)"""

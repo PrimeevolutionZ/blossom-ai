@@ -18,6 +18,7 @@ import aiohttp
 from blossom_ai.core.session_manager import SyncSessionManager, AsyncSessionManager
 from blossom_ai.core.config import LIMITS
 from blossom_ai.core.errors import (
+    AuthenticationError,
     BlossomError, ErrorType, StreamError, RateLimitError,
     handle_request_error, print_info, print_warning, print_debug
 )
@@ -222,11 +223,13 @@ class BaseGenerator(ABC):
     def _handle_http_error(self, status_code: int, response_data: Optional[bytes] = None) -> None:
         """
         Common HTTP error handling (IMPROVED)
-
-        FIXES:
-        - Raises proper BlossomError subclasses
-        - Extracts retry_after properly
         """
+        if status_code == 401:
+            raise AuthenticationError(
+                message="Invalid or missing API token",
+                suggestion="Check your API token at https://enter.pollinations.ai"
+            )
+
         if status_code == 402:
             error_msg = "Payment Required"
 
