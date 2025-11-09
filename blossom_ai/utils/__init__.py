@@ -1,6 +1,6 @@
 """
 Blossom AI - Utilities Module
-Enhanced with Reasoning capabilities
+Enhanced with Reasoning capabilities and CLI
 """
 
 from .file_uploader import (
@@ -36,6 +36,13 @@ from .cache import (
     cached,
 )
 
+from .cli import (
+    BlossomCLI,
+    quick_image,
+    quick_text,
+    quick_audio,
+)
+
 __all__ = [
     # File handling
     "FileContentReader",
@@ -66,4 +73,7 @@ __all__ = [
     "get_cache",
     "configure_cache",
     "cached",
+
+    # CLI
+    "BlossomCLI",
 ]

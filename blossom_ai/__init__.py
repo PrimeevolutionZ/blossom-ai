@@ -2,7 +2,7 @@
 🌸 Blossom AI - Beautiful Python SDK for Pollinations.AI
 Generate images, text, and audio with AI
 
-Version: 0.4.5
+Version: 0.4.7
 """
 
 from blossom_ai.generators import (
@@ -73,7 +73,6 @@ from blossom_ai.utils import (
     create_reasoning_enhancer,
     get_native_reasoning_models,
     ReasoningMode,
-
     # Caching
     CacheBackend,
     CacheConfig,
@@ -81,9 +80,11 @@ from blossom_ai.utils import (
     get_cache,
     configure_cache,
     cached,
+    # CLI
+    BlossomCLI,
 )
 
-__version__ = "0.4.6"
+__version__ = "0.4.7"
 __author__ = "Blossom AI Team"
 __license__ = "MIT"
 
@@ -144,6 +145,8 @@ __all__ = [
     "ReasoningEnhancer",
     "ReasoningChain",
     "create_reasoning_enhancer",
+    "get_native_reasoning_models",
+    "ReasoningMode",
 
     # Utils - Caching
     "CacheBackend",
@@ -152,6 +155,9 @@ __all__ = [
     "get_cache",
     "configure_cache",
     "cached",
+
+    # Utils - CLI
+    "BlossomCLI",
 
     # Version
     "__version__",

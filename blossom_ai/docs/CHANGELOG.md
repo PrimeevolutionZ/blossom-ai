@@ -3,29 +3,287 @@
 This document tracks the changes and updates across different versions of the Blossom AI SDK.
 
 ---
-## Blossom AI SDK – v0.4.6  
+
+## Blossom AI SDK — v0.4.7
+CLI Interface Release (no breaking changes)
+
+---
+
+## 🎯 Summary
+- **Zero breaking changes** — drop-in replacement for 0.4.6
+- **New CLI interface** for quick terminal-based generation
+- **Improved developer experience** with interactive menu
+- **100% backward compatible** with all previous versions
+
+---
+
+## 🆕 New Features
+
+### 🖥️ CLI Interface
+
+**Interactive Terminal Interface**
+- 🌸 Beautiful menu-driven interface for all generation types
+- ⚡ Quick command-line options for automation
+- 🎯 No code required - perfect for testing and learning
+- 🔧 Shell script integration support
+
+**Usage Examples:**
+```bash
+# Interactive mode
+python -m blossom_ai.utils.cli
+
+# Quick image generation
+python -m blossom_ai.utils.cli --image "sunset" --output sunset.png
+
+# Quick text generation
+python -m blossom_ai.utils.cli --text "Write a poem"
+
+# Quick audio (V1 only)
+python -m blossom_ai.utils.cli --version v1 --audio "Hello" --output hello.mp3
+```
+
+**Features:**
+- ✅ Interactive menu for all generation types
+- ✅ Optional parameter configuration
+- ✅ Model selection and listing
+- ✅ Real-time streaming support for text
+- ✅ URL display for generated images
+- ✅ Automatic error handling
+- ✅ API token management (env vars or CLI args)
+- ✅ Version selection (V1/V2)
+
+### 📦 Python API Access
+
+```python
+from blossom_ai.utils import BlossomCLI
+
+# Launch interactive CLI
+cli = BlossomCLI(api_token="token", api_version="v2")
+cli.run()
+```
+
+---
+
+## 📚 Documentation
+
+**New Documentation:**
+- ✅ [CLI Interface Guide](CLI.md) - Complete CLI documentation
+- ✅ Updated [INDEX.md](INDEX.md) - Added CLI section
+- ✅ Updated version comparison table
+
+**CLI Documentation Includes:**
+- Quick start guide
+- Interactive mode walkthrough
+- Command-line examples
+- Shell scripting examples
+- Configuration options
+- FAQ section
+- When to use CLI vs Library
+
+---
+
+## 🔄 Changes
+
+### Exports
+
+**blossom_ai.utils:**
+```python
+# Added
+from blossom_ai.utils import BlossomCLI
+```
+
+**blossom_ai (main package):**
+```python
+# Added
+from blossom_ai import BlossomCLI
+```
+---
+
+## 🎨 CLI Features Breakdown
+
+### Image Generation
+- Interactive prompt input
+- Model selection (flux, turbo, etc.)
+- Dimension configuration (width/height)
+- Filename customization
+- Direct URL display
+
+### Text Generation
+- Interactive prompt input
+- Model selection (openai, deepseek, etc.)
+- System prompt configuration
+- Streaming support (real-time output)
+- Model listing
+
+### Audio Generation
+- Text-to-speech (V1 only)
+- Voice selection (alloy, nova, etc.)
+- Filename customization
+- V1/V2 version awareness
+
+### Configuration
+- API token via environment variables
+- API token via CLI arguments
+- API token via Python code
+- Version selection (V1/V2)
+- Debug mode support
+---
+
+## 🛠️ Implementation Details
+
+**Design Philosophy:**
+- CLI for terminal usage only (no duplication of library functions)
+- Interactive mode for exploration and learning
+- Quick commands for automation and scripting
+- Clean separation from programmatic API
+
+**Technical Details:**
+- Built on top of existing `Blossom` client
+- Reuses all existing error handling
+- No additional dependencies
+- Works with both V1 and V2 APIs
+- Proper resource cleanup
+
+---
+
+## 📊 Comparison: CLI vs Library
+
+| Use Case                    | CLI             | Library         |
+|-----------------------------|-----------------|-----------------|
+| Quick terminal testing      | ✅ Perfect       | ❌ Overkill      |
+| Shell script automation     | ✅ Ideal         | ⚠️ Possible     |
+| Production applications     | ❌ Limited       | ✅ Recommended   |
+| Complex workflows           | ❌ Not suitable  | ✅ Required      |
+| Learning & exploration      | ✅ Excellent     | ⚠️ More complex |
+| Integration with other code | ❌ Not possible  | ✅ Full support  |
+| Error handling & retries    | ⚠️ Basic        | ✅ Advanced      |
+| Caching & optimization      | ❌ Not available | ✅ Full support  |
+---
+### Using the New CLI
+
+**Terminal Usage:**
+```bash
+# Interactive mode
+python -m blossom_ai.utils.cli
+
+# Quick commands
+python -m blossom_ai.utils.cli --image "cat" --output cat.png
+```
+
+**Python Usage (if needed):**
+```python
+from blossom_ai.utils import BlossomCLI
+
+cli = BlossomCLI()
+cli.run()
+```
+
+### Existing Code
+
+All existing code continues to work without changes:
+
+```python
+# Your existing code - still works perfectly
+from blossom_ai import Blossom
+
+with Blossom(api_version="v2", api_token="token") as client:
+    image = client.image.generate("sunset")
+    text = client.text.generate("Hello")
+```
+
+---
+
+## 🎯 Use Cases
+
+### Perfect for CLI:
+- ✅ Quick testing and validation
+- ✅ Learning the API
+- ✅ Simple shell automation
+- ✅ One-off generation tasks
+- ✅ Demonstrations and tutorials
+
+### Use Library Instead:
+- ✅ Production applications
+- ✅ Complex workflows
+- ✅ Error handling and retries
+- ✅ Caching and optimization
+- ✅ Integration with other code
+- ✅ Advanced features (reasoning, caching)
+
+---
+
+## 🔄 Backward Compatibility
+
+**100% Backward Compatible:**
+- ✅ All existing APIs unchanged
+- ✅ All method signatures unchanged
+- ✅ All return types unchanged
+- ✅ All exports preserved
+- ✅ Zero breaking changes
+
+**New Exports (Additions Only):**
+```python
+# New in v0.4.7
+from blossom_ai import BlossomCLI
+from blossom_ai.utils import BlossomCLI
+```
+---
+
+## 📊 Version Comparison
+
+| Feature                 | v0.4.6 | v0.4.7 |
+|-------------------------|--------|--------|
+| CLI Interface           | ❌      | ✅      |
+| Interactive Menu        | ❌      | ✅      |
+| Command-line Automation | ❌      | ✅      |
+| Terminal Usage          | ❌      | ✅      |
+| V2 API Support          | ✅      | ✅      |
+| Reasoning Module        | ✅      | ✅      |
+| Caching Module          | ✅      | ✅      |
+| Integration Tests       | ✅      | ✅      |
+| Production Ready        | ✅      | ✅      |
+
+---
+**Community Requests:**
+- Your feedback is welcome!
+- [Open an issue](https://github.com/PrimeevolutionZ/blossom-ai/issues)
+- [Contribute](../../CONTRIBUTING.md)
+
+---
+
+## 📝 Notes
+
+- **Python Support**: 3.9+ (unchanged)
+- **API Compatibility**: V1 and V2 both supported
+- **Breaking Changes**: None
+- **Deprecations**: None
+- **New Features**: CLI Interface
+
+---
+
+## Blossom AI SDK — v0.4.6  
 Production-ready hot-fix release (no breaking changes)
 
 ---
 
 ## 🎯 Summary
-- **Zero breaking changes** – drop-in replacement for 0.4.5  
+- **Zero breaking changes** — drop-in replacement for 0.4.5  
 - **Fixes all critical issues** discovered after 0.4.5 publication  
-- **100 % tests green** on both V1 and V2 APIs  
+- **100% tests green** on both V1 and V2 APIs  
 
 ---
 
 ## 🔧 Library Fixes (user-visible)
 
-| Area | Fix | Commit / PR |
-|---|---|---|
-| **V1 API** | Added missing `IMAGE`, `TEXT`, `AUDIO` endpoints in `config.py` → V1 generators no longer crash on import | 3f1a2c4 |
-| **Error handling** | 401 responses now **always** raise `AuthenticationError` instead of raw `HTTPError` | 9e8b1f3 |
-| **VCR tests** | Integration suite **passes completely** (11 passed, 3 skipped, 0 failed) | test_integration.py |
-| **Timeouts** | Increased default **read timeout to 90 s** for heavy V1 prompts; keeps 30 s for V2 | 4d5b9e2 |
-| **Streaming** | Async streaming **no longer hangs** on slow chunks; `readany()` fallback added for `MockStream` | 7c3e4a1 |
-| **Memory** | Plugged **session leak** in long-running apps (WeakRef finaliser) | 2a9c0d8 |
-| **Import speed** | **Lazy model lists** still work; extra safety-check for missing endpoints | 1b4e5f0 |
+| Area               | Fix                                                                                                       | Commit / PR         |
+|--------------------|-----------------------------------------------------------------------------------------------------------|---------------------|
+| **V1 API**         | Added missing `IMAGE`, `TEXT`, `AUDIO` endpoints in `config.py` → V1 generators no longer crash on import | 3f1a2c4             |
+| **Error handling** | 401 responses now **always** raise `AuthenticationError` instead of raw `HTTPError`                       | 9e8b1f3             |
+| **VCR tests**      | Integration suite **passes completely** (11 passed, 3 skipped, 0 failed)                                  | test_integration.py |
+| **Timeouts**       | Increased default **read timeout to 90 s** for heavy V1 prompts; keeps 30 s for V2                        | 4d5b9e2             |
+| **Streaming**      | Async streaming **no longer hangs** on slow chunks; `readany()` fallback added for `MockStream`           | 7c3e4a1             |
+| **Memory**         | Plugged **session leak** in long-running apps (WeakRef finaliser)                                         | 2a9c0d8             |
+| **Import speed**   | **Lazy model lists** still work; extra safety-check for missing endpoints                                 | 1b4e5f0             |
 
 ---
 
@@ -40,32 +298,35 @@ Production-ready hot-fix release (no breaking changes)
 
 ## 🛠️ Internal / Developer
 
-| Change | Why |
-|---|---|
-| **Centralised 401 handler** | One place to catch auth errors → cleaner logs |
-| **VCR `match_on=["method", "scheme", "host", "port", "path"]`** | Avoids false mismatches when query string changes |
-| **WeakRef session store** | Prevents “Event loop is closed” warnings in notebooks |
-| **Retry decorator** | `retry_on_server_error()` reusable for future flaky tests |
+| Change                                                          | Why                                                       |
+|-----------------------------------------------------------------|-----------------------------------------------------------|
+| **Centralised 401 handler**                                     | One place to catch auth errors → cleaner logs             |
+| **VCR `match_on=["method", "scheme", "host", "port", "path"]`** | Avoids false mismatches when query string changes         |
+| **WeakRef session store**                                       | Prevents "Event loop is closed" warnings in notebooks     |
+| **Retry decorator**                                             | `retry_on_server_error()` reusable for future flaky tests |
 
 ---
 
 ## 📊 Benchmark vs 0.4.5
 
-| Metric | 0.4.5 | 0.4.6 | Δ |
-|---|---|---|---|
-| **V1 import crash** | ❌ | ✅ | **fixed** |
-| **401 → AuthenticationError** | ❌ | ✅ | **fixed** |
-| **Integration tests** | 19/21 | 21/21 | **+2** |
-| **VCR stability** | flaky | solid | **reliable** |
-| **Long-prompt timeout** | 30 s | 90 s | **survives slow server** |
-| **Memory leak** | small | 0 | **plugged** |
+| Metric                        | 0.4.5 | 0.4.6 | Δ                        |
+|-------------------------------|-------|-------|--------------------------|
+| **V1 import crash**           | ❌     | ✅     | **fixed**                |
+| **401 → AuthenticationError** | ❌     | ✅     | **fixed**                |
+| **Integration tests**         | 19/21 | 21/21 | **+2**                   |
+| **VCR stability**             | flaky | solid | **reliable**             |
+| **Long-prompt timeout**       | 30 s  | 90 s  | **survives slow server** |
+| **Memory leak**               | small | 0     | **plugged**              |
 
 ---
 
-## 🔄 Migration Guide
+## 📄 Migration Guide
 
 **No code changes required.**
-## v0.4.5 (lastes)
+
+---
+
+## v0.4.5
 
 ### 🎯 Overview
 
@@ -86,8 +347,8 @@ This release focuses on production readiness, performance optimization, and secu
 ### 🛡️ Security Enhancements
 
 **Token Security**
-- 🔐 **Headers-only authentication**: Tokens never appear in URLs
-- 🔒 **No log exposure**: API keys cannot leak through nginx/CDN logs
+- 🔒 **Headers-only authentication**: Tokens never appear in URLs
+- 🔑 **No log exposure**: API keys cannot leak through nginx/CDN logs
 - ✅ **SSL verification**: Certificate validation now enforced by default
 - 🛡️ **Safe URL sharing**: Generated URLs can be shared without security concerns
 
@@ -123,7 +384,7 @@ pytest tests/test_integration.py -v
 **Error Handling**
 - 🔄 **Smart retry logic**: Uses `retry_after` from rate limit responses
 - ⚡ **Faster recovery**: Respects API guidance instead of fixed delays
-- 📝 **Better error messages**: Clear suggestions for common issues
+- 🔍 **Better error messages**: Clear suggestions for common issues
 
 ### 🔧 Bug Fixes
 
@@ -159,7 +420,7 @@ pytest tests/test_integration.py -v
 - Added `vcrpy` for test recording (dev dependency)
 - All runtime dependencies unchanged
 
-### 🔄 Migration Guide
+### 📄 Migration Guide
 
 **No migration needed!** This release is 100% backward compatible.
 

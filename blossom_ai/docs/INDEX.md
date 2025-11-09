@@ -10,9 +10,10 @@ Welcome to the Blossom AI documentation! This guide will help you get started wi
 
 Perfect for newcomers to Blossom AI.
 
-| Guide                                       | Description                                        |
-|---------------------------------------------|----------------------------------------------------|
-| **[Installation & Setup](INSTALLATION.md)** | Install the package and configure your environment |
+| Guide                                       | Description                                         |
+|---------------------------------------------|-----------------------------------------------------|
+| **[Installation & Setup](INSTALLATION.md)** | Install the package and configure your environment  |
+| **[CLI Interface](CLI.md)**                 | **NEW!** Quick terminal interface for AI generation |
 
 ---
 
@@ -80,6 +81,7 @@ Tools to enhance your workflows.
 
 | Guide                                     | Description                                                                    |
 |-------------------------------------------|--------------------------------------------------------------------------------|
+| **[CLI Interface](CLI.md)**               | **NEW!** Simple terminal interface for quick AI generation                     |
 | **[File Content Reader](FILE_READER.md)** | Read text files and integrate them with AI prompts while respecting API limits |
 | **[Reasoning Module](REASONING.md)**      | **NEW!** Enhance prompts with structured thinking for better responses         |
 | **[Caching Module](CAHCING.md)**          | **NEW!** Cache AI responses to reduce costs and improve performance            |
@@ -87,7 +89,16 @@ Tools to enhance your workflows.
 | ✂️ Auto-Truncation                        | Handle large files gracefully                                                  |
 | 📦 Multiple Files                         | Combine and process multiple files                                             |
 
-### ✨ New in v0.4.1: Reasoning & Caching
+### ✨ New in v0.4.7: CLI Interface
+
+**Command-Line Interface** - Quick terminal access:
+- 🖥️ Interactive menu for all features
+- ⚡ Quick commands for automation
+- 🎯 No code required
+- 📝 Perfect for testing and learning
+- 🔧 Shell script integration
+
+### ✨ Also in v0.4.1: Reasoning & Caching
 
 **Reasoning Module** - Structured thinking for AI:
 - 🧠 Multiple reasoning levels (LOW, MEDIUM, HIGH, ADAPTIVE)
@@ -146,6 +157,12 @@ Get involved and keep the project secure.
 
 ### Common Tasks
 
+#### CLI (New!)
+- **Quick terminal usage:** [CLI - Quick Start](CLI.md#-quick-start)
+- **Interactive mode:** [CLI - Interactive Mode](CLI.md#method-1-interactive-mode-recommended)
+- **Command-line automation:** [CLI - Quick Commands](CLI.md#method-2-quick-commands)
+- **Shell scripting:** [CLI - Examples](CLI.md#-command-line-examples)
+
 #### V2 API
 - **Migrate to V2:** [V2 Migration Guide](V2_MIGRATION_GUIDE.md)
 - **Generate HD images:** [V2 Image Generation - Quality](V2_IMAGE_GENERATION.md#-quality-levels)
@@ -161,6 +178,7 @@ Get involved and keep the project secure.
 - **Use in async code:** [Resource Management - Async](RESOURCE_MANAGEMENT.md#asynchronous-context-manager)
 
 #### Utilities (New!)
+- **Use CLI interface:** [CLI - Quick Start](CLI.md#-quick-start)
 - **Add reasoning to prompts:** [Reasoning - Quick Start](REASONING.md#-quick-start)
 - **Cache AI responses:** [Caching - Quick Start](CAHCING.md#-quick-start)
 - **Reduce API costs:** [Caching - Best Practices](CAHCING.md#-best-practices)
@@ -174,6 +192,8 @@ Get involved and keep the project secure.
 
 | Use Case                  | Guide                                                                                                   |
 |---------------------------|---------------------------------------------------------------------------------------------------------|
+| **Quick Terminal Usage**  | [CLI Interface](CLI.md)                                                                                 |
+| **Shell Automation**      | [CLI - Command-Line Examples](CLI.md#-command-line-examples)                                            |
 | **Web Application (V2)**  | [V2 API Reference - Complete Example](V2_API_REFERENCE.md#-complete-example)                            |
 | **HD Image Generation**   | [V2 Image Generation - Quality](V2_IMAGE_GENERATION.md#-quality-levels)                                 |
 | **AI Chatbot with Tools** | [V2 Text Generation - Function Calling](V2_TEXT_GENERATION.md#-function-calling)                        |
@@ -201,6 +221,24 @@ Get involved and keep the project secure.
 ## 🌟 Popular Recipes
 
 Quick code snippets for common tasks:
+
+### CLI Quick Usage (New!)
+
+```bash
+# Interactive mode - explore all features
+python -m blossom_ai.utils.cli
+
+# Quick image generation
+python -m blossom_ai.utils.cli --image "sunset" --output sunset.png
+
+# Quick text generation
+python -m blossom_ai.utils.cli --text "Write a poem"
+
+# Batch processing in shell
+for i in {1..5}; do
+    python -m blossom_ai.utils.cli --image "cat $i" --output "cat_$i.png"
+done
+```
 
 ### V2 API with Advanced Features
 
@@ -307,27 +345,30 @@ print(f"Memory: {stats.memory_usage} items")
 
 ## 📄 Version Comparison
 
-| Feature                   | V1 (Legacy) | V2 (New)               | Utils      |
-|---------------------------|-------------|------------------------|------------|
-| **Image Quality Control** | ❌           | ✅ (low/medium/high/hd) | -          |
-| **Guidance Scale**        | ❌           | ✅ (1.0-20.0)           | -          |
-| **Negative Prompts**      | ❌           | ✅                      | -          |
-| **Transparent Images**    | ❌           | ✅                      | -          |
-| **Image-to-Image**        | ❌           | ✅                      | -          |
-| **Function Calling**      | ❌           | ✅                      | -          |
-| **Max Tokens Control**    | ❌           | ✅                      | -          |
-| **Frequency Penalty**     | ❌           | ✅ (0-2)                | -          |
-| **Presence Penalty**      | ❌           | ✅ (0-2)                | -          |
-| **Top-P Sampling**        | ❌           | ✅                      | -          |
-| **Temperature Range**     | 0-1         | 0-2 (extended)         | -          |
-| **Basic Generation**      | ✅           | ✅                      | -          |
-| **Streaming**             | ✅           | ✅ (improved)           | -          |
-| **JSON Mode**             | ✅           | ✅ (more reliable)      | -          |
-| **Reasoning Enhancement** | -           | -                      | ✅ **NEW!** |
-| **Response Caching**      | -           | -                      | ✅ **NEW!** |
-| **File Reading**          | -           | -                      | ✅          |
+| Feature                   | V1 (Legacy) | V2 (New)               | Utils      | CLI        |
+|---------------------------|-------------|------------------------|------------|------------|
+| **Terminal Interface**    | ❌           | ❌                      | ❌          | ✅ **NEW!** |
+| **Interactive Menu**      | ❌           | ❌                      | ❌          | ✅ **NEW!** |
+| **Command Automation**    | ❌           | ❌                      | ❌          | ✅ **NEW!** |
+| **Image Quality Control** | ❌           | ✅ (low/medium/high/hd) | -          | ✅          |
+| **Guidance Scale**        | ❌           | ✅ (1.0-20.0)           | -          | ✅          |
+| **Negative Prompts**      | ❌           | ✅                      | -          | ✅          |
+| **Transparent Images**    | ❌           | ✅                      | -          | ✅          |
+| **Image-to-Image**        | ❌           | ✅                      | -          | ✅          |
+| **Function Calling**      | ❌           | ✅                      | -          | ✅          |
+| **Max Tokens Control**    | ❌           | ✅                      | -          | ✅          |
+| **Frequency Penalty**     | ❌           | ✅ (0-2)                | -          | ✅          |
+| **Presence Penalty**      | ❌           | ✅ (0-2)                | -          | ✅          |
+| **Top-P Sampling**        | ❌           | ✅                      | -          | ✅          |
+| **Temperature Range**     | 0-1         | 0-2 (extended)         | -          | ✅          |
+| **Basic Generation**      | ✅           | ✅                      | -          | ✅          |
+| **Streaming**             | ✅           | ✅ (improved)           | -          | ✅          |
+| **JSON Mode**             | ✅           | ✅ (more reliable)      | -          | ✅          |
+| **Reasoning Enhancement** | -           | -                      | ✅ **NEW!** | -          |
+| **Response Caching**      | -           | -                      | ✅ **NEW!** | -          |
+| **File Reading**          | -           | -                      | ✅          | -          |
 
-**Recommendation:** Use V2 for new projects. Add Reasoning + Caching for production apps.
+**Recommendation:** Use CLI for quick terminal tasks, V2 API for production apps, and add Reasoning + Caching for optimization.
 
 ---
 
