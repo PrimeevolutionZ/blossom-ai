@@ -1,27 +1,16 @@
 """
-Blossom AI - Universal Client (Fixed V2 Audio Issue)
-Supports both legacy and new enter.pollinations.ai API
+Blossom AI - Universal Client (v0.5.0)
+V2 API Only (enter.pollinations.ai)
 """
 
 import asyncio
 import inspect
-from typing import Optional, Iterator, Union, Literal
+from typing import Optional, Iterator, Union
 
 from blossom_ai.generators.generators import (
     ImageGenerator, AsyncImageGenerator,
-    TextGenerator, AsyncTextGenerator,
-    AudioGenerator, AsyncAudioGenerator
+    TextGenerator, AsyncTextGenerator
 )
-
-# Import V2 generators
-try:
-    from blossom_ai.generators.generators_v2 import (
-        ImageGeneratorV2, AsyncImageGeneratorV2,
-        TextGeneratorV2, AsyncTextGeneratorV2
-    )
-    V2_AVAILABLE = True
-except ImportError:
-    V2_AVAILABLE = False
 
 
 def _is_running_in_async_loop() -> bool:
@@ -91,116 +80,70 @@ class HybridTextGenerator(HybridGenerator):
     """Hybrid text generator"""
 
     def generate(self, prompt: str, **kwargs) -> Union[str, Iterator[str]]:
+        """Generate text from a prompt"""
         return self._call("generate", prompt, **kwargs)
 
     def chat(self, messages: list, **kwargs) -> Union[str, Iterator[str]]:
+        """Chat completion"""
         return self._call("chat", messages, **kwargs)
 
     def models(self) -> list:
+        """Get list of available text models"""
         return self._call("models")
-
-
-class HybridAudioGenerator(HybridGenerator):
-    """Hybrid audio generator"""
-
-    def generate(self, text: str, **kwargs) -> bytes:
-        return self._call("generate", text, **kwargs)
-
-    def save(self, text: str, filename: str, **kwargs) -> str:
-        return self._call("save", text, filename, **kwargs)
-
-    def voices(self) -> list:
-        return self._call("voices")
 
 
 class Blossom:
     """
     Universal Blossom AI client for both sync and async use
 
-    Supports both API versions:
-    - v1 (legacy): image.pollinations.ai, text.pollinations.ai
-    - v2 (new): enter.pollinations.ai/api
+    Uses V2 API (enter.pollinations.ai) with OpenAI-compatible endpoints
 
     Args:
-        timeout: Request timeout in seconds
-        debug: Enable debug logging
+        timeout: Request timeout in seconds (default: 30)
+        debug: Enable debug logging (default: False)
         api_token: API token from enter.pollinations.ai
-        api_version: API version to use ("v1" or "v2", default: "v1")
 
     Examples:
-        # Legacy API (v1)
+        # Sync usage
         >>> client = Blossom(api_token="your_token")
         >>> image = client.image.generate("a sunset")
-
-        # New API (v2) with more features
-        >>> client = Blossom(api_token="your_token", api_version="v2")
-        >>> image = client.image.generate("a sunset", quality="hd", guidance_scale=7.5)
+        >>> text = client.text.generate("Write a poem")
 
         # Async usage
-        >>> async with Blossom(api_version="v2") as client:
+        >>> async with Blossom(api_token="your_token") as client:
         ...     image = await client.image.generate("a sunset")
+        ...     text = await client.text.generate("Write a poem")
+
+        # Streaming
+        >>> for chunk in client.text.generate("Tell a story", stream=True):
+        ...     print(chunk, end="", flush=True)
+
+    Note:
+        Version 0.5.0+ uses V2 API only.
+        V1 API support removed (discontinued by Pollinations).
     """
 
     def __init__(
         self,
         timeout: int = 30,
         debug: bool = False,
-        api_token: Optional[str] = None,
-        api_version: Literal["v1", "v2"] = "v1"
+        api_token: Optional[str] = None
     ):
-        self.api_version = api_version
         self.api_token = api_token
         self.timeout = timeout
         self.debug = debug
 
-        # Initialize generators based on API version
-        if api_version == "v2":
-            if not V2_AVAILABLE:
-                raise ImportError(
-                    "V2 API generators not available. "
-                    "Make sure generators_v2.py is present."
-                )
-
-            sync_image = ImageGeneratorV2(timeout=timeout, api_token=api_token)
-            async_image = AsyncImageGeneratorV2(timeout=timeout, api_token=api_token)
-            sync_text = TextGeneratorV2(timeout=timeout, api_token=api_token)
-            async_text = AsyncTextGeneratorV2(timeout=timeout, api_token=api_token)
-
-            # ✅ FIX: V2 doesn't support audio, use V1 fallback only if needed
-            # For now, use None to avoid breaking initialization
-            try:
-                from blossom_ai.core.config import ENDPOINTS
-                if hasattr(ENDPOINTS, 'AUDIO'):
-                    sync_audio = AudioGenerator(timeout=timeout, api_token=api_token)
-                    async_audio = AsyncAudioGenerator(timeout=timeout, api_token=api_token)
-                else:
-                    # Audio not available in V2
-                    sync_audio = None
-                    async_audio = None
-            except (ImportError, AttributeError):
-                sync_audio = None
-                async_audio = None
-
-        else:  # v1 (legacy)
-            sync_image = ImageGenerator(timeout=timeout, api_token=api_token)
-            async_image = AsyncImageGenerator(timeout=timeout, api_token=api_token)
-            sync_text = TextGenerator(timeout=timeout, api_token=api_token)
-            async_text = AsyncTextGenerator(timeout=timeout, api_token=api_token)
-            sync_audio = AudioGenerator(timeout=timeout, api_token=api_token)
-            async_audio = AsyncAudioGenerator(timeout=timeout, api_token=api_token)
+        # Initialize generators
+        sync_image = ImageGenerator(timeout=timeout, api_token=api_token)
+        async_image = AsyncImageGenerator(timeout=timeout, api_token=api_token)
+        sync_text = TextGenerator(timeout=timeout, api_token=api_token)
+        async_text = AsyncTextGenerator(timeout=timeout, api_token=api_token)
 
         self.image = HybridImageGenerator(sync_image, async_image)
         self.text = HybridTextGenerator(sync_text, async_text)
 
-        # ✅ FIX: Only create audio generator if available
-        if sync_audio and async_audio:
-            self.audio = HybridAudioGenerator(sync_audio, async_audio)
-            self._async_generators = [async_image, async_text, async_audio]
-            self._sync_generators = [sync_image, sync_text, sync_audio]
-        else:
-            self.audio = None  # Audio not available in V2
-            self._async_generators = [async_image, async_text]
-            self._sync_generators = [sync_image, sync_text]
+        self._async_generators = [async_image, async_text]
+        self._sync_generators = [sync_image, sync_text]
 
     async def __aenter__(self):
         return self
@@ -219,7 +162,7 @@ class Blossom:
     def close_sync(self):
         """
         Close sync session resources
-        This is safe to call from __exit__ or manually
+        Safe to call from __exit__ or manually
         """
         for gen in self._sync_generators:
             if gen is None:
@@ -256,33 +199,23 @@ class Blossom:
 
     def __repr__(self) -> str:
         token_status = "with token" if self.api_token else "without token"
-        audio_status = "with audio" if self.audio else "without audio"
-        return (
-            f"<Blossom AI Client (api_version={self.api_version}, "
-            f"timeout={self.timeout}s, {token_status}, {audio_status})>"
-        )
+        return f"<Blossom AI Client v0.5.0 (V2 API, timeout={self.timeout}s, {token_status})>"
 
 
-# Convenience factory functions
-def create_client(
-    api_version: Literal["v1", "v2"] = "v1",
-    api_token: Optional[str] = None,
-    **kwargs
-) -> Blossom:
+# Convenience factory function
+def create_client(api_token: Optional[str] = None, **kwargs) -> Blossom:
     """
     Factory function to create Blossom client
 
     Args:
-        api_version: "v1" (legacy) or "v2" (new enter.pollinations.ai)
-        api_token: Your API token
+        api_token: Your API token from enter.pollinations.ai
         **kwargs: Additional arguments for Blossom()
 
     Returns:
         Blossom client instance
 
     Example:
-        >>> # Use new V2 API
-        >>> client = create_client("v2", api_token="your_token")
+        >>> client = create_client(api_token="your_token")
         >>> image = client.image.generate("a sunset", quality="hd")
     """
-    return Blossom(api_version=api_version, api_token=api_token, **kwargs)
+    return Blossom(api_token=api_token, **kwargs)

@@ -1,40 +1,17 @@
 """
 🌸 Blossom AI - Beautiful Python SDK for Pollinations.AI
-Generate images, text, and audio with AI
-
-Version: 0.4.7
+Generate images and text with AI
+Version: 0.5.0
 """
 
 from blossom_ai.generators import (
     Blossom,
+    create_client,
     ImageGenerator,
     AsyncImageGenerator,
     TextGenerator,
     AsyncTextGenerator,
-    AudioGenerator,
-    AsyncAudioGenerator,
-    StreamChunk,
 )
-
-# V2 Generators
-try:
-    from blossom_ai.generators.generators_v2 import (
-        ImageGeneratorV2,
-        AsyncImageGeneratorV2,
-        TextGeneratorV2,
-        AsyncTextGeneratorV2,
-    )
-    V2_AVAILABLE = True
-except ImportError:
-    # V2 generators not available
-    ImageGeneratorV2 = None
-    AsyncImageGeneratorV2 = None
-    TextGeneratorV2 = None
-    AsyncTextGeneratorV2 = None
-    V2_AVAILABLE = False
-
-# Import create_client from blossom module
-from blossom_ai.generators.blossom import create_client
 
 from blossom_ai.core import (
     BlossomError,
@@ -47,12 +24,11 @@ from blossom_ai.core import (
     RateLimitError,
     StreamError,
     FileTooLargeError,
+    TimeoutError,
     ImageModel,
     TextModel,
-    Voice,
     DEFAULT_IMAGE_MODELS,
     DEFAULT_TEXT_MODELS,
-    DEFAULT_VOICES,
 )
 
 from blossom_ai.utils import (
@@ -93,21 +69,11 @@ __all__ = [
     "Blossom",
     "create_client",
 
-    # V1 Generators (Legacy)
+    # Generators (V2 Only)
     "ImageGenerator",
     "AsyncImageGenerator",
     "TextGenerator",
     "AsyncTextGenerator",
-    "AudioGenerator",
-    "AsyncAudioGenerator",
-    "StreamChunk",
-
-    # V2 Generators (New)
-    "ImageGeneratorV2",
-    "AsyncImageGeneratorV2",
-    "TextGeneratorV2",
-    "AsyncTextGeneratorV2",
-    "V2_AVAILABLE",
 
     # Errors
     "BlossomError",
@@ -120,14 +86,13 @@ __all__ = [
     "RateLimitError",
     "StreamError",
     "FileTooLargeError",
+    "TimeoutError",
 
     # Models
     "ImageModel",
     "TextModel",
-    "Voice",
     "DEFAULT_IMAGE_MODELS",
     "DEFAULT_TEXT_MODELS",
-    "DEFAULT_VOICES",
 
     # Utils - File handling
     "FileContentReader",
@@ -163,12 +128,5 @@ __all__ = [
     "__version__",
 ]
 
-
-# Helper function to check V2 availability
-def check_v2_available():
-    """Check if V2 API generators are available"""
-    return V2_AVAILABLE
-
-
-# Convenience aliases for backward compatibility
+# Convenience alias for backward compatibility
 BlossomClient = Blossom

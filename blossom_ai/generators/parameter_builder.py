@@ -1,6 +1,6 @@
 """
-Blossom AI - Parameter Builders (FIXED)
-Type-safe parameter construction with proper boolean handling for V2 API
+Blossom AI - Parameter Builders (v0.5.0)
+Type-safe parameter construction for V2 API
 """
 
 from typing import Optional, Dict, Any, List, Union
@@ -39,8 +39,7 @@ class BaseParams:
             if not include_defaults and self._is_default_value(key, value):
                 continue
 
-            # FIX: Keep booleans as-is (don't convert to strings)
-            # The API expects true/false, not "true"/"false"
+            # Keep booleans as-is (V2 API expects true/false, not "true"/"false")
             result[key] = value
 
         return result
@@ -52,50 +51,7 @@ class BaseParams:
 
 
 # ============================================================================
-# IMAGE PARAMETERS (V1)
-# ============================================================================
-
-@dataclass
-class ImageParams(BaseParams):
-    """Parameters for V1 image generation"""
-
-    model: str = DEFAULTS.IMAGE_MODEL
-    width: int = DEFAULTS.IMAGE_WIDTH
-    height: int = DEFAULTS.IMAGE_HEIGHT
-    seed: Optional[int] = None
-    nologo: bool = False
-    private: bool = False
-    enhance: bool = False
-    safe: bool = False
-    referrer: Optional[str] = None
-
-    def to_dict(self, include_none: bool = False, include_defaults: bool = False) -> Dict[str, Any]:
-        """Override to convert booleans to lowercase strings for V1 API"""
-        result = super().to_dict(include_none, include_defaults)
-
-        # V1 API expects "true"/"false" strings in URL params
-        for key, value in list(result.items()):
-            if isinstance(value, bool):
-                result[key] = str(value).lower()
-
-        return result
-
-    def _is_default_value(self, key: str, value: Any) -> bool:
-        """Check if value matches default"""
-        defaults = {
-            'model': DEFAULTS.IMAGE_MODEL,
-            'width': DEFAULTS.IMAGE_WIDTH,
-            'height': DEFAULTS.IMAGE_HEIGHT,
-            'nologo': False,
-            'private': False,
-            'enhance': False,
-            'safe': False,
-        }
-        return key in defaults and value == defaults[key]
-
-
-# ============================================================================
-# IMAGE PARAMETERS (V2) - FIXED
+# IMAGE PARAMETERS (V2)
 # ============================================================================
 
 @dataclass
@@ -119,7 +75,7 @@ class ImageParamsV2(BaseParams):
 
     def to_dict(self, include_none: bool = False, include_defaults: bool = False) -> Dict[str, Any]:
         """
-        FIX: V2 API needs proper types, NOT string conversion
+        V2 API needs proper types, NOT string conversion
         The API expects: ?nologo=true (boolean), not ?nologo="true" (string)
         """
         result = {}
@@ -131,7 +87,7 @@ class ImageParamsV2(BaseParams):
             if not include_defaults and self._is_default_value(key, value):
                 continue
 
-            # FIX: Keep booleans as actual booleans for V2 API
+            # Keep booleans as actual booleans for V2 API
             # requests library will convert them correctly in URL params
             result[key] = value
 
@@ -154,83 +110,6 @@ class ImageParamsV2(BaseParams):
             'transparent': False,
         }
         return key in defaults and value == defaults[key]
-
-
-# ============================================================================
-# TEXT PARAMETERS (V1)
-# ============================================================================
-
-@dataclass
-class TextParams(BaseParams):
-    """Parameters for V1 text generation"""
-
-    model: str = DEFAULTS.TEXT_MODEL
-    system: Optional[str] = None
-    seed: Optional[int] = None
-    temperature: Optional[float] = None
-    json_mode: bool = False
-    private: bool = False
-    stream: bool = False
-
-    def to_dict(self, include_none: bool = False, include_defaults: bool = False) -> Dict[str, Any]:
-        """Override to handle json_mode -> json conversion"""
-        result = super().to_dict(include_none, include_defaults)
-
-        # Convert json_mode to json parameter
-        if 'json_mode' in result:
-            if result['json_mode']:
-                result['json'] = 'true'
-            result.pop('json_mode')
-
-        # V1 API expects "true"/"false" strings
-        for key, value in list(result.items()):
-            if isinstance(value, bool):
-                result[key] = str(value).lower()
-
-        return result
-
-    def _is_default_value(self, key: str, value: Any) -> bool:
-        """Check if value matches default"""
-        defaults = {
-            'model': DEFAULTS.TEXT_MODEL,
-            'json_mode': False,
-            'private': False,
-            'stream': False,
-        }
-        return key in defaults and value == defaults[key]
-
-
-# ============================================================================
-# CHAT PARAMETERS (V1)
-# ============================================================================
-
-@dataclass
-class ChatParams(BaseParams):
-    """Parameters for V1 chat completion"""
-
-    model: str = DEFAULTS.TEXT_MODEL
-    messages: List[Dict[str, Any]] = field(default_factory=list)
-    temperature: float = DEFAULTS.TEMPERATURE
-    stream: bool = False
-    json_mode: bool = False
-    private: bool = False
-
-    def to_body(self) -> Dict[str, Any]:
-        """Convert to request body (not URL params)"""
-        body = {
-            'model': self.model,
-            'messages': self.messages,
-            'stream': self.stream,
-            'temperature': self.temperature,
-        }
-
-        if self.json_mode:
-            body['response_format'] = {'type': 'json_object'}
-
-        if self.private:
-            body['private'] = self.private
-
-        return body
 
 
 # ============================================================================
@@ -303,36 +182,6 @@ class ChatParamsV2(BaseParams):
                 body[key] = value
 
         return body
-
-
-# ============================================================================
-# AUDIO PARAMETERS
-# ============================================================================
-
-@dataclass
-class AudioParams(BaseParams):
-    """Parameters for audio generation"""
-
-    voice: str = DEFAULTS.AUDIO_VOICE
-    model: str = DEFAULTS.AUDIO_MODEL
-
-    def to_dict(self, include_none: bool = False, include_defaults: bool = False) -> Dict[str, Any]:
-        """Override to convert booleans to strings for V1 API"""
-        result = super().to_dict(include_none, include_defaults)
-
-        for key, value in list(result.items()):
-            if isinstance(value, bool):
-                result[key] = str(value).lower()
-
-        return result
-
-    def _is_default_value(self, key: str, value: Any) -> bool:
-        """Check if value matches default"""
-        defaults = {
-            'voice': DEFAULTS.AUDIO_VOICE,
-            'model': DEFAULTS.AUDIO_MODEL,
-        }
-        return key in defaults and value == defaults[key]
 
 
 # ============================================================================

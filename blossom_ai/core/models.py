@@ -1,8 +1,9 @@
 """
-Blossom AI - Models and Enums
+Blossom AI - Models and Enums (v0.5.0)
+V2 API Only (enter.pollinations.ai)
 """
 
-from typing import Set, Optional, List, ClassVar, Type
+from typing import Set, Optional, List, ClassVar
 from abc import ABC, abstractmethod
 import threading
 import time
@@ -66,11 +67,9 @@ class DynamicModel(ABC):
         cls,
         endpoint: str,
         api_token: Optional[str] = None,
-        timeout: int = 5  # Reduced timeout
+        timeout: int = 5
     ) -> List[ModelInfo]:
-        """
-        Fetch models from a single endpoint with timeout
-        """
+        """Fetch models from a single endpoint with timeout"""
         try:
             with SyncSessionManager() as session_manager:
                 session = session_manager.get_session()
@@ -86,7 +85,6 @@ class DynamicModel(ABC):
                     verify=True
                 )
 
-                # Don't crash on HTTP errors
                 if response.status_code != 200:
                     print_debug(f"API returned {response.status_code} from {endpoint}")
                     return []
@@ -127,7 +125,6 @@ class DynamicModel(ABC):
                         tier=item.get('tier')
                     ))
             except Exception as e:
-                # Skip malformed items
                 print_debug(f"Skipping malformed model item: {e}")
                 continue
 
@@ -141,10 +138,11 @@ class DynamicModel(ABC):
     ) -> bool:
         """
         Initialize known values from API (lazy, with TTL)
+
         Returns:
             True if successfully fetched from API, False if using fallback
         """
-        # FIX: Fast path - cache is still valid
+        # Fast path - cache is still valid
         if not force_refresh and cls._is_cache_valid():
             return True
 
@@ -183,7 +181,7 @@ class DynamicModel(ABC):
                     )
                     return True
                 else:
-                    # FIX: Still mark as initialized to prevent retry storms
+                    # Still mark as initialized to prevent retry storms
                     cls._cache_timestamp = time.time()
                     cls._initialized = True
                     print_warning(f"Using fallback defaults for {cls.__name__}")
@@ -196,12 +194,9 @@ class DynamicModel(ABC):
                 cls._initialized = True
                 return False
 
-    # ------------------------------------------------------------------
-    #  ➜  НОВЫЙ МЕТОД (нужен base_generator.py)
-    # ------------------------------------------------------------------
     @classmethod
     def update_known_values(cls, models: List[str]) -> None:
-        """Добавить/обновить список известных моделей вручную"""
+        """Add/update list of known models manually"""
         with cls._init_lock:
             cls._known_values.update(models)
             cls._initialized = True
@@ -209,9 +204,7 @@ class DynamicModel(ABC):
 
     @classmethod
     def from_string(cls, value: str) -> str:
-        """
-        Validate and register a model name
-        """
+        """Validate and register a model name"""
         if not value or not isinstance(value, str):
             raise ValueError(f"Invalid model name: {value}")
 
@@ -300,7 +293,7 @@ class TextModel(DynamicModel):
     @classmethod
     def get_api_endpoints(cls) -> List[str]:
         """Endpoints to fetch text models from"""
-        return [ENDPOINTS.V2_TEXT_MODELS]
+        return [ENDPOINTS.TEXT_MODELS]
 
 
 class ImageModel(DynamicModel):
@@ -324,31 +317,9 @@ class ImageModel(DynamicModel):
     @classmethod
     def get_api_endpoints(cls) -> List[str]:
         """Endpoints to fetch image models from"""
-        return [ENDPOINTS.V2_IMAGE_MODELS]
-
-
-class Voice(DynamicModel):
-    """Text-to-speech voices"""
-
-    ALLOY = "alloy"
-    ECHO = "echo"
-    FABLE = "fable"
-    ONYX = "onyx"
-    NOVA = "nova"
-    SHIMMER = "shimmer"
-
-    @classmethod
-    def get_defaults(cls) -> List[str]:
-        """Default TTS voices"""
-        return ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
-
-    @classmethod
-    def get_api_endpoints(cls) -> List[str]:
-        """Voices are typically hardcoded, not fetched from API"""
-        return []
+        return [ENDPOINTS.IMAGE_MODELS]
 
 
 # Convenience lists
 DEFAULT_TEXT_MODELS = TextModel.get_defaults()
 DEFAULT_IMAGE_MODELS = ImageModel.get_defaults()
-DEFAULT_VOICES = Voice.get_defaults()

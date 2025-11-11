@@ -1,6 +1,6 @@
 """
-Blossom AI - Core Module
-Refactored version with improved exports and organization
+Blossom AI - Core Module (v0.5.0)
+V2 API Only
 """
 
 # ==============================================================================
@@ -48,12 +48,10 @@ from .models import (
     # Model enums
     ImageModel,
     TextModel,
-    Voice,
 
-    # Backward compatibility
+    # Default model lists
     DEFAULT_IMAGE_MODELS,
     DEFAULT_TEXT_MODELS,
-    DEFAULT_VOICES,
 )
 
 
@@ -62,16 +60,13 @@ from .models import (
 # ==============================================================================
 
 from .config import (
-    # Enums
-    APIVersion,
-
     # Configuration classes
     APIEndpoints,
     Limits,
     Defaults,
     Config,
 
-    # Singletons (backward compatibility)
+    # Singletons
     ENDPOINTS,
     LIMITS,
     DEFAULTS,
@@ -130,13 +125,10 @@ __all__ = [
     "ModelInfo",
     "ImageModel",
     "TextModel",
-    "Voice",
     "DEFAULT_IMAGE_MODELS",
     "DEFAULT_TEXT_MODELS",
-    "DEFAULT_VOICES",
 
     # Configuration
-    "APIVersion",
     "APIEndpoints",
     "Limits",
     "Defaults",
