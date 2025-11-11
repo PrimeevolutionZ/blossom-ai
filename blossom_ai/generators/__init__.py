@@ -59,7 +59,7 @@ __all__ = [
     "Blossom",
     "create_client",
 
-    # V2 Generators (may be None if not available)
+    # V2 Generators
     "ImageGeneratorV2",
     "AsyncImageGeneratorV2",
     "TextGeneratorV2",
