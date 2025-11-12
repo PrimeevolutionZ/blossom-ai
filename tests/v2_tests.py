@@ -4,8 +4,7 @@ Fast tests for local development with V2 API
 """
 
 from pathlib import Path
-from blossom_ai import Blossom, MessageBuilder
-
+from blossom_ai import Blossom, MessageBuilder,BlossomError
 # ⚠️  Replace with your token from https://enter.pollinations.ai
 API_TOKEN = "your-token-here"
 
@@ -315,7 +314,7 @@ def test_v2_validation() -> None:
         try:
             c.image.generate("x" * 300)  # Too long
             assert False, "Should have raised ValidationError"
-        except ValidationError as e:
+        except BlossomError as e:
             print(f"✅ Caught expected error: {e.error_type}")
 
     finally:
