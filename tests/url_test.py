@@ -146,7 +146,7 @@ async def comparison():
     print("PERFORMANCE COMPARISON (V2 API)")
     print("=" * 70)
 
-    client = Blossom()
+    client = Blossom(api_token="Your-API-token")
     prompt = "a magical forest"
 
     # Method 1: Get URL only

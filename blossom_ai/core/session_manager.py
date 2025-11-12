@@ -204,12 +204,6 @@ class AsyncSessionManager:
             if not session.closed:
                 if session.connector:
                     session.connector._close()
-
-
-# ==============================================================================
-# Утилиты-контекст-менеджеры
-# ==============================================================================
-
 @contextmanager
 def get_sync_session():
     mgr = SyncSessionManager()
@@ -227,9 +221,5 @@ async def get_async_session():
     finally:
         await mgr.close()
 
-
-# ==============================================================================
-# Регистрация очистки при выгрузке
-# ==============================================================================
-
 atexit.register(AsyncSessionManager.close_all_global)
+SessionConfig = _Cfg
