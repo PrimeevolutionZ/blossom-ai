@@ -2,7 +2,7 @@
 Blossom AI - Generators (v0.5.0)
 V2 API Only (enter.pollinations.ai)
 """
-
+from typing import AsyncIterator, AsyncGenerator
 from typing import Optional, List, Dict, Any, Iterator, Union, AsyncIterator
 from urllib.parse import urlencode
 import json
@@ -565,12 +565,12 @@ class AsyncTextGenerator(AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerato
         self._sse_parser = SSEParser()
 
     def _validate_prompt(self, prompt: str) -> None:
-        """Validate prompt length"""
         ParameterValidator.validate_prompt_length(
             prompt, LIMITS.MAX_TEXT_PROMPT_LENGTH, "prompt"
         )
 
-    async def generate(
+    # ----------  ЕДИНЫЙ ПУБЛИЧНЫЙ МЕТОД  ----------
+    def generate(
         self,
         prompt: str,
         model: str = DEFAULTS.TEXT_MODEL,
@@ -582,24 +582,125 @@ class AsyncTextGenerator(AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerato
         tools: Optional[List[Dict]] = None,
         **kwargs
     ) -> Union[str, AsyncIterator[str]]:
-        """Generate text from a prompt (async)"""
+        """
+        Generate text from a prompt (async)
+
+        Returns:
+            str                   if stream=False
+            AsyncIterator[str]    if stream=True
+        """
         self._validate_prompt(prompt)
 
-        messages = []
+        msgs = []
         if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
+            msgs.append({"role": "system", "content": system})
+        msgs.append({"role": "user", "content": prompt})
 
-        return await self.chat(
+        if stream:
+            # возвращаем генератор
+            return self._generate_stream(
+                msgs, model, temperature, max_tokens, json_mode, tools, **kwargs
+            )
+        # возвращаем корутину, дающую строку
+        return self._generate_text(
+            msgs, model, temperature, max_tokens, json_mode, tools, **kwargs
+        )
+
+    # ----------  ВНУТРЕННИЕ ПОМОЩНИКИ  ----------
+    async def _generate_text(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        temperature: float,
+        max_tokens: Optional[int],
+        json_mode: bool,
+        tools: Optional[List[Dict]],
+        **kwargs
+    ) -> str:
+        """Простой текстовый запрос (без стриминга)"""
+        return await self.chat_text(
             messages=messages,
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
-            stream=stream,
             json_mode=json_mode,
             tools=tools,
             **kwargs
         )
+
+    async def _generate_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        temperature: float,
+        max_tokens: Optional[int],
+        json_mode: bool,
+        tools: Optional[List[Dict]],
+        **kwargs
+    ) -> AsyncIterator[str]:
+        """Стриминговый запрос"""
+        async for chunk in self.chat(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+            json_mode=json_mode,
+            tools=tools,
+            **kwargs
+        ):
+            yield chunk
+
+    # ----------  ОСТАЛЬНОЕ БЕЗ ИЗМЕНЕНИЙ  ----------
+    async def chat_text(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str = DEFAULTS.TEXT_MODEL,
+        temperature: float = DEFAULTS.TEMPERATURE,
+        max_tokens: Optional[int] = None,
+        json_mode: bool = False,
+        tools: Optional[List[Dict]] = None,
+        tool_choice: Optional[Union[str, Dict]] = None,
+        frequency_penalty: float = DEFAULTS.FREQUENCY_PENALTY,
+        presence_penalty: float = DEFAULTS.PRESENCE_PENALTY,
+        top_p: float = DEFAULTS.TOP_P,
+        n: int = 1,
+        thinking: Optional[Dict[str, Any]] = None,
+        modalities: Optional[List[str]] = None,
+        audio: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> str:
+        if modalities:
+            ParameterValidator.validate_modalities(modalities)
+
+        params = ChatParamsV2(
+            model=self._validate_model(model),
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=False,
+            json_mode=json_mode,
+            tools=tools,
+            tool_choice=tool_choice,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            top_p=top_p,
+            n=n,
+            thinking=thinking,
+            modalities=modalities,
+            audio=audio,
+            extra_params=kwargs
+        )
+
+        chat_url = f"{self.base_url}/generate/v1/chat/completions"
+        data = await self._make_request(
+            "POST",
+            chat_url,
+            json=params.to_body(),
+            headers={"Content-Type": "application/json"}
+        )
+        result = json.loads(data.decode('utf-8'))
+        return result["choices"][0]["message"]["content"]
 
     async def chat(
         self,
@@ -619,9 +720,7 @@ class AsyncTextGenerator(AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerato
         modalities: Optional[List[str]] = None,
         audio: Optional[Dict[str, Any]] = None,
         **kwargs
-    ) -> Union[str, AsyncIterator[str]]:
-        """Chat completion using V2 API with Vision & Audio (async)"""
-        # Validate modalities if provided
+    ) -> AsyncIterator[str]:
         if modalities:
             ParameterValidator.validate_modalities(modalities)
 
@@ -630,7 +729,7 @@ class AsyncTextGenerator(AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerato
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
-            stream=stream,
+            stream=True,
             json_mode=json_mode,
             tools=tools,
             tool_choice=tool_choice,
@@ -645,28 +744,18 @@ class AsyncTextGenerator(AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerato
         )
 
         chat_url = f"{self.base_url}/generate/v1/chat/completions"
+        resp = await self._make_request(
+            "POST",
+            chat_url,
+            json=params.to_body(),
+            headers={"Content-Type": "application/json"},
+            stream=True
+        )
 
-        if stream:
-            response = await self._make_request(
-                "POST",
-                chat_url,
-                json=params.to_body(),
-                headers={"Content-Type": "application/json"},
-                stream=True
-            )
-            return self._stream_sse_chunked(response, self._sse_parser)
-        else:
-            data = await self._make_request(
-                "POST",
-                chat_url,
-                json=params.to_body(),
-                headers={"Content-Type": "application/json"}
-            )
-            result = json.loads(data.decode('utf-8'))
-            return result["choices"][0]["message"]["content"]
+        async for chunk in self._stream_sse_chunked(resp, self._sse_parser):
+            yield chunk
 
     async def models(self) -> List[str]:
-        """Get list of available text models (async)"""
         if self._models_cache is None:
             try:
                 models_url = f"{self.base_url}/generate/v1/models"

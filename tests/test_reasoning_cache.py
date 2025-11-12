@@ -20,7 +20,7 @@ from blossom_ai.utils import (
 from blossom_ai.core.errors import BlossomError
 
 
-API_TOKEN = os.getenv("BLOSSOM_API_TOKEN", "your-api-token")
+API_TOKEN = os.getenv("BLOSSOM_API_TOKEN", "yor api token")
 pytestmark = pytest.mark.api
 
 
@@ -415,7 +415,7 @@ async def test_v2_async_streaming():
     async with Blossom(api_token=API_TOKEN) as client:
         chunks = []
 
-        async for chunk in await client.text.generate("Count to 3", stream=True):
+        async for chunk in client.text.generate("Count to 3", stream=True):
             chunks.append(chunk)
             print(chunk, end="", flush=True)
 
