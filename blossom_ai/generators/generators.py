@@ -12,7 +12,7 @@ from blossom_ai.generators.streaming_mixin import (
     SyncStreamingMixin, AsyncStreamingMixin, SSEParser
 )
 from blossom_ai.generators.parameter_builder import (
-    ImageParamsV2, ChatParamsV2, ParameterValidator
+    ImageParamsV2, ChatParamsV2, ParameterValidator, MessageBuilder
 )
 from blossom_ai.core.config import ENDPOINTS, LIMITS, DEFAULTS
 from blossom_ai.core.errors import print_warning
@@ -345,11 +345,11 @@ class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator):
 
 
 # ============================================================================
-# TEXT GENERATOR
+# TEXT GENERATOR (UPDATED WITH VISION & AUDIO)
 # ============================================================================
 
 class TextGenerator(SyncGenerator, SyncStreamingMixin, ModelAwareGenerator):
-    """Generate text using Pollinations AI V2 API (Synchronous)"""
+    """Generate text using Pollinations AI V2 API (Synchronous) with Vision & Audio"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
         SyncGenerator.__init__(self, ENDPOINTS.BASE, timeout, api_token)
@@ -434,10 +434,12 @@ class TextGenerator(SyncGenerator, SyncStreamingMixin, ModelAwareGenerator):
         top_p: float = DEFAULTS.TOP_P,
         n: int = 1,
         thinking: Optional[Dict[str, Any]] = None,
+        modalities: Optional[List[str]] = None,
+        audio: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> Union[str, Iterator[str]]:
         """
-        Chat completion using OpenAI-compatible V2 API
+        Chat completion using OpenAI-compatible V2 API with Vision & Audio
 
         Args:
             messages: List of message dicts with 'role' and 'content'
@@ -453,6 +455,8 @@ class TextGenerator(SyncGenerator, SyncStreamingMixin, ModelAwareGenerator):
             top_p: Top-p sampling
             n: Number of completions
             thinking: Native reasoning config
+            modalities: Output modalities ["text", "audio"]
+            audio: Audio config with voice: {"voice": "alloy", "format": "wav"}
             **kwargs: Additional parameters
 
         Returns:
@@ -460,13 +464,35 @@ class TextGenerator(SyncGenerator, SyncStreamingMixin, ModelAwareGenerator):
 
         Example:
             >>> gen = TextGenerator()
+            >>> # Text-only chat
             >>> messages = [
             ...     {"role": "system", "content": "You are a helpful assistant"},
             ...     {"role": "user", "content": "Hello!"}
             ... ]
             >>> response = gen.chat(messages)
-            >>> print(response)
+
+            >>> # Vision (image input)
+            >>> messages = [
+            ...     MessageBuilder.image_message(
+            ...         role="user",
+            ...         text="What's in this image?",
+            ...         image_path="photo.jpg"
+            ...     )
+            ... ]
+            >>> response = gen.chat(messages, model="openai")
+
+            >>> # Audio output
+            >>> messages = [{"role": "user", "content": "Tell me a joke"}]
+            >>> response = gen.chat(
+            ...     messages,
+            ...     modalities=["text", "audio"],
+            ...     audio={"voice": "alloy", "format": "wav"}
+            ... )
         """
+        # Validate modalities if provided
+        if modalities:
+            ParameterValidator.validate_modalities(modalities)
+
         params = ChatParamsV2(
             model=self._validate_model(model),
             messages=messages,
@@ -481,6 +507,8 @@ class TextGenerator(SyncGenerator, SyncStreamingMixin, ModelAwareGenerator):
             top_p=top_p,
             n=n,
             thinking=thinking,
+            modalities=modalities,
+            audio=audio,
             extra_params=kwargs
         )
 
@@ -529,7 +557,7 @@ class TextGenerator(SyncGenerator, SyncStreamingMixin, ModelAwareGenerator):
 
 
 class AsyncTextGenerator(AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerator):
-    """Generate text using Pollinations AI V2 API (Asynchronous)"""
+    """Generate text using Pollinations AI V2 API (Asynchronous) with Vision & Audio"""
 
     def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
         AsyncGenerator.__init__(self, ENDPOINTS.BASE, timeout, api_token)
@@ -588,9 +616,15 @@ class AsyncTextGenerator(AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerato
         top_p: float = DEFAULTS.TOP_P,
         n: int = 1,
         thinking: Optional[Dict[str, Any]] = None,
+        modalities: Optional[List[str]] = None,
+        audio: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> Union[str, AsyncIterator[str]]:
-        """Chat completion using V2 API (async)"""
+        """Chat completion using V2 API with Vision & Audio (async)"""
+        # Validate modalities if provided
+        if modalities:
+            ParameterValidator.validate_modalities(modalities)
+
         params = ChatParamsV2(
             model=self._validate_model(model),
             messages=messages,
@@ -605,6 +639,8 @@ class AsyncTextGenerator(AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerato
             top_p=top_p,
             n=n,
             thinking=thinking,
+            modalities=modalities,
+            audio=audio,
             extra_params=kwargs
         )
 

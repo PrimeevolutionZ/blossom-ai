@@ -18,7 +18,11 @@ from .blossom import Blossom, create_client
 try:
     from .streaming_mixin import SSEParser, SyncStreamingMixin, AsyncStreamingMixin
     from .parameter_builder import (
-        ImageParamsV2, ChatParamsV2, ParameterValidator
+        ImageParamsV2,
+        ChatParamsV2,
+        AudioParamsV2,
+        ParameterValidator,
+        MessageBuilder
     )
     HELPERS_AVAILABLE = True
 except ImportError:
@@ -44,5 +48,7 @@ if HELPERS_AVAILABLE:
         "AsyncStreamingMixin",
         "ImageParamsV2",
         "ChatParamsV2",
+        "AudioParamsV2",
         "ParameterValidator",
+        "MessageBuilder",
     ])

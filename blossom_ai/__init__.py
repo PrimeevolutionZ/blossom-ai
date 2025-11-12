@@ -1,7 +1,6 @@
 """
 🌸 Blossom AI - Beautiful Python SDK for Pollinations.AI
-Generate images and text with AI
-Version: 0.5.0
+Generate images, text, and multimodal content with AI
 """
 
 from blossom_ai.generators import (
@@ -11,6 +10,12 @@ from blossom_ai.generators import (
     AsyncImageGenerator,
     TextGenerator,
     AsyncTextGenerator,
+    # NEW: Helpers for Vision & Audio
+    MessageBuilder,
+    AudioParamsV2,
+    ImageParamsV2,
+    ChatParamsV2,
+    ParameterValidator,
 )
 
 from blossom_ai.core import (
@@ -69,11 +74,18 @@ __all__ = [
     "Blossom",
     "create_client",
 
-    # Generators (V2 Only)
+    # Generators (V2 API with Vision & Audio)
     "ImageGenerator",
     "AsyncImageGenerator",
     "TextGenerator",
     "AsyncTextGenerator",
+
+    # NEW: Vision & Audio Helpers
+    "MessageBuilder",
+    "AudioParamsV2",
+    "ImageParamsV2",
+    "ChatParamsV2",
+    "ParameterValidator",
 
     # Errors
     "BlossomError",
