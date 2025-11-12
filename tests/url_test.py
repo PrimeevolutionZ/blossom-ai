@@ -1,5 +1,6 @@
 """
-Примеры использования нового метода generate_url()
+Examples of using generate_url() method (V2 API)
+Демонстрация работы с URL генерацией изображений
 """
 
 from blossom_ai import Blossom
@@ -7,28 +8,35 @@ import asyncio
 
 
 # ============================================================================
-# СИНХРОННОЕ ИСПОЛЬЗОВАНИЕ
+# SYNCHRONOUS USAGE
 # ============================================================================
 
 def sync_examples():
-    """Синхронные примеры"""
+    """Synchronous examples"""
 
     client = Blossom()
 
-    # 1. Базовое использование - получить URL без скачивания
-    url = client.image.generate_url("a beautiful sunset")
-    print(f"Image URL: {url}")
+    print("=" * 70)
+    print("SYNCHRONOUS URL GENERATION EXAMPLES (V2 API)")
+    print("=" * 70)
 
-    # 2. С параметрами для воспроизводимости
+    # 1. Basic usage - get URL without downloading
+    print("\n1. Basic URL generation:")
+    url = client.image.generate_url("a beautiful sunset")
+    print(f"   URL: {url}")
+
+    # 2. With parameters for reproducibility
+    print("\n2. With seed for reproducibility:")
     url = client.image.generate_url(
         "a cat sitting on a chair",
         seed=42,
         nologo=True,
         private=True
     )
-    print(f"Image URL with seed: {url}")
+    print(f"   URL: {url}")
 
-    # 3. С пользовательскими размерами и моделью
+    # 3. With custom dimensions and model
+    print("\n3. Custom dimensions:")
     url = client.image.generate_url(
         "cyberpunk city at night",
         model="flux",
@@ -36,36 +44,43 @@ def sync_examples():
         height=1080,
         enhance=True
     )
-    print(f"Custom size URL: {url}")
+    print(f"   URL: {url}")
 
-    # 4. С referrer параметром (как у пользователя)
+    # 4. High quality image
+    print("\n4. High quality image:")
     url = client.image.generate_url(
         "anime style portrait",
-        referrer="my-discord-bot",
+        quality="hd",
         seed=12345,
         nologo=True
     )
-    print(f"URL with referrer: {url}")
+    print(f"   URL: {url}")
 
-    # 5. Можно использовать URL в разных местах
-    # Например, отправить в Discord, Telegram, или встроить в HTML
+    # 5. Can be used in different places
+    print("\n5. Embedding in HTML:")
     html = f'<img src="{url}" alt="Generated Image">'
-    print(f"HTML: {html}")
+    print(f"   HTML: {html[:80]}...")
 
 
 # ============================================================================
-# АСИНХРОННОЕ ИСПОЛЬЗОВАНИЕ
+# ASYNCHRONOUS USAGE
 # ============================================================================
 
 async def async_examples():
-    """Асинхронные примеры"""
+    """Asynchronous examples"""
+
+    print("\n" + "=" * 70)
+    print("ASYNCHRONOUS URL GENERATION EXAMPLES (V2 API)")
+    print("=" * 70)
 
     async with Blossom() as client:
-        # 1. Базовое использование
+        # 1. Basic usage
+        print("\n1. Basic async URL generation:")
         url = await client.image.generate_url("a futuristic spaceship")
-        print(f"Async URL: {url}")
+        print(f"   URL: {url}")
 
-        # 2. Генерация нескольких URL параллельно
+        # 2. Generate multiple URLs in parallel
+        print("\n2. Parallel URL generation:")
         prompts = [
             "a red apple",
             "a blue ocean",
@@ -78,99 +93,119 @@ async def async_examples():
         ])
 
         for prompt, url in zip(prompts, urls):
-            print(f"{prompt}: {url}")
+            print(f"   {prompt}: {url[:60]}...")
 
-        # 3. fast generate
+        # 3. Fast generation
+        print("\n3. Fast generation with safety filters:")
         user_prompt = "epic dragon breathing fire"
         url = await client.image.generate_url(
             user_prompt,
             nologo=True,
             private=True,
-            safe=True  # filter out unsafe cont
+            safe=True  # Filter out unsafe content
         )
+        print(f"   URL: {url[:60]}...")
         return url
 
 
 # ============================================================================
-# usage in Discord bot
+# DISCORD BOT EXAMPLE
 # ============================================================================
 
 async def discord_bot_example(user_message: str):
-    """Пример использования в Discord боте"""
+    """Example usage in Discord bot"""
+    print("\n" + "=" * 70)
+    print("DISCORD BOT EXAMPLE (V2 API)")
+    print("=" * 70)
 
     client = Blossom()
 
-    # Генерируем URL вместо скачивания изображения
-    # Это экономит трафик и время
+    # Generate URL instead of downloading image
+    # This saves bandwidth and time
     url = await client.image.generate_url(
         user_message,
         nologo=True,
         private=True,
-        seed=hash(user_message) % 100000  # Детерминированный seed из текста
+        seed=hash(user_message) % 100000  # Deterministic seed from text
     )
 
-    # Теперь можно просто отправить URL в Discord
-    # Discord автоматически покажет превью
+    print(f"\nUser message: {user_message}")
+    print(f"Generated URL: {url[:60]}...")
+    print("Discord will automatically show preview")
+
     return url
 
 
 # ============================================================================
-#  URL vs DOWNLOAD
+# URL vs DOWNLOAD COMPARISON
 # ============================================================================
 
 async def comparison():
+    """Compare URL generation vs downloading"""
+    print("\n" + "=" * 70)
+    print("PERFORMANCE COMPARISON (V2 API)")
+    print("=" * 70)
 
     client = Blossom()
     prompt = "a magical forest"
 
-    # metod 1: get URL
+    # Method 1: Get URL only
     import time
     start = time.time()
     url = await client.image.generate_url(prompt, seed=42)
     url_time = time.time() - start
-    print(f"URL generation: {url_time:.3f}s")
-    print(f"URL: {url}")
+    print(f"\n1. URL generation: {url_time:.3f}s")
+    print(f"   URL: {url[:60]}...")
 
-    # Метод 2: get image
+    # Method 2: Download full image
     start = time.time()
     image_bytes = await client.image.generate(prompt, seed=42)
     download_time = time.time() - start
-    print(f"Image download: {download_time:.3f}s")
-    print(f"Size: {len(image_bytes)} bytes")
+    print(f"\n2. Image download: {download_time:.3f}s")
+    print(f"   Size: {len(image_bytes):,} bytes")
 
-    print(f"\nSpeed improvement: {download_time / url_time:.1f}x faster")
+    print(f"\n📊 Speed improvement: {download_time / url_time:.1f}x faster with URL!")
 
 
 # ============================================================================
-# auth token
+# WITH AUTH TOKEN
 # ============================================================================
 
 def with_auth_token():
-    """Использование с API токеном"""
+    """Usage with API token (V2 API)"""
+    print("\n" + "=" * 70)
+    print("AUTHENTICATED URL GENERATION (V2 API)")
+    print("=" * 70)
 
-    # Токен автоматически добавляется к URL
+    # IMPORTANT: Token is added to Authorization header, NOT to URL
     client = Blossom(api_token="your-api-token-here")
 
     url = client.image.generate_url(
         "premium quality image",
         private=True,
-        enhance=True
+        enhance=True,
+        quality="hd"
     )
 
-    # URL будет содержать параметр token=your-api-token-here
-    print(f"Authenticated URL: {url}")
+    print(f"\nGenerated URL: {url[:60]}...")
+    print("\n⚠️  SECURITY NOTE:")
+    print("   Token is sent in Authorization header, NOT in URL")
+    print("   URLs are safe to share publicly")
 
 
 # ============================================================================
-# examples: EMBED in HTML
+# HTML GALLERY GENERATION
 # ============================================================================
 
 def generate_gallery_html():
-    """generate HTML gallery"""
+    """Generate HTML gallery with image URLs"""
+    print("\n" + "=" * 70)
+    print("HTML GALLERY GENERATION (V2 API)")
+    print("=" * 70)
 
     client = Blossom()
 
-    # Создаем несколько URL для галереи
+    # Create multiple URLs for gallery
     themes = [
         ("sunset", "A beautiful sunset over the ocean"),
         ("mountains", "Majestic mountain peaks covered in snow"),
@@ -178,44 +213,110 @@ def generate_gallery_html():
         ("nature", "Serene forest with sunlight streaming through trees")
     ]
 
-    html = "<html><body><h1>AI Generated Gallery</h1><div>"
+    html = """<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Generated Gallery</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; color: #333; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .item { border: 1px solid #ddd; border-radius: 8px; padding: 15px; }
+        .item img { width: 100%; height: auto; border-radius: 4px; }
+        .item h3 { margin: 10px 0; color: #555; }
+        .item p { color: #777; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <h1>🌸 AI Generated Gallery</h1>
+    <div class="gallery">
+"""
 
     for name, prompt in themes:
         url = client.image.generate_url(
             prompt,
             seed=hash(name) % 100000,
-            nologo=True
+            nologo=True,
+            width=512,
+            height=512
         )
-        html += f'''
-        <div style="margin: 20px;">
+        html += f"""
+        <div class="item">
             <h3>{name.title()}</h3>
-            <img src="{url}" width="512" alt="{prompt}">
+            <img src="{url}" alt="{prompt}" loading="lazy">
             <p>{prompt}</p>
         </div>
-        '''
+"""
 
-    html += "</div></body></html>"
+    html += """
+    </div>
+</body>
+</html>
+"""
 
-    # save to file
-    with open("gallery.html", "w") as f:
+    # Save to file
+    with open("gallery.html", "w", encoding="utf-8") as f:
         f.write(html)
 
-    print("Gallery saved to gallery.html")
+    print("\n✅ Gallery saved to gallery.html")
+    print("   Open it in your browser to see the AI-generated images!")
 
 
 # ============================================================================
-# play test
+# SECURITY BEST PRACTICES
+# ============================================================================
+
+def security_examples():
+    """Security best practices for V2 API"""
+    print("\n" + "=" * 70)
+    print("SECURITY BEST PRACTICES (V2 API)")
+    print("=" * 70)
+
+    client = Blossom(api_token="your-secret-token")
+
+    # ✅ GOOD: Token is NOT in URL
+    url = client.image.generate_url("test image")
+
+    print("\n✅ CORRECT:")
+    print(f"   URL: {url[:60]}...")
+    print("   Token is sent in Authorization header (secure)")
+
+    print("\n🔒 SECURITY NOTES:")
+    print("   1. API token is NEVER exposed in URLs")
+    print("   2. URLs can be safely shared publicly")
+    print("   3. Token is only in Authorization header")
+    print("   4. Private images still require authentication to view")
+
+
+# ============================================================================
+# MAIN RUNNER
 # ============================================================================
 
 if __name__ == "__main__":
-    print("=== Синхронные примеры ===")
+    print("\n🌸 Blossom AI - URL Generation Examples (V2 API)")
+    print("=" * 70)
+
+    print("\n▶️  Running synchronous examples...")
     sync_examples()
 
-    print("\n=== Асинхронные примеры ===")
+    print("\n▶️  Running asynchronous examples...")
     asyncio.run(async_examples())
 
-    print("\n=== Сравнение производительности ===")
+    print("\n▶️  Running performance comparison...")
     asyncio.run(comparison())
 
-    print("\n=== Генерация HTML галереи ===")
+    print("\n▶️  Running Discord bot example...")
+    asyncio.run(discord_bot_example("a cute anime cat girl"))
+
+    print("\n▶️  Demonstrating authentication...")
+    with_auth_token()
+
+    print("\n▶️  Generating HTML gallery...")
     generate_gallery_html()
+
+    print("\n▶️  Security best practices...")
+    security_examples()
+
+    print("\n" + "=" * 70)
+    print("✅ All examples completed successfully!")
+    print("=" * 70)

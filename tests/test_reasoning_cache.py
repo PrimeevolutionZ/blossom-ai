@@ -1,5 +1,5 @@
 """
-Real API Integration Tests - IMPROVED
+Real API Integration Tests for V2 API with Native Reasoning
 More resilient to API failures with better error handling
 """
 
@@ -44,52 +44,17 @@ def retry_on_server_error(max_attempts=3, initial_wait=1.0):
 
 
 # ============================================================================
-# V1 API TESTS
+# V2 API BASIC TESTS
 # ============================================================================
 
 @pytest.mark.slow
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
 @retry_on_server_error()
-def test_v1_text_generation():
-    """Test V1 text generation"""
-    with Blossom(api_version="v1") as client:
+def test_v2_text_generation():
+    """Test V2 text generation"""
+    with Blossom(api_token=API_TOKEN) as client:
         response = client.text.generate(
             "Say hello in one word",
-            model="openai"
-        )
-
-        assert response is not None
-        assert len(response) > 0
-        print(f"\n✅ V1 Response: {response}")
-
-
-@pytest.mark.slow
-def test_v1_image_url_generation():
-    """Test V1 image URL generation"""
-    with Blossom(api_version="v1") as client:
-        url = client.image.generate_url(
-            "a simple red circle",
-            seed=42,
-            width=256,
-            height=256
-        )
-
-        assert url is not None
-        assert "image.pollinations.ai" in url
-        print(f"\n✅ V1 Image URL: {url}")
-
-
-# ============================================================================
-# V2 API TESTS
-# ============================================================================
-
-@pytest.mark.slow
-@pytest.mark.skipif(API_TOKEN is None, reason="API token not set")
-def test_v2_text_generation():
-    """Test V2 text generation - FIXED"""
-    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
-        # ✅ FIX: Use simpler prompt without unnecessary params
-        response = client.text.generate(
-            "Say hello",
             model="openai"
         )
 
@@ -99,30 +64,32 @@ def test_v2_text_generation():
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(API_TOKEN is None, reason="API token not set")
-def test_v2_image_generation_hd():
-    """Test V2 HD image generation"""
-    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
+@retry_on_server_error()
+def test_v2_image_generation():
+    """Test V2 image generation"""
+    with Blossom(api_token=API_TOKEN) as client:
         image = client.image.generate(
-            "a simple test image",
-            quality="low",
+            "a simple red circle",
+            model="flux",
             width=256,
             height=256,
             seed=42
         )
 
         assert image is not None
-        assert len(image) > 0
+        assert len(image) > 1000
         print(f"\n✅ V2 Image: {len(image)} bytes")
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(API_TOKEN is None, reason="API token not set")
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
+@retry_on_server_error()
 def test_v2_json_mode():
     """Test V2 JSON mode"""
-    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+    with Blossom(api_token=API_TOKEN) as client:
         response = client.text.generate(
-            "Generate JSON with name and age",
+            "Generate JSON with name and age fields",
             json_mode=True
         )
 
@@ -139,11 +106,13 @@ def test_v2_json_mode():
 # ============================================================================
 
 @pytest.mark.slow
-@pytest.mark.skipif(API_TOKEN is None, reason="API token not set")
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
+@retry_on_server_error()
 def test_v2_native_reasoning():
     """Test V2 native reasoning support"""
     enhancer = ReasoningEnhancer()
 
+    # Create native reasoning config
     enhanced = enhancer.enhance(
         "How to optimize Python code?",
         level="high",
@@ -152,12 +121,15 @@ def test_v2_native_reasoning():
         model="openai"
     )
 
+    # Should return dict with thinking parameter
     assert isinstance(enhanced, dict)
     assert "prompt" in enhanced
     assert "thinking" in enhanced
+    assert enhanced["thinking"]["type"] == "enabled"
     print(f"\n✅ Native Reasoning Config: {enhanced['thinking']}")
 
-    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+    # Use with V2 API
+    with Blossom(api_token=API_TOKEN) as client:
         response = client.text.chat(
             messages=[{"role": "user", "content": enhanced["prompt"]}],
             thinking=enhanced["thinking"]
@@ -168,12 +140,14 @@ def test_v2_native_reasoning():
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(API_TOKEN is None, reason="API token not set")
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
+@retry_on_server_error()
 def test_v2_auto_mode_reasoning():
     """Test auto-detection of reasoning mode"""
     enhancer = ReasoningEnhancer()
 
-    enhanced = enhancer.enhance(
+    # Auto mode with V2 + OpenAI should select native
+    enhanced_v2 = enhancer.enhance(
         "Explain caching",
         level="medium",
         mode="auto",
@@ -181,63 +155,72 @@ def test_v2_auto_mode_reasoning():
         model="openai"
     )
 
-    assert isinstance(enhanced, dict)
-    assert "thinking" in enhanced
+    assert isinstance(enhanced_v2, dict)
+    assert "thinking" in enhanced_v2
     print(f"\n✅ Auto mode selected: native (V2 + OpenAI)")
 
-    enhanced_v1 = enhancer.enhance(
+    # Auto mode with different model should select prompt
+    enhanced_other = enhancer.enhance(
         "Explain caching",
         level="medium",
         mode="auto",
-        api_version="v1",
-        model="openai"
+        api_version="v2",
+        model="gemini"
     )
 
-    assert isinstance(enhanced_v1, str)
-    print(f"\n✅ Auto mode selected: prompt (V1)")
+    # Gemini might not support native reasoning
+    if isinstance(enhanced_other, str):
+        print(f"\n✅ Auto mode selected: prompt (non-OpenAI model)")
+    else:
+        print(f"\n✅ Auto mode selected: native (model supports it)")
 
-
-# ============================================================================
-# REASONING + V1 API
-# ============================================================================
 
 @pytest.mark.slow
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
 @retry_on_server_error()
-def test_reasoning_with_v1_api():
-    """Test reasoning enhancement with V1 API"""
+def test_v2_reasoning_levels():
+    """Test different reasoning levels"""
     enhancer = ReasoningEnhancer()
 
-    enhanced = enhancer.enhance(
-        "What is caching?",
-        level="medium",
-        api_version="v1"
-    )
+    levels = ["low", "medium", "high"]
 
-    assert isinstance(enhanced, str)
+    for level in levels:
+        enhanced = enhancer.enhance(
+            "Solve this problem",
+            level=level,
+            mode="native",
+            api_version="v2",
+            model="openai"
+        )
 
-    with Blossom(api_version="v1") as client:
-        response = client.text.generate(enhanced)
+        assert "thinking" in enhanced
+        budget = enhanced["thinking"]["budget_tokens"]
+        print(f"  Level {level}: {budget} tokens")
 
-        assert response is not None
-        print(f"\n✅ Reasoning + V1:\nPrompt length: {len(enhanced)}\nResponse: {response[:100]}...")
 
+# ============================================================================
+# REASONING + V2 API
+# ============================================================================
 
 @pytest.mark.slow
-@pytest.mark.skipif(API_TOKEN is None, reason="API token not set")
-def test_reasoning_with_v2_api_prompt_mode():
-    """Test reasoning with V2 API (forced prompt mode) - FIXED"""
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
+@retry_on_server_error()
+def test_reasoning_with_v2_prompt_mode():
+    """Test reasoning with V2 API (forced prompt mode)"""
     enhancer = ReasoningEnhancer()
 
     enhanced = enhancer.enhance(
-        "How do I optimize code?",  # ✅ Shorter prompt
-        level="medium",  # ✅ Medium instead of high
-        mode="prompt",
+        "How to optimize code?",
+        level="medium",
+        mode="prompt",  # Force prompt mode
         api_version="v2"
     )
 
+    # Prompt mode returns string
     assert isinstance(enhanced, str)
+    assert len(enhanced) > 0
 
-    with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+    with Blossom(api_token=API_TOKEN) as client:
         response = client.text.generate(enhanced)
 
         assert response is not None
@@ -245,25 +228,29 @@ def test_reasoning_with_v2_api_prompt_mode():
 
 
 # ============================================================================
-# CACHING + API
+# CACHING + V2 API
 # ============================================================================
 
 @pytest.mark.slow
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
 @retry_on_server_error()
-def test_caching_with_v1_api():
-    """Test caching with V1 API"""
+def test_caching_with_v2_api():
+    """Test caching with V2 API"""
     cache = CacheManager()
 
     prompt = f"Say hello {uuid.uuid4().hex[:8]}"
-    cache_key = f"v1:text:{hash(prompt)}"
+    cache_key = f"v2:text:{hash(prompt)}"
 
+    # First call - no cache
     start = time.time()
-    with Blossom(api_version="v1") as client:
+    with Blossom(api_token=API_TOKEN) as client:
         response1 = client.text.generate(prompt)
     first_time = time.time() - start
 
+    # Cache the response
     cache.set(cache_key, response1, ttl=3600)
 
+    # Second call - from cache
     start = time.time()
     response2 = cache.get(cache_key)
     cached_time = time.time() - start
@@ -271,79 +258,41 @@ def test_caching_with_v1_api():
     assert response2 == response1
     assert cached_time < first_time / 10
 
-    print(f"\n✅ Caching + V1:")
+    print(f"\n✅ Caching + V2:")
     print(f"First call: {first_time:.3f}s")
     print(f"Cached call: {cached_time:.6f}s")
     print(f"Speed improvement: {first_time/cached_time:.0f}x")
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
 @retry_on_server_error()
-def test_decorator_with_v1_api():
-    """Test @cached decorator with V1 API"""
+def test_decorator_with_v2_api():
+    """Test @cached decorator with V2 API"""
     unique_prompt = f"Hello-{uuid.uuid4().hex[:8]}"
     call_count = [0]
 
     @cached(ttl=3600)
     def generate_cached(prompt):
         call_count[0] += 1
-        with Blossom(api_version="v1") as client:
+        with Blossom(api_token=API_TOKEN) as client:
             return client.text.generate(prompt)
 
+    # First call - not cached
     result1 = generate_cached(unique_prompt)
     assert call_count[0] == 1
 
+    # Second call - cached
     result2 = generate_cached(unique_prompt)
-    assert call_count[0] == 1
+    assert call_count[0] == 1  # Should not increment
     assert result1 == result2
 
-    print(f"\n✅ Decorator + V1: Cached successfully (calls={call_count[0]})")
+    print(f"\n✅ Decorator + V2: Cached successfully (calls={call_count[0]})")
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
 @retry_on_server_error()
-def test_full_integration_v1():
-    """Test full integration: Reasoning + Caching + V1 API"""
-    enhancer = ReasoningEnhancer()
-    cache = CacheManager()
-
-    unique_q = f"What is Python? {uuid.uuid4().hex[:8]}"
-
-    def smart_generate(prompt):
-        cache_key = f"smart:{hash(prompt)}"
-        cached = cache.get(cache_key)
-        if cached:
-            return cached, True
-
-        enhanced = enhancer.enhance(prompt, level="medium", api_version="v1")
-
-        with Blossom(api_version="v1") as client:
-            response = client.text.generate(enhanced)
-
-        cache.set(cache_key, response, ttl=3600)
-        return response, False
-
-    start = time.time()
-    response1, cached1 = smart_generate(unique_q)
-    first_time = time.time() - start
-
-    assert not cached1
-
-    start = time.time()
-    response2, cached2 = smart_generate(unique_q)
-    cached_time = time.time() - start
-
-    assert cached2
-    assert response1 == response2
-
-    print(f"\n✅ Full Integration V1:")
-    print(f"First (enhanced + API): {first_time:.3f}s")
-    print(f"Second (cached): {cached_time:.6f}s")
-    print(f"Speed improvement: {first_time/cached_time:.0f}x")
-
-
-@pytest.mark.slow
-@pytest.mark.skipif(API_TOKEN is None, reason="API token not set")
 def test_full_integration_v2_native():
     """Test full integration: Native Reasoning + Caching + V2 API"""
     enhancer = create_reasoning_enhancer(level="high", mode="native")
@@ -358,16 +307,18 @@ def test_full_integration_v2_native():
             model="openai"
         )
 
-        with Blossom(api_version="v2", api_token=API_TOKEN) as client:
+        with Blossom(api_token=API_TOKEN) as client:
             return client.text.chat(
                 messages=[{"role": "user", "content": enhanced["prompt"]}],
                 thinking=enhanced.get("thinking")
             )
 
+    # First call
     start = time.time()
     result1 = analyze_with_native_reasoning(unique_q)
     first_time = time.time() - start
 
+    # Second call (cached)
     start = time.time()
     result2 = analyze_with_native_reasoning(unique_q)
     cached_time = time.time() - start
@@ -382,27 +333,16 @@ def test_full_integration_v2_native():
 
 
 # ============================================================================
-# ASYNC API TESTS
+# ASYNC V2 API TESTS
 # ============================================================================
 
 @pytest.mark.asyncio
 @pytest.mark.slow
-async def test_async_v1_text():
-    """Test async V1 text generation"""
-    async with Blossom(api_version="v1") as client:
-        response = await client.text.generate("Hello")
-
-        assert response is not None
-        print(f"\n✅ Async V1: {response[:50]}...")
-
-
-@pytest.mark.asyncio
-@pytest.mark.slow
-@pytest.mark.skipif(API_TOKEN is None, reason="API token not set")
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
 async def test_async_v2_text():
     """Test async V2 text generation"""
-    async with Blossom(api_version="v2", api_token=API_TOKEN) as client:
-        response = await client.text.generate("Say hi", model="openai")
+    async with Blossom(api_token=API_TOKEN) as client:
+        response = await client.text.generate("Hello")
 
         assert response is not None
         print(f"\n✅ Async V2: {response[:50]}...")
@@ -410,13 +350,27 @@ async def test_async_v2_text():
 
 @pytest.mark.asyncio
 @pytest.mark.slow
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
+async def test_async_v2_image():
+    """Test async V2 image generation"""
+    async with Blossom(api_token=API_TOKEN) as client:
+        image = await client.image.generate("a cat", model="flux", width=256, height=256)
+
+        assert image is not None
+        assert len(image) > 1000
+        print(f"\n✅ Async V2 Image: {len(image)} bytes")
+
+
+@pytest.mark.asyncio
+@pytest.mark.slow
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
 async def test_async_with_caching():
     """Test async with caching"""
     unique_prompt = f"Test-{uuid.uuid4().hex[:8]}"
 
     @cached(ttl=3600)
     async def async_generate(prompt):
-        async with Blossom(api_version="v1") as client:
+        async with Blossom(api_token=API_TOKEN) as client:
             return await client.text.generate(prompt)
 
     result1 = await async_generate(unique_prompt)
@@ -436,10 +390,11 @@ async def test_async_with_caching():
 # ============================================================================
 
 @pytest.mark.slow
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
 @retry_on_server_error()
-def test_v1_streaming():
-    """Test V1 streaming"""
-    with Blossom(api_version="v1") as client:
+def test_v2_streaming():
+    """Test V2 streaming"""
+    with Blossom(api_token=API_TOKEN) as client:
         chunks = []
 
         for chunk in client.text.generate("Count to 3", stream=True):
@@ -449,14 +404,15 @@ def test_v1_streaming():
         print()
 
         assert len(chunks) > 0
-        print(f"\n✅ V1 Streaming: {len(chunks)} chunks")
+        print(f"\n✅ V2 Streaming: {len(chunks)} chunks")
 
 
 @pytest.mark.asyncio
 @pytest.mark.slow
-async def test_v1_async_streaming():
-    """Test V1 async streaming"""
-    async with Blossom(api_version="v1") as client:
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
+async def test_v2_async_streaming():
+    """Test V2 async streaming"""
+    async with Blossom(api_token=API_TOKEN) as client:
         chunks = []
 
         async for chunk in await client.text.generate("Count to 3", stream=True):
@@ -466,7 +422,7 @@ async def test_v1_async_streaming():
         print()
 
         assert len(chunks) > 0
-        print(f"\n✅ V1 Async Streaming: {len(chunks)} chunks")
+        print(f"\n✅ V2 Async Streaming: {len(chunks)} chunks")
 
 
 # ============================================================================
@@ -475,21 +431,21 @@ async def test_v1_async_streaming():
 
 @pytest.mark.slow
 def test_api_error_handling():
-    """Test API error handling with invalid model"""
-    with Blossom(api_version="v1") as client:
-        with pytest.raises(requests.exceptions.HTTPError) as exc_info:
-            client.text.generate("test", model="nonexistent_model_xyz_12345")
+    """Test API error handling"""
+    with Blossom(api_token="invalid_token_xyz") as client:
+        from blossom_ai.core.errors import AuthenticationError
 
-        assert exc_info.value.response.status_code == 404
-        print(f"\n✅ Error handled correctly: 404 for invalid model")
+        with pytest.raises(AuthenticationError):
+            client.text.generate("test", model="openai")
 
 
 # ============================================================================
-# STATISTICS - IMPROVED
+# CACHE STATISTICS
 # ============================================================================
 
 @pytest.mark.slow
-@retry_on_server_error(max_attempts=5)  # ✅ More retries for stats test
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
+@retry_on_server_error(max_attempts=5)
 def test_cache_statistics_with_api():
     """Test cache statistics with real API calls"""
     cache = CacheManager()
@@ -503,7 +459,7 @@ def test_cache_statistics_with_api():
 
         cached = cache.get(cache_key)
         if not cached:
-            with Blossom(api_version="v1") as client:
+            with Blossom(api_token=API_TOKEN) as client:
                 response = client.text.generate(f"Answer: {prompt}")
                 cache.set(cache_key, response)
 
@@ -520,18 +476,19 @@ def test_cache_statistics_with_api():
 
 
 # ============================================================================
-# PERFORMANCE - IMPROVED
+# PERFORMANCE COMPARISON
 # ============================================================================
 
 @pytest.mark.slow
-@retry_on_server_error(max_attempts=5)  # ✅ More retries
+@pytest.mark.skipif(not API_TOKEN or API_TOKEN == "your-api-token", reason="API token not set")
+@retry_on_server_error(max_attempts=5)
 def test_performance_comparison():
-    """Test performance comparison: without vs with caching"""
+    """Test performance: without vs with caching"""
     prompt = f"Test {uuid.uuid4().hex[:8]}"
 
-    # ✅ Single uncached call instead of 3
+    # Single uncached call
     start = time.time()
-    with Blossom(api_version="v1") as client:
+    with Blossom(api_token=API_TOKEN) as client:
         client.text.generate(prompt)
     avg_uncached = time.time() - start
 
@@ -540,11 +497,13 @@ def test_performance_comparison():
 
     @cached(ttl=3600)
     def cached_generate(p):
-        with Blossom(api_version="v1") as client:
+        with Blossom(api_token=API_TOKEN) as client:
             return client.text.generate(p)
 
+    # Prime cache
     cached_generate(prompt)
 
+    # Measure cached calls
     times_cached = []
     for _ in range(10):
         start = time.time()

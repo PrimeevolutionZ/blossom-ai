@@ -38,9 +38,6 @@ from .cache import (
 
 from .cli import (
     BlossomCLI,
-    quick_image,
-    quick_text,
-    quick_audio,
 )
 
 __all__ = [
