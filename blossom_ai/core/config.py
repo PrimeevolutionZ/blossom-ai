@@ -123,13 +123,28 @@ class Defaults:
 
     @classmethod
     def from_env(cls) -> "Defaults":
-        """Create Defaults from environment variables"""
+        """Create Defaults from environment variables with safe parsing"""
+        # FIXED: добавлена безопасная конверсия
+        def safe_int(key: str, default: int) -> int:
+            val = os.getenv(key)
+            try:
+                return int(val) if val else default
+            except ValueError:
+                return default
+
+        def safe_float(key: str, default: float) -> float:
+            val = os.getenv(key)
+            try:
+                return float(val) if val else default
+            except ValueError:
+                return default
+
         return cls(
             IMAGE_MODEL=os.getenv("BLOSSOM_IMAGE_MODEL", "flux"),
             TEXT_MODEL=os.getenv("BLOSSOM_TEXT_MODEL", "openai"),
-            IMAGE_WIDTH=int(os.getenv("BLOSSOM_IMAGE_WIDTH", "1024")),
-            IMAGE_HEIGHT=int(os.getenv("BLOSSOM_IMAGE_HEIGHT", "1024")),
-            TEMPERATURE=float(os.getenv("BLOSSOM_TEMPERATURE", "1.0")),
+            IMAGE_WIDTH=safe_int("BLOSSOM_IMAGE_WIDTH", 1024),
+            IMAGE_HEIGHT=safe_int("BLOSSOM_IMAGE_HEIGHT", 1024),
+            TEMPERATURE=safe_float("BLOSSOM_TEMPERATURE", 1.0),
         )
 
 

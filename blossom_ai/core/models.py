@@ -208,6 +208,11 @@ class DynamicModel(ABC):
         if not value or not isinstance(value, str):
             raise ValueError(f"Invalid model name: {value}")
 
+        # FIXED: защита от пустых или пробельных строк
+        value = value.strip()
+        if not value:
+            raise ValueError("Model name cannot be empty or whitespace")
+
         if not cls._initialized:
             cls.initialize_from_api()
 

@@ -1,6 +1,5 @@
 """
-Blossom AI - Error Handling
-Refactored version with better structure and error parsing
+Blossom AI - Error Handling (v0.5.0)
 """
 
 import logging
@@ -266,7 +265,10 @@ def _extract_retry_after(response_or_headers) -> Optional[int]:
     except (ValueError, TypeError, AttributeError):
         pass
 
-    return 60  # Default fallback
+    # FIXED: логируем fallback
+    fallback = 60
+    logger.warning(f"Retry-After header missing or invalid, using fallback: {fallback}s")
+    return fallback
 
 
 def handle_request_error(
