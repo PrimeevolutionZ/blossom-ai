@@ -1,776 +1,868 @@
-# API Reference
+# 📖 API Reference
 
-Complete API documentation for all classes and methods in Blossom AI.
+Complete API reference for Blossom AI v0.5.0 (V2 API).
 
 ---
 
-## Blossom Class
+## 📋 Table of Contents
 
-The main entry point for the SDK.
+- [Client](#client)
+- [Image Generator](#image-generator)
+- [Text Generator](#text-generator)
+- [Message Builder](#message-builder)
+- [Models](#models)
+- [Errors](#errors)
+- [Utilities](#utilities)
 
-### Initialization
+---
+
+## 🌸 Client
+
+### Blossom
+
+Main client class for interacting with the API.
+
+#### Initialization
 
 ```python
-Blossom(
-    timeout=30,           # Request timeout in seconds
-    debug=False,          # Enable debug mode
-    api_token=None        # Optional API token for auth
+from blossom_ai import Blossom
+
+client = Blossom(
+    api_token: str = None,
+    timeout: int = 30,
+    debug: bool = False
 )
 ```
 
 **Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `timeout` | `int` | `30` | Request timeout in seconds |
-| `debug` | `bool` | `False` | Enable debug logging with request IDs |
-| `api_token` | `str` | `None` | API token for authentication (required for audio) |
-
-### Context Manager Support
-
-```python
-# Synchronous context manager (recommended)
-with Blossom() as ai:
-    result = ai.text.generate("Hello")
-    # Resources automatically cleaned up
-
-# Asynchronous context manager (recommended)
-async with Blossom() as ai:
-    result = await ai.text.generate("Hello")
-    # Resources automatically cleaned up
-```
-
-### Manual Cleanup
-
-```python
-# Async manual cleanup
-client = Blossom()
-try:
-    url = await client.image.generate_url("test")
-finally:
-    await client.close()  # Explicitly close async sessions
-
-# Sync - no manual cleanup needed (auto-closes on exit)
-client = Blossom()
-url = client.image.generate_url("test")
-# Sync sessions cleaned up automatically
-```
-
----
-
-## Image Generator (`ai.image`)
-
-Methods for image generation.
-
-### `generate_url()`
-
-Generate image URL without downloading (fastest method).
-
-```python
-url = ai.image.generate_url(prompt, **options)
-```
-
-**Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `prompt` | `str` | - | Image description (required) |
-| `model` | `str` | `"flux"` | Model to use |
-| `width` | `int` | `1024` | Image width in pixels |
-| `height` | `int` | `1024` | Image height in pixels |
-| `seed` | `int` | `None` | Seed for reproducibility |
-| `nologo` | `bool` | `False` | Remove watermark (requires token) |
-| `private` | `bool` | `False` | Keep image private |
-| `enhance` | `bool` | `False` | Enhance prompt with AI |
-| `safe` | `bool` | `False` | Enable NSFW filtering |
-| `referrer` | `str` | `None` | Optional referrer parameter |
-
-**Returns:** `str` - Direct URL to the generated image
+- `api_token` (str, optional): API token from [enter.pollinations.ai](https://enter.pollinations.ai). If not provided, reads from `POLLINATIONS_API_KEY` or `BLOSSOM_API_KEY` env var.
+- `timeout` (int): Request timeout in seconds. Default: 30
+- `debug` (bool): Enable debug logging. Default: False
 
 **Example:**
 ```python
-url = ai.image.generate_url(
-    "a beautiful sunset",
-    model="flux",
-    width=1920,
-    height=1080,
-    seed=42
-)
+# With explicit token
+client = Blossom(api_token="your-token")
+
+# From environment variable
+client = Blossom()
+
+# With custom timeout
+client = Blossom(api_token="your-token", timeout=60)
 ```
 
-### `generate()`
+#### Context Manager (Recommended)
+
+```python
+with Blossom(api_token="your-token") as client:
+    # Use client
+    response = client.text.generate("Hello")
+# Automatically closes connection
+```
+
+#### Manual Cleanup
+
+```python
+client = Blossom(api_token="your-token")
+try:
+    response = client.text.generate("Hello")
+finally:
+    client.close_sync()  # Must call manually
+```
+
+#### Async Context Manager
+
+```python
+async with Blossom(api_token="your-token") as client:
+    response = await client.text.generate("Hello")
+```
+
+#### Properties
+
+- `client.image` - ImageGenerator instance
+- `client.text` - TextGenerator instance
+
+---
+
+## 🖼️ Image Generator
+
+Generate images with the V2 API.
+
+### Methods
+
+#### generate()
 
 Generate image and return bytes.
 
 ```python
-image_bytes = ai.image.generate(prompt, **options)
-```
-
-**Parameters:** Same as `generate_url()`
-
-**Returns:** `bytes` - Raw image data
-
-**Example:**
-```python
-image_bytes = ai.image.generate("a cute robot")
-with open("robot.jpg", "wb") as f:
-    f.write(image_bytes)
-```
-
-### `save()`
-
-Generate image and save to file.
-
-```python
-filepath = ai.image.save(prompt, filename, **options)
+image_bytes = client.image.generate(
+    prompt: str,
+    width: int = 1024,
+    height: int = 1024,
+    model: str = "flux",
+    seed: int = 42,
+    quality: str = "medium",
+    guidance_scale: float = None,
+    negative_prompt: str = "worst quality, blurry",
+    enhance: bool = False,
+    transparent: bool = False,
+    image: str = None,
+    private: bool = False,
+    nologo: bool = False,
+    nofeed: bool = False,
+    safe: bool = False,
+    timeout: int = None
+) -> bytes
 ```
 
 **Parameters:**
-- `prompt` (str): Image description (required)
-- `filename` (str): Output file path (required)
-- `**options`: Same parameters as `generate_url()`
+- `prompt` (str, required): Image description
+- `width` (int): Image width, 64-2048. Default: 1024
+- `height` (int): Image height, 64-2048. Default: 1024
+- `model` (str): Model name. Default: "flux"
+- `seed` (int): Random seed for reproducibility. Default: 42
+- `quality` (str): "low", "medium", "high", "hd". Default: "medium"
+- `guidance_scale` (float): Prompt adherence, 1.0-20.0. Default: None
+- `negative_prompt` (str): What to avoid. Default: "worst quality, blurry"
+- `enhance` (bool): Auto-enhance prompt. Default: False
+- `transparent` (bool): Transparent background. Default: False
+- `image` (str): Input image URL for img2img. Default: None
+- `private` (bool): Private generation. Default: False
+- `nologo` (bool): Remove watermark. Default: False
+- `nofeed` (bool): Don't add to public feed. Default: False
+- `safe` (bool): Enable safety filter. Default: False
+- `timeout` (int): Override default timeout. Default: None
 
-**Returns:** `str` - Path to saved file
-
-**Example:**
-```python
-ai.image.save(
-    "a majestic dragon",
-    "dragon.jpg",
-    width=1024,
-    height=1024
-)
-```
-
-### `models()`
-
-List available image generation models.
-
-```python
-models = ai.image.models()
-```
-
-**Returns:** `list[str]` - List of model names
+**Returns:** bytes - Image data
 
 **Example:**
 ```python
-models = ai.image.models()
-print(models)  # ['flux', 'kontext', 'turbo', 'gptimage', ...]
+with Blossom(api_token="your-token") as client:
+    image_data = client.image.generate(
+        "a beautiful sunset",
+        width=1920,
+        height=1080,
+        quality="hd"
+    )
+    
+    with open("sunset.jpg", "wb") as f:
+        f.write(image_data)
+```
+
+#### save()
+
+Generate and save image to file.
+
+```python
+filepath = client.image.save(
+    prompt: str,
+    filename: str | Path,
+    width: int = 1024,
+    height: int = 1024,
+    # ... same parameters as generate()
+) -> str
+```
+
+**Returns:** str - Path to saved file
+
+**Example:**
+```python
+with Blossom(api_token="your-token") as client:
+    path = client.image.save(
+        "a cute cat",
+        "cat.jpg",
+        width=512,
+        height=512
+    )
+    print(f"Saved to: {path}")
+```
+
+#### generate_url()
+
+Generate image URL without downloading.
+
+```python
+url = client.image.generate_url(
+    prompt: str,
+    width: int = 1024,
+    height: int = 1024,
+    # ... same parameters as generate()
+) -> str
+```
+
+**Returns:** str - Image URL
+
+**Example:**
+```python
+with Blossom(api_token="your-token") as client:
+    url = client.image.generate_url(
+        "a robot",
+        width=256,
+        height=256
+    )
+    print(f"URL: {url}")
+```
+
+**⚠️ Security Note:** API token is NEVER included in URL. It's sent in Authorization header.
+
+#### models()
+
+List available image models.
+
+```python
+models = client.image.models() -> list[str]
+```
+
+**Returns:** list[str] - Model names
+
+**Example:**
+```python
+with Blossom(api_token="your-token") as client:
+    models = client.image.models()
+    print(f"Available: {models}")
 ```
 
 ---
 
-## Text Generator (`ai.text`)
+## 💬 Text Generator
 
-Methods for text generation.
+Generate text with the V2 API.
 
-### `generate()`
+### Methods
 
-Generate text from a prompt.
+#### generate()
+
+Generate text response.
 
 ```python
-text = ai.text.generate(prompt, **options)
+response = client.text.generate(
+    prompt: str,
+    system: str = None,
+    model: str = "openai",
+    temperature: float = 1.0,
+    max_tokens: int = None,
+    frequency_penalty: float = 0.0,
+    presence_penalty: float = 0.0,
+    top_p: float = 1.0,
+    stream: bool = False,
+    json_mode: bool = False,
+    tools: list = None,
+    tool_choice: str | dict = None,
+    thinking: dict = None,
+    modalities: list[str] = None,
+    audio: dict = None,
+    timeout: int = None
+) -> str | Iterator[str]
 ```
 
 **Parameters:**
+- `prompt` (str, required): User message
+- `system` (str): System message for instructions. Default: None
+- `model` (str): Model name. Default: "openai"
+- `temperature` (float): Creativity, 0.0-2.0. Default: 1.0
+- `max_tokens` (int): Max response length. Default: None (model default)
+- `frequency_penalty` (float): Reduce repetition, -2.0 to 2.0. Default: 0.0
+- `presence_penalty` (float): Encourage new topics, -2.0 to 2.0. Default: 0.0
+- `top_p` (float): Nucleus sampling, 0.0-1.0. Default: 1.0
+- `stream` (bool): Enable streaming. Default: False
+- `json_mode` (bool): Force JSON output. Default: False
+- `tools` (list): Function calling tools. Default: None
+- `tool_choice` (str | dict): Tool selection. Default: None
+- `thinking` (dict): Native reasoning config (V2). Default: None
+- `modalities` (list[str]): Output modalities ["text", "audio"]. Default: None
+- `audio` (dict): Audio config. Default: None
+- `timeout` (int): Override default timeout. Default: None
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `prompt` | `str` | - | Text prompt (required) |
-| `model` | `str` | `"openai"` | Model to use |
-| `system` | `str` | `None` | System message |
-| `seed` | `int` | `None` | Seed for reproducibility |
-| `temperature` | `float` | `None` | ⚠️ Not supported in current API |
-| `json_mode` | `bool` | `False` | Force JSON output |
-| `private` | `bool` | `False` | Keep response private |
-| `stream` | `bool` | `False` | Stream response in real-time |
+**Returns:**
+- If `stream=False`: str - Full response
+- If `stream=True`: Iterator[str] - Chunks
 
-**Returns:** 
-- `str` if `stream=False`
-- `Iterator[str]` if `stream=True` (sync)
-- `AsyncIterator[str]` if `stream=True` (async)
-
-**Example:**
+**Example - Simple:**
 ```python
-# Simple generation
-response = ai.text.generate("Explain Python")
-
-# With streaming
-for chunk in ai.text.generate("Tell a story", stream=True):
-    print(chunk, end='', flush=True)
-
-# JSON mode
-response = ai.text.generate(
-    "List 3 colors in JSON",
-    json_mode=True
-)
+with Blossom(api_token="your-token") as client:
+    response = client.text.generate("What is Python?")
+    print(response)
 ```
 
-### `chat()`
+**Example - With Parameters:**
+```python
+with Blossom(api_token="your-token") as client:
+    response = client.text.generate(
+        prompt="Write a creative story",
+        system="You are a creative writer",
+        temperature=1.5,
+        max_tokens=500
+    )
+    print(response)
+```
 
-Generate text with message history.
+**Example - Streaming:**
+```python
+with Blossom(api_token="your-token") as client:
+    for chunk in client.text.generate("Count to 5", stream=True):
+        print(chunk, end="", flush=True)
+```
+
+**Example - JSON Mode:**
+```python
+import json
+
+with Blossom(api_token="your-token") as client:
+    response = client.text.generate(
+        "List 3 colors in JSON",
+        json_mode=True
+    )
+    data = json.loads(response)
+    print(data)
+```
+
+#### chat()
+
+Chat completion with message history.
 
 ```python
-text = ai.text.chat(messages, **options)
+response = client.text.chat(
+    messages: list[dict],
+    model: str = "openai",
+    temperature: float = 1.0,
+    max_tokens: int = None,
+    frequency_penalty: float = 0.0,
+    presence_penalty: float = 0.0,
+    top_p: float = 1.0,
+    stream: bool = False,
+    json_mode: bool = False,
+    tools: list = None,
+    tool_choice: str | dict = None,
+    thinking: dict = None,
+    modalities: list[str] = None,
+    audio: dict = None,
+    timeout: int = None
+) -> str | Iterator[str]
 ```
 
 **Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `messages` | `list` | - | Chat message history (required) |
-| `model` | `str` | `"openai"` | Model to use |
-| `temperature` | `float` | `1.0` | Fixed at 1.0 (API limitation) |
-| `stream` | `bool` | `False` | Stream response in real-time |
-| `json_mode` | `bool` | `False` | Force JSON output |
-| `private` | `bool` | `False` | Keep response private |
+- `messages` (list[dict], required): Conversation messages
+- Other parameters same as `generate()`
 
 **Message Format:**
 ```python
 messages = [
-    {"role": "system", "content": "You are a helpful assistant"},
-    {"role": "user", "content": "Hello!"},
-    {"role": "assistant", "content": "Hi! How can I help?"},
-    {"role": "user", "content": "Tell me about AI"}
+    {"role": "system", "content": "You are helpful"},
+    {"role": "user", "content": "Hello"},
+    {"role": "assistant", "content": "Hi there!"},
+    {"role": "user", "content": "How are you?"}
 ]
 ```
 
 **Returns:** Same as `generate()`
 
-**Example:**
+**Example - Basic Chat:**
 ```python
-messages = [
-    {"role": "system", "content": "You are a Python expert"},
-    {"role": "user", "content": "How do I read a file?"}
-]
-
-response = ai.text.chat(messages)
-
-# With streaming
-for chunk in ai.text.chat(messages, stream=True):
-    print(chunk, end='', flush=True)
+with Blossom(api_token="your-token") as client:
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant"},
+        {"role": "user", "content": "What is 2+2?"}
+    ]
+    
+    response = client.text.chat(messages)
+    print(response)
 ```
 
-### `models()`
-
-List available text generation models.
-
+**Example - Multi-Turn:**
 ```python
-models = ai.text.models()
+with Blossom(api_token="your-token") as client:
+    conversation = [
+        {"role": "system", "content": "You are helpful"}
+    ]
+    
+    # Turn 1
+    conversation.append({"role": "user", "content": "Hi"})
+    response = client.text.chat(conversation)
+    conversation.append({"role": "assistant", "content": response})
+    
+    # Turn 2
+    conversation.append({"role": "user", "content": "Tell me a joke"})
+    response = client.text.chat(conversation)
+    print(response)
 ```
 
-**Returns:** `list[str]` - List of model names
+**Example - Vision (NEW in v0.5.0):**
+```python
+from blossom_ai import MessageBuilder
+
+with Blossom(api_token="your-token") as client:
+    messages = [
+        MessageBuilder.image_message(
+            role="user",
+            text="What's in this image?",
+            image_url="https://example.com/photo.jpg"
+        )
+    ]
+    
+    response = client.text.chat(messages, model="openai")
+    print(response)
+```
+
+#### models()
+
+List available text models.
+
+```python
+models = client.text.models() -> list[str]
+```
+
+**Returns:** list[str] - Model names
 
 **Example:**
 ```python
-models = ai.text.models()
-print(models)  # ['openai', 'deepseek', 'gemini', 'mistral', ...]
+with Blossom(api_token="your-token") as client:
+    models = client.text.models()
+    print(f"Available: {models}")
 ```
 
 ---
 
-## Audio Generator (`ai.audio`)
+## 🔨 Message Builder
 
-Methods for audio generation (Text-to-Speech). **Requires API token.**
+Helper for creating vision messages (NEW in v0.5.0).
 
-### `generate()`
+### MessageBuilder.text_message()
 
-Generate audio from text.
+Create regular text message.
 
 ```python
-audio_bytes = ai.audio.generate(text, voice="alloy", **options)
+from blossom_ai import MessageBuilder
+
+message = MessageBuilder.text_message(
+    role: str,
+    content: str
+) -> dict
 ```
 
 **Parameters:**
+- `role` (str): "system", "user", or "assistant"
+- `content` (str): Message text
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `text` | `str` | - | Text to speak (required) |
-| `voice` | `str` | `"alloy"` | Voice to use |
-| `model` | `str` | `"openai-audio"` | TTS model |
-
-**Returns:** `bytes` - Raw audio data (MP3 format)
+**Returns:** dict - Message object
 
 **Example:**
 ```python
-with Blossom(api_token="YOUR_TOKEN") as ai:
-    audio_bytes = ai.audio.generate("Hello world", voice="nova")
-    with open("hello.mp3", "wb") as f:
-        f.write(audio_bytes)
+msg = MessageBuilder.text_message("user", "Hello!")
+# Returns: {"role": "user", "content": "Hello!"}
 ```
 
-### `save()`
+### MessageBuilder.image_message()
 
-Generate audio and save to file.
+Create vision message with image.
 
 ```python
-filepath = ai.audio.save(text, filename, voice="alloy", **options)
+from blossom_ai import MessageBuilder
+
+message = MessageBuilder.image_message(
+    role: str,
+    text: str,
+    image_url: str = None,
+    image_path: str = None,
+    detail: str = "auto"
+) -> dict
 ```
 
 **Parameters:**
-- `text` (str): Text to speak (required)
-- `filename` (str): Output file path (required)
-- `voice` (str): Voice to use (default: "alloy")
-- `**options`: Additional options
+- `role` (str): "user" (typically)
+- `text` (str): Question/instruction about the image
+- `image_url` (str): URL to image. Default: None
+- `image_path` (str): Path to local image. Default: None
+- `detail` (str): "low", "auto", or "high". Default: "auto"
 
-**Returns:** `str` - Path to saved file
+**Note:** Provide either `image_url` OR `image_path`, not both.
 
-**Example:**
+**Returns:** dict - Message object with image
+
+**Example - From URL:**
 ```python
-with Blossom(api_token="YOUR_TOKEN") as ai:
-    ai.audio.save(
-        "Welcome to Blossom AI!",
-        "welcome.mp3",
-        voice="nova"
-    )
-```
-
-### `voices()`
-
-List available voices.
-
-```python
-voices = ai.audio.voices()
-```
-
-**Returns:** `list[str]` - List of voice names
-
-**Example:**
-```python
-voices = ai.audio.voices()
-print(voices)  # ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', ...]
-```
-
----
-
-## Error Handling
-
-All Blossom AI exceptions inherit from `BlossomError`.
-
-### Exception Types
-
-| Exception | Description |
-|-----------|-------------|
-| `BlossomError` | Base error class for all errors |
-| `NetworkError` | Connection issues, timeouts |
-| `APIError` | HTTP errors from API (4xx, 5xx) |
-| `AuthenticationError` | Invalid or missing API token (401) |
-| `ValidationError` | Invalid parameters |
-| `RateLimitError` | Too many requests (429) |
-| `StreamError` | Streaming-specific errors (timeouts, interruptions) |
-
-### Error Attributes
-
-All errors include:
-- `message`: Human-readable error description
-- `error_type`: Type of error (e.g., "authentication_error")
-- `suggestion`: Actionable suggestion to fix the issue
-- `context`: Additional context (status code, request ID, etc.)
-- `original_error`: Original exception if wrapped
-
-### Example
-
-```python
-from blossom_ai import (
-    Blossom,
-    BlossomError,
-    AuthenticationError,
-    APIError,
-    NetworkError,
-    RateLimitError,
-    StreamError
+msg = MessageBuilder.image_message(
+    role="user",
+    text="What's this?",
+    image_url="https://example.com/photo.jpg",
+    detail="auto"
 )
+```
+
+**Example - From File:**
+```python
+msg = MessageBuilder.image_message(
+    role="user",
+    text="Describe this",
+    image_path="photo.jpg",
+    detail="high"
+)
+```
+
+---
+
+## 🎭 Models
+
+### ImageModel
+
+Image model information.
+
+```python
+from blossom_ai import ImageModel
+
+# Get default models
+defaults = ImageModel.get_defaults() -> list[str]
+
+# Get all models from API
+all_models = ImageModel.list_all(api_token="your-token") -> list[str]
+
+# Reset cache
+ImageModel.reset()
+```
+
+**Default Models:**
+```python
+["flux", "turbo"]
+```
+
+### TextModel
+
+Text model information.
+
+```python
+from blossom_ai import TextModel
+
+# Get default models
+defaults = TextModel.get_defaults() -> list[str]
+
+# Get all models from API
+all_models = TextModel.list_all(api_token="your-token") -> list[str]
+
+# Reset cache
+TextModel.reset()
+```
+
+**Default Models:**
+```python
+["openai", "openai-fast", "openai-large", "openai-reasoning"]
+```
+
+---
+
+## 🛡️ Errors
+
+### Error Hierarchy
+
+```
+BlossomError (base)
+├── NetworkError
+├── APIError
+│   ├── AuthenticationError
+│   ├── RateLimitError
+│   └── ValidationError
+├── StreamError
+├── TimeoutError
+└── FileTooLargeError
+```
+
+### BlossomError
+
+Base exception class.
+
+```python
+from blossom_ai import BlossomError
 
 try:
-    with Blossom() as ai:
-        response = ai.text.generate("Hello")
-        
+    # API call
+    pass
+except BlossomError as e:
+    print(e.error_type)    # ErrorType enum
+    print(e.message)       # Human-readable message
+    print(e.suggestion)    # How to fix (if available)
+    print(e.status_code)   # HTTP status (if applicable)
+```
+
+**Attributes:**
+- `error_type` (ErrorType): Error type enum
+- `message` (str): Error description
+- `suggestion` (str | None): How to fix
+- `status_code` (int | None): HTTP status code
+- `retry_after` (int | None): Retry delay for rate limits
+
+### ErrorType (Enum)
+
+```python
+from blossom_ai import ErrorType
+
+ErrorType.NETWORK           # Network/connection error
+ErrorType.TIMEOUT           # Request timeout
+ErrorType.AUTH              # Authentication failed
+ErrorType.RATE_LIMIT        # Rate limit exceeded
+ErrorType.INVALID_PARAM     # Invalid parameter
+ErrorType.API_ERROR         # General API error
+ErrorType.STREAM_ERROR      # Streaming error
+ErrorType.FILE_TOO_LARGE    # File exceeds limit
+```
+
+### Specific Exceptions
+
+#### AuthenticationError
+
+```python
+from blossom_ai import AuthenticationError
+
+try:
+    client = Blossom(api_token="invalid")
+    client.text.generate("test")
 except AuthenticationError as e:
     print(f"Auth failed: {e.message}")
-    print(f"Suggestion: {e.suggestion}")
-    
-except ValidationError as e:
-    print(f"Invalid parameter: {e.message}")
-    print(f"Context: {e.context}")
-    
-except NetworkError as e:
-    print(f"Connection issue: {e.message}")
-    
-except RateLimitError as e:
-    print(f"Too many requests: {e.message}")
-    if e.retry_after:
-        print(f"Retry after: {e.retry_after} seconds")
-    
-except StreamError as e:
-    print(f"Stream error: {e.message}")
-    
-except APIError as e:
-    print(f"API error: {e.message}")
-    if e.context:
-        print(f"Status: {e.context.status_code}")
-        print(f"Request ID: {e.context.request_id}")
-    
-except BlossomError as e:
-    print(f"Error: {e.message}")
-    if e.context and e.context.request_id:
-        print(f"Request ID: {e.context.request_id}")
+    print(f"Fix: {e.suggestion}")
 ```
 
----
-
-## Async/Sync Unified API
-
-All methods work in both synchronous and asynchronous contexts automatically.
-
-### Synchronous Usage
+#### RateLimitError
 
 ```python
-from blossom_ai import Blossom
-
-with Blossom() as ai:
-    url = ai.image.generate_url("sunset")
-    image = ai.image.generate("sunset")
-    text = ai.text.generate("Hello")
-```
-
-### Asynchronous Usage
-
-```python
-import asyncio
-from blossom_ai import Blossom
-
-async def main():
-    async with Blossom() as ai:
-        url = await ai.image.generate_url("sunset")
-        image = await ai.image.generate("sunset")
-        text = await ai.text.generate("Hello")
-        
-        # Streaming in async
-        async for chunk in await ai.text.generate("Story", stream=True):
-            print(chunk, end='')
-
-asyncio.run(main())
-```
----
-
-## 🔧 Advanced Usage (v0.4.4+)
-
-For advanced users who want more control or are building custom generators.
-
-### Parameter Validation
-
-Validate parameters before making API calls:
-
-```python
-from blossom_ai.generators import ParameterValidator
-from blossom_ai.core.errors import BlossomError
+from blossom_ai import RateLimitError
+import time
 
 try:
-    # Validate prompt length
-    ParameterValidator.validate_prompt_length(
-        prompt="Your long prompt...",
-        max_length=1000,
-        param_name="prompt"
-    )
-    
-    # Validate image dimensions
-    ParameterValidator.validate_dimensions(
-        width=1024,
-        height=1024,
-        min_size=64,
-        max_size=2048
-    )
-    
-    # Validate temperature
-    ParameterValidator.validate_temperature(temperature=0.7)
-    
-    # If all valid, proceed with generation
-    result = client.text.generate(prompt)
-    
-except BlossomError as e:
-    print(f"Validation failed: {e.message}")
+    client.text.generate("test")
+except RateLimitError as e:
+    print(f"Rate limited: {e.message}")
+    if e.retry_after:
+        print(f"Retry after: {e.retry_after}s")
+        time.sleep(e.retry_after)
+```
+
+#### ValidationError
+
+```python
+from blossom_ai import ValidationError
+
+try:
+    client.image.generate("x" * 300)  # Too long
+except ValidationError as e:
+    print(f"Invalid: {e.message}")
+```
+
+#### StreamError
+
+```python
+from blossom_ai import StreamError
+
+try:
+    for chunk in client.text.generate("test", stream=True):
+        print(chunk)
+except StreamError as e:
+    print(f"Stream failed: {e.message}")
+```
+
+#### TimeoutError
+
+```python
+from blossom_ai import TimeoutError
+
+try:
+    client = Blossom(timeout=5)
+    client.text.generate("long task")
+except TimeoutError as e:
+    print(f"Timeout: {e.message}")
+```
+
+#### FileTooLargeError
+
+```python
+from blossom_ai import FileTooLargeError
+
+try:
+    from blossom_ai.utils import read_file_for_prompt
+    content = read_file_for_prompt("huge_file.txt")
+except FileTooLargeError as e:
+    print(f"File too large: {e.message}")
     print(f"Suggestion: {e.suggestion}")
 ```
 
-### Type-Safe Parameters
+---
 
-Use dataclass builders for type safety and validation:
+## 🛠️ Utilities
+
+### File Reader
+
+Read files for prompts with size limits.
 
 ```python
-from blossom_ai.generators import ImageParams, TextParams
+from blossom_ai.utils import read_file_for_prompt, get_file_info
 
-# V1 Image parameters
-params = ImageParams(
-    model="flux",
-    width=1024,
-    height=1024,
-    seed=42,
-    nologo=True,
-    enhance=True
-)
+# Read file (respects API limits)
+content = read_file_for_prompt(
+    filepath: str | Path,
+    max_length: int = 8000,
+    truncate_if_needed: bool = False
+) -> str
 
-# Convert to dict (only non-default values!)
-request_params = params.to_dict()
-print(request_params)
-# Output: {'width': 1024, 'height': 1024, 'seed': 42, 'nologo': 'true', 'enhance': 'true'}
-# Note: 'model' is not included (it's the default value)
-
-# V1 Text parameters
-text_params = TextParams(
-    model="openai",
-    system="You are a helpful assistant",
-    temperature=0.7,
-    json_mode=True
-)
-
-# Smart conversion (json_mode → json parameter)
-request_params = text_params.to_dict()
-print(request_params)
-# Output: {'system': '...', 'temperature': 0.7, 'json': 'true'}
+# Get file information
+info = get_file_info(filepath: str | Path) -> dict
 ```
 
-### Custom SSE Parsing
-
-Parse Server-Sent Events streams manually:
-
+**Example:**
 ```python
-from blossom_ai.generators import SSEParser
+from blossom_ai.utils import read_file_for_prompt
 
-parser = SSEParser()
+# Read file for prompt
+content = read_file_for_prompt("code.py", max_length=5000)
 
-# Parse individual lines
-for line in your_stream_lines:
-    parsed = parser.parse_line(line)
-    
-    if parsed is None:
-        # Invalid or empty line
-        continue
-    
-    if parsed.get('done'):
-        # Stream finished
-        break
-    
-    # Extract content (OpenAI format)
-    content = parser.extract_content(parsed)
-    if content:
-        print(content, end='', flush=True)
+# Build prompt
+prompt = f"Review this code:\n\n{content}"
 ```
 
-**Example with requests:**
+### Reasoning Enhancer
+
+Add structured thinking to prompts.
+
 ```python
-import requests
-from blossom_ai.generators import SSEParser
+from blossom_ai.utils import ReasoningEnhancer, create_reasoning_enhancer
 
-response = requests.get("https://api.example.com/stream", stream=True)
-parser = SSEParser()
+# Create enhancer
+enhancer = ReasoningEnhancer()
 
-for line in response.iter_lines(decode_unicode=True):
-    if line:
-        parsed = parser.parse_line(line)
-        if parsed:
-            content = parser.extract_content(parsed)
-            if content:
-                yield content
+# Enhance prompt
+enhanced = enhancer.enhance(
+    prompt: str,
+    level: str = "medium",
+    mode: str = "auto",
+    api_version: str = "v2",
+    model: str = "openai"
+) -> str | dict
 ```
 
-### Custom Generator with Streaming
+**Levels:** "low", "medium", "high", "adaptive"
 
-Extend base generators with your own logic:
+**Modes:**
+- "prompt" - Prompt engineering (works with all models)
+- "native" - Native reasoning (OpenAI models only in V2)
+- "auto" - Auto-detect best mode
 
+**Example:**
 ```python
-from blossom_ai.generators import SyncGenerator, SyncStreamingMixin
-from blossom_ai.generators import SSEParser
-from blossom_ai.core.config import ENDPOINTS
+from blossom_ai import Blossom
+from blossom_ai.utils import create_reasoning_enhancer
 
-class MyCustomGenerator(SyncGenerator, SyncStreamingMixin):
-    """Custom generator with specialized logic"""
-    
-    def __init__(self, timeout=30):
-        super().__init__(ENDPOINTS.TEXT, timeout)
-        self._sse_parser = SSEParser()
-    
-    def generate_with_metadata(self, prompt: str, stream: bool = False):
-        """Generate text with custom metadata"""
-        # Custom request building
-        url = f"{self.base_url}/custom-endpoint"
-        params = {
-            "prompt": prompt,
-            "custom_param": "value"
-        }
-        
-        response = self._make_request("GET", url, params=params, stream=stream)
-        
-        if stream:
-            # Use unified streaming from mixin
-            return self._stream_sse_response(response, self._sse_parser)
-        else:
-            return response.text
-    
-    def _validate_prompt(self, prompt: str) -> None:
-        """Custom validation"""
-        from blossom_ai.generators import ParameterValidator
-        ParameterValidator.validate_prompt_length(prompt, 2000, "prompt")
+enhancer = create_reasoning_enhancer(level="high", mode="auto")
 
-# Usage
-gen = MyCustomGenerator()
-result = gen.generate_with_metadata("Hello", stream=True)
-
-for chunk in result:
-    print(chunk, end='', flush=True)
-```
-
-### Async Custom Generator
-
-Same pattern for async generators:
-
-```python
-from blossom_ai.generators import AsyncGenerator, AsyncStreamingMixin
-from blossom_ai.generators import SSEParser
-
-class MyAsyncGenerator(AsyncGenerator, AsyncStreamingMixin):
-    """Async custom generator"""
-    
-    def __init__(self):
-        super().__init__("https://api.example.com", timeout=30)
-        self._sse_parser = SSEParser()
-    
-    async def custom_generate(self, prompt: str, stream: bool = False):
-        url = f"{self.base_url}/endpoint"
-        
-        if stream:
-            response = await self._make_request("GET", url, stream=True)
-            # Use async streaming mixin
-            return self._stream_sse_response(response, self._sse_parser)
-        else:
-            data = await self._make_request("GET", url)
-            return data.decode('utf-8')
-
-# Usage
-import asyncio
-
-async def main():
-    gen = MyAsyncGenerator()
-    
-    # Streaming
-    async for chunk in await gen.custom_generate("Hello", stream=True):
-        print(chunk, end='', flush=True)
-    
-    await gen.close()
-
-asyncio.run(main())
-```
-
-### Why Use These Utilities?
-
-**Parameter Builders:**
-- ✅ Type hints and IDE autocomplete
-- ✅ Automatic validation
-- ✅ Filter out None and default values
-- ✅ Consistent parameter handling
-
-**SSE Parser:**
-- ✅ Reusable across projects
-- ✅ Handles [DONE] markers
-- ✅ Robust JSON parsing
-- ✅ OpenAI format compatible
-
-**Streaming Mixins:**
-- ✅ Timeout handling built-in
-- ✅ Proper resource cleanup
-- ✅ Unicode error handling
-- ✅ Works with both line-based and chunk-based streams
-
-### Testing Components
-
-These utilities are easy to unit test:
-
-```python
-import pytest
-from blossom_ai.generators import SSEParser, ImageParams, ParameterValidator
-from blossom_ai.core.errors import BlossomError
-
-def test_sse_parser():
-    parser = SSEParser()
-    
-    # Test valid line
-    line = 'data: {"choices":[{"delta":{"content":"Hello"}}]}'
-    parsed = parser.parse_line(line)
-    assert parsed is not None
-    assert parser.extract_content(parsed) == "Hello"
-    
-    # Test [DONE] marker
-    done_line = 'data: [DONE]'
-    parsed = parser.parse_line(done_line)
-    assert parsed['done'] is True
-
-def test_image_params():
-    params = ImageParams(
-        width=512,
-        height=512,
-        nologo=True
+with Blossom(api_token="your-token") as client:
+    enhanced = enhancer.enhance(
+        "Design a microservices architecture",
+        api_version="v2",
+        model="openai"
     )
     
-    data = params.to_dict()
+    if isinstance(enhanced, dict):
+        # Native reasoning
+        response = client.text.chat(
+            messages=[{"role": "user", "content": enhanced["prompt"]}],
+            thinking=enhanced.get("thinking")
+        )
+    else:
+        # Prompt reasoning
+        response = client.text.generate(enhanced)
     
-    # Default model not included
-    assert 'model' not in data
-    # Custom values included
-    assert data['width'] == 512
-    assert data['height'] == 512
-    assert data['nologo'] == 'true'  # Boolean converted to string
-
-def test_validator():
-    # Valid prompt
-    ParameterValidator.validate_prompt_length("Short", 1000, "prompt")
-    
-    # Too long prompt
-    with pytest.raises(BlossomError) as exc:
-        ParameterValidator.validate_prompt_length("x" * 2000, 1000, "prompt")
-    
-    assert "exceeds maximum length" in str(exc.value)
+    print(response)
 ```
 
-### When to Use Advanced Features
+### Cache Manager
 
-**Use parameter validation when:**
-- Building user-facing applications
-- Need early error detection
-- Want clear error messages
-- Implementing input forms
+Cache API responses to reduce costs.
 
-**Use parameter builders when:**
-- Building SDKs or libraries
-- Need type safety
-- Want IDE autocomplete
-- Have complex parameter logic
+```python
+from blossom_ai.utils import cached, get_cache, configure_cache
 
-**Use SSE parser when:**
-- Building custom streaming clients
-- Integrating with other APIs
-- Need standalone parsing logic
-- Testing streaming implementations
+# Decorator
+@cached(ttl=3600)
+def expensive_call(prompt):
+    with Blossom(api_token="your-token") as client:
+        return client.text.generate(prompt)
 
-**Use streaming mixins when:**
-- Extending Blossom generators
-- Building custom API clients
-- Need reliable streaming with timeouts
-- Want consistent error handling
+# Manual cache
+cache = get_cache()
+cache.set("key", "value", ttl=3600)
+value = cache.get("key")
+
+# Configure
+configure_cache(
+    backend="hybrid",  # memory, disk, hybrid
+    max_memory_items=1000,
+    disk_path="./cache"
+)
+```
+
+**Example:**
+```python
+from blossom_ai.utils import cached
+
+@cached(ttl=3600)
+def generate_cached(prompt):
+    with Blossom(api_token="your-token") as client:
+        return client.text.generate(prompt)
+
+# First call: hits API
+result = generate_cached("Hello")
+
+# Second call: from cache (instant)
+result = generate_cached("Hello")
+```
+
+### CLI Interface
+
+Command-line interface for quick tasks.
+
+```bash
+# Interactive mode
+python -m blossom_ai.utils.cli
+
+# Quick commands
+python -m blossom_ai.utils.cli --image "sunset" --output sunset.png
+python -m blossom_ai.utils.cli --text "Write a poem"
+```
 
 ---
 
-## 📚 Related Documentation
+## 📚 Type Hints
 
-- **[V2 API Reference](V2_API_REFERENCE.md)** - V2-specific advanced usage
-- **[Error Handling](ERROR_HANDLING.md)** - Error handling patterns
-- **[Contributing Guide](../../CONTRIBUTING.md)** - How to contribute
+### Common Types
+
+```python
+from typing import Iterator, Union
+from pathlib import Path
+
+# Image methods
+def generate(prompt: str, **kwargs) -> bytes: ...
+def save(prompt: str, filename: Union[str, Path], **kwargs) -> str: ...
+def generate_url(prompt: str, **kwargs) -> str: ...
+
+# Text methods
+def generate(prompt: str, stream: bool = False, **kwargs) -> Union[str, Iterator[str]]: ...
+def chat(messages: list[dict], stream: bool = False, **kwargs) -> Union[str, Iterator[str]]: ...
+
+# Message types
+Message = dict[str, Union[str, list]]
+MessageContent = Union[str, list[dict]]
+```
 
 ---
+
+## 🔗 Related Documentation
+
+- **[Quick Start](QUICKSTART.md)** - Get started quickly
+- **[Image Generation](IMAGE_GENERATION.md)** - Image generation guide
+- **[Text Generation](TEXT_GENERATION.md)** - Text generation guide
+- **[Vision Support](VISION.md)** - Vision features guide
+- **[Error Handling](ERROR_HANDLING.md)** - Error handling guide
+
 ---
 
-## Notes
+<div align="center">
 
-- **Token Security**: Tokens are never exposed in URLs generated by `generate_url()`
-- **Streaming Timeout**: Default 30 seconds between chunks
-- **Resource Management**: Always use context managers for proper cleanup
-- **Request IDs**: Available in error contexts for debugging
-- **Dynamic Models**: Model lists update from API at runtime with fallbacks
+**Made with 🌸 by the [Eclips Team](https://github.com/PrimeevolutionZ)**
+
+[← Back to Index](INDEX.md)
+
+</div>
