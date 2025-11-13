@@ -226,11 +226,11 @@ Control processing detail with the `detail` parameter.
 
 ### Available Levels
 
-| Level | Speed | Cost | Accuracy | Best For |
-|-------|-------|------|----------|----------|
-| `low` | ⚡⚡⚡ | 💰 | ⭐⭐⭐ | Quick checks, simple questions |
-| `auto` | ⚡⚡ | 💰💰 | ⭐⭐⭐⭐ | General use (default) |
-| `high` | ⚡ | 💰💰💰 | ⭐⭐⭐⭐⭐ | OCR, fine details, accuracy critical |
+| Level  | Speed | Cost   | Accuracy | Best For                             |
+|--------|-------|--------|----------|--------------------------------------|
+| `low`  | ⚡⚡⚡   | 💰     | ⭐⭐⭐      | Quick checks, simple questions       |
+| `auto` | ⚡⚡    | 💰💰   | ⭐⭐⭐⭐     | General use (default)                |
+| `high` | ⚡     | 💰💰💰 | ⭐⭐⭐⭐⭐    | OCR, fine details, accuracy critical |
 
 ### Examples by Detail Level
 

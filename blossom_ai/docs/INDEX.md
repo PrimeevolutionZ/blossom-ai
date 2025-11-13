@@ -173,7 +173,7 @@ Get involved and keep the project secure.
 - **Install the library:** [Installation Guide](INSTALLATION.md)
 - **First image generation:** [Quick Start - Images](QUICKSTART.md#image-generation)
 - **First text generation:** [Quick Start - Text](QUICKSTART.md#text-generation)
-- **Use CLI:** [CLI - Quick Start](CLI.md#quick-start)
+- **Use CLI:** [CLI - Quick Start](CLI.md)
 
 #### Image Generation
 - **Generate HD images:** [Image Generation - Quality](IMAGE_GENERATION.md#quality-levels)

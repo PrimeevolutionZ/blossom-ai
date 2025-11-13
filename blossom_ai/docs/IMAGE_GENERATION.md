@@ -207,12 +207,12 @@ with Blossom(api_token="your-token") as client:
 
 ### Quality Comparison
 
-| Quality | Speed | Detail | File Size | Use Case |
-|---------|-------|--------|-----------|----------|
-| `low` | ⚡⚡⚡⚡ | ⭐ | ~100KB | Previews, thumbnails, testing |
-| `medium` | ⚡⚡⚡ | ⭐⭐⭐ | ~500KB | General use, social media |
-| `high` | ⚡⚡ | ⭐⭐⭐⭐ | ~2MB | Print, professional use |
-| `hd` | ⚡ | ⭐⭐⭐⭐⭐ | ~5MB | Maximum quality, large prints |
+| Quality  | Speed | Detail | File Size | Use Case                      |
+|----------|-------|--------|-----------|-------------------------------|
+| `low`    | ⚡⚡⚡⚡  | ⭐      | ~100KB    | Previews, thumbnails, testing |
+| `medium` | ⚡⚡⚡   | ⭐⭐⭐    | ~500KB    | General use, social media     |
+| `high`   | ⚡⚡    | ⭐⭐⭐⭐   | ~2MB      | Print, professional use       |
+| `hd`     | ⚡     | ⭐⭐⭐⭐⭐  | ~5MB      | Maximum quality, large prints |
 
 ### Progressive Quality Example
 
@@ -775,14 +775,14 @@ with Blossom(api_token="your-token") as client:
 
 ### Common Aspect Ratios
 
-| Ratio | Use Case | Example Sizes |
-|-------|----------|---------------|
-| 1:1 | Social media, icons | 512x512, 1024x1024 |
-| 4:3 | Traditional photos | 1024x768, 1600x1200 |
-| 16:9 | Widescreen, video | 1920x1080, 2560x1440 |
-| 9:16 | Vertical video, stories | 1080x1920 |
-| 21:9 | Ultrawide | 2560x1080 |
-| 3:2 | Photography | 1620x1080 |
+| Ratio | Use Case                | Example Sizes        |
+|-------|-------------------------|----------------------|
+| 1:1   | Social media, icons     | 512x512, 1024x1024   |
+| 4:3   | Traditional photos      | 1024x768, 1600x1200  |
+| 16:9  | Widescreen, video       | 1920x1080, 2560x1440 |
+| 9:16  | Vertical video, stories | 1080x1920            |
+| 21:9  | Ultrawide               | 2560x1080            |
+| 3:2   | Photography             | 1620x1080            |
 
 ### Social Media Sizes
 
