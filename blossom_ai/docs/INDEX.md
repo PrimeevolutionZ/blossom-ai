@@ -139,7 +139,6 @@ Build real-world applications.
 | **[Discord Bot Tutorial](DISCORD_BOT.md)**   | AI image generation bot for Discord |
 | **[Telegram Bot Tutorial](TELEGRAM_BOT.md)** | Telegram bot with image generation  |
 | **[Web Application Guide](WEB_APP.md)**      | Build web apps with FastAPI/Flask   |
-| **[Async Best Practices](ASYNC_GUIDE.md)**   | Working with async/await            |
 
 ---
 
