@@ -3,20 +3,23 @@ Blossom AI - Models and Enums (v0.5.0)
 V2 API Only (enter.pollinations.ai)
 """
 
-from typing import Set, Optional, List, ClassVar
-from abc import ABC, abstractmethod
+from __future__ import annotations
+
+import logging
 import threading
 import time
-from dataclasses import dataclass
+from typing import List, Optional, Set, NamedTuple
 
 from .config import ENDPOINTS
-from .session_manager import SyncSessionManager
-from .errors import print_warning, print_debug
+from .session_manager import get_sync_session
 
+logger = logging.getLogger("blossom_ai")
 
-@dataclass(frozen=True)
-class ModelInfo:
-    """Structured model information from API"""
+# ==============================================================================
+# MODEL INFO
+# ==============================================================================
+
+class ModelInfo(NamedTuple):
     name: str
     aliases: List[str]
     description: Optional[str] = None
@@ -24,307 +27,181 @@ class ModelInfo:
 
     @property
     def all_identifiers(self) -> Set[str]:
-        """Get all valid identifiers (name + aliases)"""
         return {self.name, *self.aliases}
 
+# ==============================================================================
+# DYNAMIC MODEL BASE
+# ==============================================================================
 
-class DynamicModel(ABC):
-    """
-    Base class for dynamic model names with TTL cache
-    """
+class _ModelCache:
+    __slots__ = ("known", "info", "initialized", "timestamp", "lock")
+    ttl = 300  # 5 minutes
 
-    # Class-level state
-    _known_values: ClassVar[Set[str]] = set()
-    _model_info: ClassVar[List[ModelInfo]] = []
-    _initialized: ClassVar[bool] = False
-    _init_lock: ClassVar[threading.Lock] = threading.Lock()
+    def __init__(self) -> None:
+        self.known: Set[str] = set()
+        self.info: List[ModelInfo] = []
+        self.initialized = False
+        self.timestamp = 0.0
+        self.lock = threading.Lock()
 
-    # Cache TTL
-    _cache_timestamp: ClassVar[float] = 0
-    _cache_ttl: ClassVar[int] = 300  # 5 minutes
+    def is_valid(self) -> bool:
+        return self.initialized and (time.time() - self.timestamp) < self.ttl
+
+    def reset(self) -> None:
+        with self.lock:
+            self.known.clear()
+            self.info.clear()
+            self.initialized = False
+            self.timestamp = 0.0
+
+
+class DynamicModel:
+    _cache = _ModelCache()
 
     @classmethod
-    @abstractmethod
     def get_defaults(cls) -> List[str]:
-        """Get default model names"""
-        pass
+        raise NotImplementedError
 
     @classmethod
-    @abstractmethod
     def get_api_endpoints(cls) -> List[str]:
-        """Get API endpoints to fetch models from"""
-        pass
+        raise NotImplementedError
 
     @classmethod
-    def _is_cache_valid(cls) -> bool:
-        """Check if cache is still valid (within TTL)"""
-        if not cls._initialized:
-            return False
-        return (time.time() - cls._cache_timestamp) < cls._cache_ttl
-
-    @classmethod
-    def _fetch_models_from_endpoint(
-        cls,
-        endpoint: str,
-        api_token: Optional[str] = None,
-        timeout: int = 5
-    ) -> List[ModelInfo]:
-        """Fetch models from a single endpoint with timeout"""
+    def _fetch_models(cls, endpoint: str, api_token: Optional[str] = None) -> List[ModelInfo]:
         try:
-            with SyncSessionManager() as session_manager:
-                session = session_manager.get_session()
-
+            with get_sync_session() as session:
                 headers = {}
                 if api_token:
-                    headers['Authorization'] = f'Bearer {api_token}'
-
-                response = session.get(
-                    endpoint,
-                    headers=headers,
-                    timeout=timeout,
-                    verify=True
-                )
-
-                if response.status_code != 200:
-                    print_debug(f"API returned {response.status_code} from {endpoint}")
+                    headers["Authorization"] = f"Bearer {api_token}"
+                resp = session.get(endpoint, headers=headers, timeout=5)
+                if resp.status_code != 200:
+                    logger.debug("API %s returned %s", endpoint, resp.status_code)
                     return []
-
-                data = response.json()
-                return cls._parse_api_response(data)
-
+                return cls._parse(resp.json())
         except Exception as e:
-            print_debug(f"Failed to fetch from {endpoint}: {type(e).__name__}: {e}")
+            logger.debug("Failed to fetch from %s: %s", endpoint, e)
             return []
 
-    @classmethod
-    def _parse_api_response(cls, data: any) -> List[ModelInfo]:
-        """Parse API response into structured ModelInfo objects"""
+    @staticmethod
+    def _parse(data: list) -> List[ModelInfo]:
         models = []
-
-        if not isinstance(data, list):
-            return models
-
         for item in data:
             try:
                 if isinstance(item, str):
                     models.append(ModelInfo(name=item, aliases=[]))
-
                 elif isinstance(item, dict):
-                    name = item.get('name') or item.get('id') or item.get('model')
+                    name = item.get("name") or item.get("id") or item.get("model")
                     if not name:
                         continue
-
-                    aliases = item.get('aliases', [])
+                    aliases = item.get("aliases", [])
                     if not isinstance(aliases, list):
                         aliases = []
-
                     models.append(ModelInfo(
                         name=name,
                         aliases=aliases,
-                        description=item.get('description'),
-                        tier=item.get('tier')
+                        description=item.get("description"),
+                        tier=item.get("tier"),
                     ))
             except Exception as e:
-                print_debug(f"Skipping malformed model item: {e}")
-                continue
-
+                logger.debug("Skipping malformed model item: %s", e)
         return models
 
     @classmethod
-    def initialize_from_api(
-        cls,
-        api_token: Optional[str] = None,
-        force_refresh: bool = False
-    ) -> bool:
-        """
-        Initialize known values from API (lazy, with TTL)
-
-        Returns:
-            True if successfully fetched from API, False if using fallback
-        """
-        # Fast path - cache is still valid
-        if not force_refresh and cls._is_cache_valid():
+    def _ensure_initialized(cls, api_token: Optional[str] = None, force: bool = False) -> bool:
+        cache = cls._cache
+        if not force and cache.is_valid():
             return True
 
-        # Thread-safe initialization
-        with cls._init_lock:
-            # Double-check after acquiring lock
-            if not force_refresh and cls._is_cache_valid():
+
+        with cache.lock:
+            if not force and cache.is_valid():
                 return True
 
-            # Always start with defaults
-            cls._known_values.update(cls.get_defaults())
+            cache.known.update(cls.get_defaults())
+            endpoints = cls.get_api_endpoints()
+            all_models = []
+            for ep in endpoints:
+                all_models.extend(cls._fetch_models(ep, api_token))
 
-            try:
-                endpoints = cls.get_api_endpoints()
-                all_models = []
-
-                # Fetch from all endpoints
-                for endpoint in endpoints:
-                    models = cls._fetch_models_from_endpoint(endpoint, api_token)
-                    all_models.extend(models)
-
-                if all_models:
-                    # Store structured info
-                    cls._model_info = all_models
-
-                    # Update known values with all identifiers
-                    for model in all_models:
-                        cls._known_values.update(model.all_identifiers)
-
-                    cls._cache_timestamp = time.time()
-                    cls._initialized = True
-
-                    print_debug(
-                        f"Initialized {cls.__name__} with {len(all_models)} models "
-                        f"from API (TTL: {cls._cache_ttl}s)"
-                    )
-                    return True
-                else:
-                    # Still mark as initialized to prevent retry storms
-                    cls._cache_timestamp = time.time()
-                    cls._initialized = True
-                    print_warning(f"Using fallback defaults for {cls.__name__}")
-                    return False
-
-            except Exception as e:
-                # Never crash, always have defaults
-                print_warning(f"Failed to initialize {cls.__name__}: {e}")
-                cls._cache_timestamp = time.time()
-                cls._initialized = True
+            if all_models:
+                cache.info = all_models
+                for m in all_models:
+                    cache.known.update(m.all_identifiers)
+                cache.timestamp = time.time()
+                cache.initialized = True
+                logger.debug("Initialized %s with %s models", cls.__name__, len(all_models))
+                return True
+            else:
+                cache.timestamp = time.time()
+                cache.initialized = True
+                logger.warning("Using fallback defaults for %s", cls.__name__)
                 return False
 
     @classmethod
-    def update_known_values(cls, models: List[str]) -> None:
-        """Add/update list of known models manually"""
-        with cls._init_lock:
-            cls._known_values.update(models)
-            cls._initialized = True
-            cls._cache_timestamp = time.time()
-
-    @classmethod
     def from_string(cls, value: str) -> str:
-        """Validate and register a model name"""
-        if not value or not isinstance(value, str):
-            raise ValueError(f"Invalid model name: {value}")
-
-        # FIXED: защита от пустых или пробельных строк
+        if not isinstance(value, str):
+            raise ValueError("Model name must be a string")
         value = value.strip()
         if not value:
             raise ValueError("Model name cannot be empty or whitespace")
-
-        if not cls._initialized:
-            cls.initialize_from_api()
-
-        # Add to known values (allows custom models)
-        cls._known_values.add(value)
+        cls._ensure_initialized()
+        cls._cache.known.add(value)
         return value
 
     @classmethod
     def get_all_known(cls) -> List[str]:
-        """Get all known model identifiers"""
-        if not cls._initialized:
-            cls.initialize_from_api()
-
-        defaults = set(cls.get_defaults())
-        return sorted(defaults | cls._known_values)
+        cls._ensure_initialized()
+        return sorted(cls.get_defaults() + list(cls._cache.known))
 
     @classmethod
     def get_model_info(cls, name: str) -> Optional[ModelInfo]:
-        """Get structured info for a specific model"""
-        if not cls._initialized:
-            cls.initialize_from_api()
-
-        for model in cls._model_info:
-            if name in model.all_identifiers:
-                return model
+        cls._ensure_initialized()
+        for m in cls._cache.info:
+            if name in m.all_identifiers:
+                return m
         return None
 
     @classmethod
     def is_known(cls, name: str) -> bool:
-        """Check if a model name is known"""
-        if not cls._initialized:
-            cls.initialize_from_api()
-        return name in cls._known_values or name in cls.get_defaults()
+        cls._ensure_initialized()
+        return name in cls._cache.known or name in cls.get_defaults()
 
     @classmethod
-    def reset(cls):
-        """Reset initialization state (useful for testing)"""
-        with cls._init_lock:
-            cls._known_values.clear()
-            cls._model_info.clear()
-            cls._initialized = False
-            cls._cache_timestamp = 0
+    def reset(cls) -> None:
+        cls._cache.reset()
 
+# ==============================================================================
+# CONCRETE MODELS
+# ==============================================================================
 
 class TextModel(DynamicModel):
-    """Text generation models with OpenAI-compatible API"""
-
-    # Primary models
-    OPENAI = "openai"
-    OPENAI_FAST = "openai-fast"
-    OPENAI_LARGE = "openai-large"
-    OPENAI_REASONING = "openai-reasoning"
-
-    # Alternative providers
-    DEEPSEEK = "deepseek"
-    GEMINI = "gemini"
-    GEMINI_SEARCH = "gemini-search"
-    MISTRAL = "mistral"
-    CLAUDE = "claude"
-
-    # Specialized models
-    QWEN_CODER = "qwen-coder"
-    PERPLEXITY_FAST = "perplexity-fast"
-    PERPLEXITY_REASONING = "perplexity-reasoning"
-
-    # Community/experimental
-    UNITY = "unity"
-    EVIL = "evil"
-    NAUGHTY = "naughty"
-    CHICKYTUTOR = "chickytutor"
-    MIDIJOURNEY = "midijourney"
-
     @classmethod
     def get_defaults(cls) -> List[str]:
-        """Default text models"""
         return [
             "openai", "openai-fast", "openai-large", "openai-reasoning",
             "deepseek", "gemini", "gemini-search", "mistral", "claude",
             "qwen-coder", "perplexity-fast", "perplexity-reasoning",
-            "unity", "evil", "naughty", "chickytutor", "midijourney"
+            "naughty", "chickytutor", "midijourney"
         ]
 
     @classmethod
     def get_api_endpoints(cls) -> List[str]:
-        """Endpoints to fetch text models from"""
         return [ENDPOINTS.TEXT_MODELS]
 
 
 class ImageModel(DynamicModel):
-    """Image generation models"""
-
-    FLUX = "flux"
-    TURBO = "turbo"
-    GPTIMAGE = "gptimage"
-    SEEDREAM = "seedream"
-    KONTEXT = "kontext"
-    NANOBANANA = "nanobanana"
-
     @classmethod
     def get_defaults(cls) -> List[str]:
-        """Default image models"""
-        return [
-            "flux", "turbo", "gptimage",
-            "seedream", "kontext", "nanobanana"
-        ]
+        return ["flux", "turbo", "gptimage", "seedream", "kontext", "nanobanana"]
 
     @classmethod
     def get_api_endpoints(cls) -> List[str]:
-        """Endpoints to fetch image models from"""
         return [ENDPOINTS.IMAGE_MODELS]
 
 
-# Convenience lists
+# ==============================================================================
+# CONVENIENCE LISTS
+# ==============================================================================
+
 DEFAULT_TEXT_MODELS = TextModel.get_defaults()
 DEFAULT_IMAGE_MODELS = ImageModel.get_defaults()

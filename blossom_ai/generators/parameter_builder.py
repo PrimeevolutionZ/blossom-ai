@@ -1,150 +1,131 @@
 """
-Blossom AI - Parameter Builders (v0.5.0)
-Type-safe parameter construction for V2 API
+Blossom AI – Parameter Builders (v0.5.0-refactored)
+Type-safe, single-source builders for V2 API.
+
 """
 
-from typing import Optional, Dict, Any, List, Union
-from dataclasses import dataclass, field, asdict
+from __future__ import annotations
+
 import base64
+from dataclasses import dataclass, field, asdict
+from mimetypes import guess_type
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 from blossom_ai.core.config import DEFAULTS
+from blossom_ai.core.errors import BlossomError, ErrorType
+
+# --------------------------------------------------------------------------- #
+# Low-level helpers
+# --------------------------------------------------------------------------- #
+def _b64_from_path(path: Path) -> str:
+    """Read file and return base64 data-URI."""
+    if not path.exists():
+        raise FileNotFoundError(path)
+    mime, _ = guess_type(path.name)
+    mime = mime or "application/octet-stream"
+    return f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode()
 
 
-# ============================================================================
-# BASE PARAMETER BUILDER
-# ============================================================================
+def _drop_defaults(data: Dict[str, Any], defaults: Dict[str, Any]) -> Dict[str, Any]:
+    """Return dict without keys whose values == defaults."""
+    return {k: v for k, v in data.items() if k not in defaults or v != defaults[k]}
 
-@dataclass
+
+# --------------------------------------------------------------------------- #
+# Base – immutable + safe repr
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True, slots=True)
 class BaseParams:
-    """Base class for API parameters"""
+    """Frozen base – no accidental mutation, safe repr()."""
 
-    def to_dict(self, include_none: bool = False, include_defaults: bool = False) -> Dict[str, Any]:
-        """
-        Convert to dictionary, filtering None and default values
+    def to_dict(
+        self, *, include_none: bool = False, include_defaults: bool = False
+    ) -> Dict[str, Any]:
+        """Convert to dict, filter None and defaults unless requested."""
+        raw = asdict(self)
+        if not include_none:
+            raw = {k: v for k, v in raw.items() if v is not None}
+        if not include_defaults:
+            raw = _drop_defaults(raw, self._default_map())
+        return raw
 
-        Args:
-            include_none: Include None values
-            include_defaults: Include default values
+    def _default_map(self) -> Dict[str, Any]:
+        """Override in subclass – return flat {field: default_value}."""
+        return {}
 
-        Returns:
-            Dictionary of parameters
-        """
-        result = {}
-
-        for key, value in asdict(self).items():
-            # Skip None values unless explicitly included
-            if value is None and not include_none:
-                continue
-
-            # Skip default values unless explicitly included
-            if not include_defaults and self._is_default_value(key, value):
-                continue
-
-            # Keep booleans as-is (V2 API expects true/false, not "true"/"false")
-            result[key] = value
-
-        return result
-
-    def _is_default_value(self, key: str, value: Any) -> bool:
-        """Check if value is default for this parameter"""
-        # Override in subclasses for specific default checking
-        return False
+    def __repr__(self) -> str:  # hide potential secrets
+        klass = self.__class__.__name__
+        public = self.to_dict()
+        return f"{klass}({', '.join(f'{k}=*' for k in public)})"
 
 
-# ============================================================================
-# IMAGE PARAMETERS (V2)
-# ============================================================================
-
-@dataclass
+# --------------------------------------------------------------------------- #
+# Image
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True, slots=True)
 class ImageParamsV2(BaseParams):
-    """Parameters for V2 image generation with extended features"""
+    """V2 image generation parameters – only fields that exist on wire."""
 
     model: str = DEFAULTS.IMAGE_MODEL
     width: int = DEFAULTS.IMAGE_WIDTH
     height: int = DEFAULTS.IMAGE_HEIGHT
     seed: int = 42
     enhance: bool = False
-    negative_prompt: str = "worst quality, blurry"
+    negative_prompt: str = DEFAULTS.IMAGE_NEGATIVE_PROMPT
     private: bool = False
     nologo: bool = False
     nofeed: bool = False
     safe: bool = False
-    quality: str = "medium"
-    image: Optional[str] = None
+    quality: str = DEFAULTS.IMAGE_QUALITY
+    image: Optional[str] = None  # img2img URL
     transparent: bool = False
     guidance_scale: Optional[float] = None
 
-    def to_dict(self, include_none: bool = False, include_defaults: bool = False) -> Dict[str, Any]:
-        """
-        V2 API needs proper types, NOT string conversion
-        The API expects: ?nologo=true (boolean), not ?nologo="true" (string)
-        """
-        result = {}
-
-        for key, value in asdict(self).items():
-            if value is None and not include_none:
-                continue
-
-            if not include_defaults and self._is_default_value(key, value):
-                continue
-
-            # Keep booleans as actual booleans for V2 API
-            # requests library will convert them correctly in URL params
-            result[key] = value
-
-        return result
-
-    def _is_default_value(self, key: str, value: Any) -> bool:
-        """Check if value matches default"""
-        defaults = {
-            'model': DEFAULTS.IMAGE_MODEL,
-            'width': DEFAULTS.IMAGE_WIDTH,
-            'height': DEFAULTS.IMAGE_HEIGHT,
-            'seed': 42,
-            'enhance': False,
-            'negative_prompt': "worst quality, blurry",
-            'private': False,
-            'nologo': False,
-            'nofeed': False,
-            'safe': False,
-            'quality': "medium",
-            'transparent': False,
+    # strict defaults map
+    def _default_map(self) -> Dict[str, Any]:
+        return {
+            "model": DEFAULTS.IMAGE_MODEL,
+            "width": DEFAULTS.IMAGE_WIDTH,
+            "height": DEFAULTS.IMAGE_HEIGHT,
+            "seed": 42,
+            "enhance": False,
+            "negative_prompt": DEFAULTS.IMAGE_NEGATIVE_PROMPT,
+            "private": False,
+            "nologo": False,
+            "nofeed": False,
+            "safe": False,
+            "quality": DEFAULTS.IMAGE_QUALITY,
+            "transparent": False,
         }
-        return key in defaults and value == defaults[key]
 
 
-# ============================================================================
-# AUDIO PARAMETERS (NEW)
-# ============================================================================
-
-@dataclass
+# --------------------------------------------------------------------------- #
+# Audio
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True, slots=True)
 class AudioParamsV2(BaseParams):
-    """Parameters for V2 audio generation"""
+    """Audio generation / input parameters."""
 
     model: str = "openai"
-    voice: Optional[str] = None  # Voice ID for audio output
-    modalities: List[str] = field(default_factory=lambda: ["text"])  # text, audio
-    audio: Optional[Dict[str, Any]] = None  # Audio input config
+    voice: Optional[str] = None
+    modalities: List[str] = field(default_factory=lambda: ["text"])
+    audio: Optional[Dict[str, Any]] = None
 
-    def to_dict(self, include_none: bool = False, include_defaults: bool = False) -> Dict[str, Any]:
-        """Convert to dict for API request"""
-        result = super().to_dict(include_none, include_defaults)
+    def __post_init__(self) -> None:
+        # normalise to lower-case unique list
+        object.__setattr__(self, "modalities", list({m.lower() for m in self.modalities}))
 
-        # Ensure modalities is a list
-        if "modalities" in result and not isinstance(result["modalities"], list):
-            result["modalities"] = [result["modalities"]]
-
-        return result
+    def _default_map(self) -> Dict[str, Any]:
+        return {"model": "openai", "modalities": ["text"]}
 
 
-# ============================================================================
-# CHAT PARAMETERS (V2) - UPDATED WITH VISION & AUDIO
-# ============================================================================
-
-@dataclass
+# --------------------------------------------------------------------------- #
+# Chat
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True, slots=True)
 class ChatParamsV2(BaseParams):
-    """Parameters for V2 chat completion with vision, audio, and extended OpenAI features"""
+    """OpenAI-compatible chat completion + vision/audio/reasoning."""
 
     model: str = DEFAULTS.TEXT_MODEL
     messages: List[Dict[str, Any]] = field(default_factory=list)
@@ -152,309 +133,175 @@ class ChatParamsV2(BaseParams):
     max_tokens: Optional[int] = None
     stream: bool = False
     json_mode: bool = False
-    tools: Optional[List[Dict]] = None
-    tool_choice: Optional[Union[str, Dict]] = None
+    tools: Optional[List[Dict[str, Any]]] = None
+    tool_choice: Optional[Union[str, Dict[str, Any]]] = None
     frequency_penalty: float = 0
     presence_penalty: float = 0
     top_p: float = 1.0
     n: int = 1
     thinking: Optional[Dict[str, Any]] = None
-
-    # NEW: Audio/Vision support
-    modalities: Optional[List[str]] = None  # ["text", "audio"]
-    audio: Optional[Dict[str, Any]] = None  # Audio output config with voice
-
-    # Additional kwargs stored here
+    modalities: Optional[List[str]] = None
+    audio: Optional[Dict[str, Any]] = None
     extra_params: Dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if self.modalities is not None:
+            object.__setattr__(self, "modalities", list({m.lower() for m in self.modalities}))
+
+    # ---------- wire body builder ----------
     def to_body(self) -> Dict[str, Any]:
-        """Convert to request body with smart defaults"""
-        body = {
-            'model': self.model,
-            'messages': self.messages,
-            'stream': self.stream,
-        }
+        """Build JSON body for POST /generate/v1/chat/completions ."""
+        defaults = self._default_map()
+        body = self.to_dict(include_defaults=False)
 
-        # Only add non-default values
-        if self.temperature != 1.0:
-            body['temperature'] = self.temperature
-        if self.max_tokens is not None:
-            body['max_tokens'] = self.max_tokens
-        if self.n != 1:
-            body['n'] = self.n
-        if self.top_p != 1.0:
-            body['top_p'] = self.top_p
-        if self.frequency_penalty != 0:
-            body['frequency_penalty'] = self.frequency_penalty
-        if self.presence_penalty != 0:
-            body['presence_penalty'] = self.presence_penalty
+        # inject response_format when json_mode
+        if self.json_mode and "response_format" not in body:
+            body["response_format"] = {"type": "json_object"}
 
-        # JSON mode
-        if self.json_mode:
-            body['response_format'] = {'type': 'json_object'}
-
-        # Tools
-        if self.tools:
-            body['tools'] = self.tools
-            if self.tool_choice:
-                body['tool_choice'] = self.tool_choice
-
-        # Native reasoning
-        if self.thinking:
-            body['thinking'] = self.thinking
-
-        # NEW: Modalities (for audio/vision)
-        if self.modalities:
-            body['modalities'] = self.modalities
-
-        # NEW: Audio output config
-        if self.audio:
-            body['audio'] = self.audio
-
-        # Stream options for better streaming
+        # stream_options for usage stats
         if self.stream:
-            body['stream_options'] = {'include_usage': True}
+            body["stream_options"] = {"include_usage": True}
 
-        # Add extra params (filtering out defaults)
-        for key, value in self.extra_params.items():
-            if value is not None and value != 0 and value is not False and value != 1.0:
-                body[key] = value
+        # merge extra_params last, skip None / zeros / False
+        for k, v in self.extra_params.items():
+            if v is None or v == 0 or v is False:
+                continue
+            body[k] = v
 
         return body
 
+    def _default_map(self) -> Dict[str, Any]:
+        return {
+            "model": DEFAULTS.TEXT_MODEL,
+            "temperature": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
+            "top_p": 1.0,
+            "n": 1,
+            "stream": False,
+            "json_mode": False,
+        }
 
-# ============================================================================
-# MESSAGE BUILDERS (NEW)
-# ============================================================================
 
+# --------------------------------------------------------------------------- #
+# Message helpers – secrets safe
+# --------------------------------------------------------------------------- #
 class MessageBuilder:
-    """Helper for building messages with images, audio, etc."""
+    """Factory for OpenAI-style messages (text, image, audio)."""
 
     @staticmethod
-    def text_message(role: str, content: str, name: Optional[str] = None) -> Dict[str, Any]:
-        """Create a simple text message"""
+    def text(role: str, content: str, name: Optional[str] = None) -> Dict[str, Any]:
         msg = {"role": role, "content": content}
         if name:
             msg["name"] = name
         return msg
 
     @staticmethod
-    def image_message(
+    def image(
         role: str,
         text: str,
+        *,
         image_url: Optional[str] = None,
-        image_path: Optional[str] = None,
+        image_path: Optional[Path | str] = None,
         image_data: Optional[bytes] = None,
-        detail: str = "auto"
+        detail: str = "auto",
     ) -> Dict[str, Any]:
-        """
-        Create a message with image (vision)
+        """Build vision message. One image source required."""
+        if not (image_url or image_path or image_data):
+            raise ValueError("One image source required")
 
-        Args:
-            role: Message role (user/assistant)
-            text: Text content
-            image_url: URL to image
-            image_path: Path to local image file
-            image_data: Raw image bytes
-            detail: Image detail level (auto/low/high)
+        content: List[Dict[str, Any]] = [{"type": "text", "text": text}]
 
-        Returns:
-            Message dict with image content
-        """
-        content = [{"type": "text", "text": text}]
-
-        # Handle different image sources
         if image_url:
-            content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": image_url,
-                    "detail": detail
-                }
-            })
+            content.append({"type": "image_url", "image_url": {"url": image_url, "detail": detail}})
         elif image_path:
-            # Load and encode local image
-            path = Path(image_path)
-            if not path.exists():
-                raise FileNotFoundError(f"Image file not found: {image_path}")
-
-            image_bytes = path.read_bytes()
-            base64_image = base64.b64encode(image_bytes).decode('utf-8')
-
-            # Detect mime type from extension
-            ext = path.suffix.lower()
-            mime_map = {
-                '.jpg': 'image/jpeg',
-                '.jpeg': 'image/jpeg',
-                '.png': 'image/png',
-                '.gif': 'image/gif',
-                '.webp': 'image/webp'
-            }
-            mime_type = mime_map.get(ext, 'image/jpeg')
-
-            content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:{mime_type};base64,{base64_image}",
-                    "detail": detail
-                }
-            })
-        elif image_data:
-            # Encode raw bytes
-            base64_image = base64.b64encode(image_data).decode('utf-8')
-            content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{base64_image}",
-                    "detail": detail
-                }
-            })
-        else:
-            raise ValueError("Must provide one of: image_url, image_path, or image_data")
+            uri = _b64_from_path(Path(image_path))
+            content.append({"type": "image_url", "image_url": {"url": uri, "detail": detail}})
+        else:  # image_data
+            uri = f"data:image/jpeg;base64,{base64.b64encode(image_data).decode()}"
+            content.append({"type": "image_url", "image_url": {"url": uri, "detail": detail}})
 
         return {"role": role, "content": content}
 
     @staticmethod
-    def audio_message(
+    def audio(
         role: str,
         text: Optional[str] = None,
+        *,
         audio_url: Optional[str] = None,
-        audio_path: Optional[str] = None,
+        audio_path: Optional[Path | str] = None,
         audio_data: Optional[bytes] = None,
-        format: str = "wav"
+        format: str = "wav",
     ) -> Dict[str, Any]:
-        """
-        Create a message with audio input
+        """Build audio-input message. One audio source required."""
+        if not (audio_url or audio_path or audio_data):
+            raise ValueError("One audio source required")
 
-        Args:
-            role: Message role
-            text: Optional text content
-            audio_url: URL to audio file
-            audio_path: Path to local audio file
-            audio_data: Raw audio bytes
-            format: Audio format (wav, mp3, etc.)
-
-        Returns:
-            Message dict with audio content
-        """
-        content = []
-
+        content: List[Dict[str, Any]] = []
         if text:
             content.append({"type": "text", "text": text})
 
-        # Handle different audio sources
         if audio_url:
-            content.append({
-                "type": "input_audio",
-                "input_audio": {
-                    "url": audio_url,
-                    "format": format
-                }
-            })
+            content.append({"type": "input_audio", "input_audio": {"url": audio_url, "format": format}})
         elif audio_path:
-            # Load and encode local audio
-            path = Path(audio_path)
-            if not path.exists():
-                raise FileNotFoundError(f"Audio file not found: {audio_path}")
-
-            audio_bytes = path.read_bytes()
-            base64_audio = base64.b64encode(audio_bytes).decode('utf-8')
-
-            content.append({
-                "type": "input_audio",
-                "input_audio": {
-                    "data": base64_audio,
-                    "format": format
-                }
-            })
-        elif audio_data:
-            # Encode raw bytes
-            base64_audio = base64.b64encode(audio_data).decode('utf-8')
-            content.append({
-                "type": "input_audio",
-                "input_audio": {
-                    "data": base64_audio,
-                    "format": format
-                }
-            })
-        else:
-            raise ValueError("Must provide one of: audio_url, audio_path, or audio_data")
+            uri = _b64_from_path(Path(audio_path))
+            content.append({"type": "input_audio", "input_audio": {"url": uri, "format": format}})
+        else:  # audio_data
+            b64 = base64.b64encode(audio_data).decode()
+            content.append({"type": "input_audio", "input_audio": {"data": b64, "format": format}})
 
         return {"role": role, "content": content}
 
 
-# ============================================================================
-# PARAMETER VALIDATORS (UPDATED)
-# ============================================================================
-
+# --------------------------------------------------------------------------- #
+# Validators – pure functions, no side effects
+# --------------------------------------------------------------------------- #
 class ParameterValidator:
-    """Validate parameters before API calls"""
+    """Pure validators – raise BlossomError on failure."""
+
+    VALID_MODALITIES = {"text", "audio", "image"}
+    VALID_AUDIO_FMT = {"wav", "mp3", "pcm16", "g711_ulaw", "g711_alaw"}
 
     @staticmethod
-    def validate_prompt_length(prompt: str, max_length: int, param_name: str = "prompt"):
-        """Validate prompt length"""
-        from blossom_ai.core.errors import BlossomError, ErrorType
-
-        if len(prompt) > max_length:
+    def prompt_length(prompt: str, max_len: int, name: str = "prompt") -> None:
+        if len(prompt) > max_len:
             raise BlossomError(
-                message=f"{param_name} exceeds maximum length of {max_length} characters",
+                message=f"{name} exceeds {max_len} characters",
                 error_type=ErrorType.INVALID_PARAM,
-                suggestion=f"Please shorten your {param_name}."
+                suggestion=f"Shorten the {name}.",
             )
 
     @staticmethod
-    def validate_dimensions(width: int, height: int, min_size: int = 64, max_size: int = 2048):
-        """Validate image dimensions"""
-        from blossom_ai.core.errors import BlossomError, ErrorType
-
-        if width < min_size or width > max_size:
+    def dimensions(width: int, height: int, *, min_: int = 64, max_: int = 2048) -> None:
+        if not (min_ <= width <= max_ and min_ <= height <= max_):
             raise BlossomError(
-                message=f"Width must be between {min_size} and {max_size}",
-                error_type=ErrorType.INVALID_PARAM
-            )
-
-        if height < min_size or height > max_size:
-            raise BlossomError(
-                message=f"Height must be between {min_size} and {max_size}",
-                error_type=ErrorType.INVALID_PARAM
-            )
-
-    @staticmethod
-    def validate_temperature(temperature: float):
-        """Validate temperature parameter"""
-        from blossom_ai.core.errors import BlossomError, ErrorType
-
-        if temperature < 0 or temperature > 2:
-            raise BlossomError(
-                message="Temperature must be between 0 and 2",
-                error_type=ErrorType.INVALID_PARAM
-            )
-
-    @staticmethod
-    def validate_modalities(modalities: List[str]):
-        """Validate modalities list"""
-        from blossom_ai.core.errors import BlossomError, ErrorType
-
-        valid = {"text", "audio", "image"}
-        invalid = set(modalities) - valid
-
-        if invalid:
-            raise BlossomError(
-                message=f"Invalid modalities: {invalid}",
+                message=f"Dimensions must be within [{min_}..{max_}]",
                 error_type=ErrorType.INVALID_PARAM,
-                suggestion=f"Valid modalities are: {valid}"
             )
 
     @staticmethod
-    def validate_audio_format(format: str):
-        """Validate audio format"""
-        from blossom_ai.core.errors import BlossomError, ErrorType
-
-        valid_formats = {"wav", "mp3", "pcm16", "g711_ulaw", "g711_alaw"}
-
-        if format.lower() not in valid_formats:
+    def temperature(value: float) -> None:
+        if not (0 <= value <= 2):
             raise BlossomError(
-                message=f"Invalid audio format: {format}",
+                message="Temperature must be in [0..2]",
                 error_type=ErrorType.INVALID_PARAM,
-                suggestion=f"Valid formats: {valid_formats}"
+            )
+
+    @staticmethod
+    def modalities(values: List[str]) -> None:
+        extra = set(values) - ParameterValidator.VALID_MODALITIES
+        if extra:
+            raise BlossomError(
+                message=f"Invalid modalities: {extra}",
+                error_type=ErrorType.INVALID_PARAM,
+                suggestion=f"Choose from {ParameterValidator.VALID_MODALITIES}",
+            )
+
+    @staticmethod
+    def audio_format(fmt: str) -> None:
+        if fmt.lower() not in ParameterValidator.VALID_AUDIO_FMT:
+            raise BlossomError(
+                message=f"Unsupported audio format {fmt}",
+                error_type=ErrorType.INVALID_PARAM,
+                suggestion=f"Use one of {ParameterValidator.VALID_AUDIO_FMT}",
             )

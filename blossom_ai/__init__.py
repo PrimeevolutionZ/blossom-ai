@@ -10,7 +10,6 @@ from blossom_ai.generators import (
     AsyncImageGenerator,
     TextGenerator,
     AsyncTextGenerator,
-    # NEW: Helpers for Vision & Audio
     MessageBuilder,
     AudioParamsV2,
     ImageParamsV2,
@@ -80,7 +79,7 @@ __all__ = [
     "TextGenerator",
     "AsyncTextGenerator",
 
-    # NEW: Vision & Audio Helpers
+    # Vision & Audio Helpers
     "MessageBuilder",
     "AudioParamsV2",
     "ImageParamsV2",

@@ -1,5 +1,5 @@
 """
-Blossom AI - Base Generator Classes
+Blossom AI - Base Generator Classes (Refactored)
 """
 
 import json
@@ -8,7 +8,7 @@ import time
 import uuid
 import random
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, Iterator, AsyncIterator, Callable
+from typing import Optional, Dict, Any, Iterator, AsyncIterator, Callable, Union
 from urllib.parse import quote
 from functools import wraps
 
@@ -24,256 +24,188 @@ from blossom_ai.core.errors import (
 )
 from blossom_ai.core.models import DynamicModel
 
+# ============================================================================
+# CONSTANTS
+# ============================================================================
+
+RETRYABLE_HTTP_CODES = {502, 503, 504}
+DEFAULT_RETRY_AFTER = 60
+MAX_EXPONENTIAL_BACKOFF = 32
+MAX_CHUNK_ENCODING_BACKOFF = 16
 
 # ============================================================================
-# RETRY DECORATOR (FIXED)
+# HELPER FUNCTIONS
+# ============================================================================
+
+def _calculate_wait_time(attempt: int, max_backoff: int = MAX_EXPONENTIAL_BACKOFF) -> float:
+    """Calculate exponential backoff with jitter."""
+    return min(2 ** attempt + random.uniform(0, 1), max_backoff)
+
+def _log_safe_url(url: str) -> str:
+    """Return URL without query params for safe logging."""
+    return url.split('?')[0]
+
+# ============================================================================
+# RETRY DECORATOR (REFACTORED)
 # ============================================================================
 
 def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
-    """
-    Decorator for retry logic with exponential backoff and jitter
-
-    FIXES:
-    - Now respects retry_after from RateLimitError
-    - Better logging of retry reasons
-    - Handles both BlossomError and HTTP errors
-    """
+    """Unified retry decorator for sync and async functions."""
     def decorator(func: Callable):
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             last_exception = None
-
             for attempt in range(max_attempts):
                 try:
                     return func(*args, **kwargs)
-
-                # FIX: Handle RateLimitError specially
                 except RateLimitError as e:
                     last_exception = e
-
                     if attempt < max_attempts - 1:
-                        # FIX: Use retry_after from error if available
-                        wait_time = e.retry_after if e.retry_after else 60
-                        print_info(
-                            f"Rate limited. Waiting {wait_time}s before retry "
-                            f"(attempt {attempt + 1}/{max_attempts})"
-                        )
+                        wait_time = e.retry_after or DEFAULT_RETRY_AFTER
+                        print_info(f"Rate limited. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_attempts})")
                         time.sleep(wait_time)
                         continue
                     raise
-
                 except requests.exceptions.HTTPError as e:
                     last_exception = e
-
-                    # Retry on 502, 503, 504
-                    if e.response.status_code in [502, 503, 504]:
-                        if attempt < max_attempts - 1:
-                            wait_time = min(2 ** attempt + random.uniform(0, 1), 32)
-                            print_info(
-                                f"Retrying {e.response.status_code} error "
-                                f"(attempt {attempt + 1}/{max_attempts}, "
-                                f"waiting {wait_time:.1f}s)..."
-                            )
-                            time.sleep(wait_time)
-                            continue
+                    if e.response.status_code in RETRYABLE_HTTP_CODES and attempt < max_attempts - 1:
+                        wait_time = _calculate_wait_time(attempt)
+                        print_info(f"Retrying {e.response.status_code} error (attempt {attempt + 1}/{max_attempts}, waiting {wait_time:.1f}s)...")
+                        time.sleep(wait_time)
+                        continue
                     raise
-
                 except requests.exceptions.ChunkedEncodingError as e:
                     last_exception = e
                     if attempt < max_attempts - 1:
-                        wait_time = min(2 ** attempt + random.uniform(0, 1), 16)
-                        print_info(
-                            f"Retrying chunked encoding error "
-                            f"(attempt {attempt + 1}/{max_attempts})..."
-                        )
+                        wait_time = _calculate_wait_time(attempt, MAX_CHUNK_ENCODING_BACKOFF)
+                        print_info(f"Retrying chunked encoding error (attempt {attempt + 1}/{max_attempts})...")
                         time.sleep(wait_time)
                         continue
                     raise
-
                 except Exception:
                     raise
-
             if last_exception:
                 raise last_exception
 
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             last_exception = None
-
             for attempt in range(max_attempts):
                 try:
                     return await func(*args, **kwargs)
-
-                # FIX: Handle RateLimitError specially
                 except RateLimitError as e:
                     last_exception = e
-
                     if attempt < max_attempts - 1:
-                        # FIX: Use retry_after from error if available
-                        wait_time = e.retry_after if e.retry_after else 60
-                        print_info(
-                            f"Rate limited. Waiting {wait_time}s before retry "
-                            f"(attempt {attempt + 1}/{max_attempts})"
-                        )
+                        wait_time = e.retry_after or DEFAULT_RETRY_AFTER
+                        print_info(f"Rate limited. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_attempts})")
                         await asyncio.sleep(wait_time)
                         continue
                     raise
-
                 except aiohttp.ClientResponseError as e:
                     last_exception = e
-
-                    if e.status in [502, 503, 504]:
-                        if attempt < max_attempts - 1:
-                            wait_time = min(2 ** attempt + random.uniform(0, 1), 32)
-                            print_info(
-                                f"Retrying {e.status} error "
-                                f"(attempt {attempt + 1}/{max_attempts}, "
-                                f"waiting {wait_time:.1f}s)..."
-                            )
-                            await asyncio.sleep(wait_time)
-                            continue
+                    if e.status in RETRYABLE_HTTP_CODES and attempt < max_attempts - 1:
+                        wait_time = _calculate_wait_time(attempt)
+                        print_info(f"Retrying {e.status} error (attempt {attempt + 1}/{max_attempts}, waiting {wait_time:.1f}s)...")
+                        await asyncio.sleep(wait_time)
+                        continue
                     raise
-
                 except aiohttp.ClientError as e:
                     last_exception = e
                     if attempt < max_attempts - 1:
-                        wait_time = min(2 ** attempt + random.uniform(0, 1), 16)
-                        print_info(
-                            f"Retrying connection error "
-                            f"(attempt {attempt + 1}/{max_attempts})..."
-                        )
+                        wait_time = _calculate_wait_time(attempt, MAX_CHUNK_ENCODING_BACKOFF)
+                        print_info(f"Retrying connection error (attempt {attempt + 1}/{max_attempts})...")
                         await asyncio.sleep(wait_time)
                         continue
                     raise
-
                 except Exception:
                     raise
-
             if last_exception:
                 raise last_exception
 
-        # Return appropriate wrapper based on function type
-        if asyncio.iscoroutinefunction(func):
-            return async_wrapper
-        return sync_wrapper
+        return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
 
     return decorator
 
-
 # ============================================================================
-# BASE GENERATOR
+# BASE GENERATOR (REFACTORED)
 # ============================================================================
 
 class BaseGenerator(ABC):
-    """Abstract base class for all generators"""
+    """Abstract base class for all generators."""
 
     def __init__(self, base_url: str, timeout: int, api_token: Optional[str] = None):
-        self.base_url = base_url
+        self.base_url = base_url.rstrip('/')
         self.timeout = timeout
-        self.api_token = api_token
+        self._api_token = api_token  # private to avoid accidental exposure
 
     @abstractmethod
     def _validate_prompt(self, prompt: str) -> None:
-        """Validate prompt before making request"""
+        """Validate prompt before making request."""
         pass
 
     def _build_url(self, endpoint: str) -> str:
-        """Build full URL from endpoint"""
-        return f"{self.base_url}/{endpoint}".rstrip('/')
+        """Build full URL from endpoint."""
+        return f"{self.base_url}/{endpoint.lstrip('/')}"
 
     def _encode_prompt(self, prompt: str) -> str:
-        """URL encode prompt"""
+        """URL encode prompt."""
         return quote(prompt)
 
     def _generate_request_id(self) -> str:
-        """Generate unique request ID for tracing"""
+        """Generate unique request ID for tracing."""
         return str(uuid.uuid4())
 
     def _is_v2_api(self) -> bool:
-        """Check if this is V2 API (enter.pollinations.ai)"""
+        """Check if this is V2 API."""
         return 'enter.pollinations.ai' in self.base_url
 
-    def _add_auth_params(self, params: Dict[str, Any], method: str = 'GET') -> Dict[str, Any]:
-        """
-        Add authentication parameters based on method
-
-        FIX: Never add tokens to query params for security
-        Tokens should ONLY go in Authorization header
-        """
-        # All auth now goes through headers only
-        return params
-
-    def _get_auth_headers(self, method: str = 'GET', request_id: Optional[str] = None) -> Dict[str, str]:
-        """
-        Get authentication headers with request ID
-
-        FIX: Always use Authorization header for tokens (never query params)
-        """
+    def _get_auth_headers(self, request_id: Optional[str] = None) -> Dict[str, str]:
+        """Get authentication headers."""
         headers = {}
-
-        if self.api_token:
-            # FIX: Always use Bearer header for all APIs and methods
-            headers['Authorization'] = f'Bearer {self.api_token}'
-
+        if self._api_token:
+            headers['Authorization'] = f'Bearer {self._api_token}'
         if request_id:
             headers['X-Request-ID'] = request_id
-
         return headers
 
     def _handle_http_error(self, status_code: int, response_data: Optional[bytes] = None) -> None:
-        """
-        Common HTTP error handling (IMPROVED)
-        """
+        """Handle HTTP errors securely."""
         if status_code == 401:
             raise AuthenticationError(
                 message="Invalid or missing API token",
                 suggestion="Check your API token at https://enter.pollinations.ai"
             )
-
         if status_code == 402:
             error_msg = "Payment Required"
-
             if response_data:
                 try:
                     decoded = response_data.decode('utf-8')
                     error_data = json.loads(decoded)
                     error_msg = error_data.get('error', error_msg)
                 except (json.JSONDecodeError, UnicodeDecodeError):
-                    try:
-                        error_msg = response_data.decode('utf-8', errors='ignore')[:200]
-                    except:
-                        pass
-
+                    error_msg = response_data.decode('utf-8', errors='ignore')[:200]
             raise BlossomError(
                 message=f"Payment Required: {error_msg}",
                 error_type=ErrorType.API,
                 suggestion="Visit https://auth.pollinations.ai to upgrade or check your API token."
             )
-
         if status_code == 429:
-            # FIX: Extract retry-after from response properly
-            retry_after = 60
+            retry_after = DEFAULT_RETRY_AFTER
             if response_data:
                 try:
                     decoded = response_data.decode('utf-8')
                     error_data = json.loads(decoded)
-                    retry_after = error_data.get('retry_after', 60)
+                    retry_after = error_data.get('retry_after', DEFAULT_RETRY_AFTER)
                 except:
                     pass
-
-            # FIX: Raise RateLimitError (not generic BlossomError)
-            raise RateLimitError(
-                message="Rate limit exceeded",
-                retry_after=retry_after
-            )
-
+            raise RateLimitError(message="Rate limit exceeded", retry_after=retry_after)
 
 # ============================================================================
-# SYNC GENERATOR
+# SYNC GENERATOR (REFACTORED)
 # ============================================================================
 
 class SyncGenerator(BaseGenerator):
-    """Base class for synchronous generators"""
+    """Base class for synchronous generators."""
 
     def __init__(self, base_url: str, timeout: int, api_token: Optional[str] = None):
         super().__init__(base_url, timeout, api_token)
@@ -281,7 +213,6 @@ class SyncGenerator(BaseGenerator):
 
     @property
     def session(self) -> requests.Session:
-        """Get requests session"""
         return self._session_manager.get_session()
 
     @with_retry()
@@ -294,27 +225,19 @@ class SyncGenerator(BaseGenerator):
         request_id: Optional[str] = None,
         **kwargs
     ) -> requests.Response:
-        """Make HTTP request with retry logic"""
         if request_id is None:
             request_id = self._generate_request_id()
 
         kwargs.setdefault("timeout", self.timeout)
         kwargs['stream'] = stream
-
-        if params is None:
-            params = {}
-
-        params = self._add_auth_params(params, method)
-
-        headers = kwargs.get('headers', {})
-        headers.update(self._get_auth_headers(method, request_id))
+        headers = kwargs.pop('headers', {})
+        headers.update(self._get_auth_headers(request_id))
         kwargs['headers'] = headers
 
-        print_debug(f"Request {request_id}: {method} {url}")
+        print_debug(f"Request {request_id}: {method} {_log_safe_url(url)}")
 
-        response = self.session.request(method, url, params=params, **kwargs)
+        response = self.session.request(method, url, params=params or {}, **kwargs)
 
-        # Check status
         if response.status_code >= 400:
             self._handle_http_error(response.status_code, response.content)
             response.raise_for_status()
@@ -326,31 +249,27 @@ class SyncGenerator(BaseGenerator):
         response: requests.Response,
         chunk_timeout: Optional[int] = None
     ) -> Iterator[str]:
-        """Stream response with timeout between chunks"""
+        """Stream response with timeout between chunks."""
         if chunk_timeout is None:
             chunk_timeout = LIMITS.STREAM_CHUNK_TIMEOUT
 
         last_data_time = time.time()
-
         try:
             for line in response.iter_lines(decode_unicode=True, chunk_size=1024):
-                current_time = time.time()
-
-                if current_time - last_data_time > chunk_timeout:
+                if time.time() - last_data_time > chunk_timeout:
                     raise StreamError(
                         message=f"Stream timeout: no data received for {chunk_timeout}s",
                         suggestion="Check your connection or increase timeout"
                     )
-
                 if line:
-                    last_data_time = current_time
+                    last_data_time = time.time()
                     yield line
         finally:
             if not response.raw.closed:
                 response.close()
 
     def _fetch_list(self, endpoint: str, fallback: list) -> list:
-        """Fetch list from API endpoint with fallback"""
+        """Fetch list from API endpoint with fallback."""
         try:
             url = self._build_url(endpoint)
             response = self._make_request("GET", url)
@@ -366,7 +285,6 @@ class SyncGenerator(BaseGenerator):
                     elif isinstance(item, str):
                         result.append(item)
                 return result if result else fallback
-
             return fallback
 
         except (json.JSONDecodeError, ValueError) as e:
@@ -377,7 +295,6 @@ class SyncGenerator(BaseGenerator):
             return fallback
 
     def close(self):
-        """Close session"""
         self._session_manager.close()
 
     def __enter__(self):
@@ -387,20 +304,18 @@ class SyncGenerator(BaseGenerator):
         self.close()
         return False
 
-
 # ============================================================================
-# ASYNC GENERATOR
+# ASYNC GENERATOR (REFACTORED)
 # ============================================================================
 
 class AsyncGenerator(BaseGenerator):
-    """Base class for asynchronous generators"""
+    """Base class for asynchronous generators."""
 
     def __init__(self, base_url: str, timeout: int, api_token: Optional[str] = None):
         super().__init__(base_url, timeout, api_token)
         self._session_manager = AsyncSessionManager()
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get aiohttp session"""
         return await self._session_manager.get_session()
 
     @with_retry()
@@ -412,11 +327,7 @@ class AsyncGenerator(BaseGenerator):
         stream: bool = False,
         request_id: Optional[str] = None,
         **kwargs
-    ):
-        """
-        Make async HTTP request
-        Returns bytes if stream=False, aiohttp.ClientResponse if stream=True
-        """
+    ) -> Union[bytes, aiohttp.ClientResponse]:
         if request_id is None:
             request_id = self._generate_request_id()
 
@@ -424,21 +335,15 @@ class AsyncGenerator(BaseGenerator):
         timeout = aiohttp.ClientTimeout(total=self.timeout)
 
         headers = kwargs.pop('headers', {})
-        if params is None:
-            params = {}
+        headers.update(self._get_auth_headers(request_id))
 
-        # FIX: Don't add auth to params (security)
-        params = self._add_auth_params(params, method)
-        headers.update(self._get_auth_headers(method, request_id))
-
-        print_debug(f"Async Request {request_id}: {method} {url}")
+        print_debug(f"Async Request {request_id}: {method} {_log_safe_url(url)}")
 
         if stream:
             response = await session.request(
-                method, url, headers=headers, params=params,
+                method, url, headers=headers, params=params or {},
                 timeout=timeout, **kwargs
             )
-
             if response.status >= 400:
                 data = await response.read()
                 await response.close()
@@ -449,15 +354,13 @@ class AsyncGenerator(BaseGenerator):
                     status=response.status,
                     message=f"HTTP {response.status}"
                 )
-
             return response
         else:
             async with session.request(
-                method, url, headers=headers, params=params,
+                method, url, headers=headers, params=params or {},
                 timeout=timeout, **kwargs
             ) as response:
                 data = await response.read()
-
                 if response.status >= 400:
                     self._handle_http_error(response.status, data)
                     raise aiohttp.ClientResponseError(
@@ -466,11 +369,10 @@ class AsyncGenerator(BaseGenerator):
                         status=response.status,
                         message=data.decode('utf-8', errors='replace')
                     )
-
                 return data
 
     async def _fetch_list(self, endpoint: str, fallback: list) -> list:
-        """Fetch list from API endpoint with fallback"""
+        """Fetch list from API endpoint with fallback."""
         try:
             url = self._build_url(endpoint)
             data = await self._make_request("GET", url)
@@ -486,7 +388,6 @@ class AsyncGenerator(BaseGenerator):
                     elif isinstance(item, str):
                         result.append(item)
                 return result if result else fallback
-
             return fallback
 
         except (json.JSONDecodeError, ValueError) as e:
@@ -497,7 +398,6 @@ class AsyncGenerator(BaseGenerator):
             return fallback
 
     async def close(self):
-        """Close session"""
         await self._session_manager.close()
 
     async def __aenter__(self):
@@ -507,13 +407,12 @@ class AsyncGenerator(BaseGenerator):
         await self.close()
         return False
 
-
 # ============================================================================
-# MODEL AWARE MIXIN
+# MODEL AWARE MIXIN (REFACTORED)
 # ============================================================================
 
 class ModelAwareGenerator:
-    """Mixin for generators that work with dynamic models"""
+    """Mixin for generators that work with dynamic models."""
 
     def __init__(self, model_class: type[DynamicModel], fallback_models: list):
         self._model_class = model_class
@@ -521,10 +420,10 @@ class ModelAwareGenerator:
         self._models_cache: Optional[list] = None
 
     def _update_known_models(self, models: list):
-        """Update known models in model class"""
+        """Update known models in model class."""
         self._model_class.update_known_values(models)
         self._models_cache = models
 
     def _validate_model(self, model: str) -> str:
-        """Validate and normalize model name"""
+        """Validate and normalize model name."""
         return self._model_class.from_string(model)

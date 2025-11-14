@@ -415,7 +415,8 @@ async def test_v2_async_streaming():
     async with Blossom(api_token=API_TOKEN) as client:
         chunks = []
 
-        async for chunk in client.text.generate("Count to 3", stream=True):
+        stream = await client.text.generate("Count to 3", stream=True)
+        async for chunk in stream:
             chunks.append(chunk)
             print(chunk, end="", flush=True)
 
