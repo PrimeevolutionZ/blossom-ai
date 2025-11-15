@@ -77,7 +77,7 @@ class BlossomCLI:
             print("🔑 API Token: ✓ Configured")
         else:
             print("⚠️  API Token: Not set (using free tier)")
-            print("   Set token: export POLLINATIONS_API_KEY='your-token'")
+            print("   Set token: export POLLINATIONS_API_KEY='<your-token-here>'")
 
         print(f"📡 API Version: {self.api_version.upper()}")
         print()
@@ -332,6 +332,9 @@ Examples:
   
   # Quick audio generation
   python -m blossom_ai.utils.cli --audio "Hello world" --output hello.mp3
+
+Note: Set API token via environment variable:
+  export POLLINATIONS_API_KEY='<your-token-here>'
         """
     )
 

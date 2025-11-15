@@ -1,5 +1,5 @@
 """
-Blossom AI - Base Generator Classes (Refactored)
+Blossom AI - Base Generator Classes
 """
 
 import json
@@ -45,6 +45,25 @@ def _log_safe_url(url: str) -> str:
     """Return URL without query params for safe logging."""
     return url.split('?')[0]
 
+def _sanitize_headers(headers: dict) -> dict:
+    """Remove sensitive data from headers for logging."""
+    safe = headers.copy()
+    for key in ['Authorization', 'X-API-Key', 'Bearer']:
+        if key in safe:
+            safe[key] = '***REDACTED***'
+    return safe
+
+def _get_retry_after(response) -> Optional[int]:
+    """Extract Retry-After header from response."""
+    try:
+        headers = getattr(response, 'headers', {})
+        retry_after = headers.get('Retry-After') or headers.get('retry-after')
+        if retry_after:
+            return int(retry_after)
+    except (ValueError, TypeError, AttributeError):
+        pass
+    return None
+
 # ============================================================================
 # RETRY DECORATOR (REFACTORED)
 # ============================================================================
@@ -61,6 +80,7 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
                 except RateLimitError as e:
                     last_exception = e
                     if attempt < max_attempts - 1:
+                        # Always respect retry_after, don't cap it
                         wait_time = e.retry_after or DEFAULT_RETRY_AFTER
                         print_info(f"Rate limited. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_attempts})")
                         time.sleep(wait_time)
@@ -69,7 +89,9 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
                 except requests.exceptions.HTTPError as e:
                     last_exception = e
                     if e.response.status_code in RETRYABLE_HTTP_CODES and attempt < max_attempts - 1:
-                        wait_time = _calculate_wait_time(attempt)
+                        # Respect Retry-After header if present
+                        retry_after = _get_retry_after(e.response)
+                        wait_time = retry_after if retry_after else _calculate_wait_time(attempt)
                         print_info(f"Retrying {e.response.status_code} error (attempt {attempt + 1}/{max_attempts}, waiting {wait_time:.1f}s)...")
                         time.sleep(wait_time)
                         continue
@@ -96,6 +118,7 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
                 except RateLimitError as e:
                     last_exception = e
                     if attempt < max_attempts - 1:
+                        # Always respect retry_after, don't cap it
                         wait_time = e.retry_after or DEFAULT_RETRY_AFTER
                         print_info(f"Rate limited. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_attempts})")
                         await asyncio.sleep(wait_time)
@@ -179,11 +202,19 @@ class BaseGenerator(ABC):
             error_msg = "Payment Required"
             if response_data:
                 try:
-                    decoded = response_data.decode('utf-8')
-                    error_data = json.loads(decoded)
-                    error_msg = error_data.get('error', error_msg)
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    error_msg = response_data.decode('utf-8', errors='ignore')[:200]
+                    # Try to decode and parse
+                    decoded = response_data.decode('utf-8', errors='ignore')
+
+                    # Try JSON first
+                    try:
+                        error_data = json.loads(decoded)
+                        error_msg = error_data.get('error', error_msg)
+                    except json.JSONDecodeError:
+                        # Fallback to raw text (truncated)
+                        error_msg = decoded[:200]
+                except Exception:
+                    error_msg = "Payment Required (could not parse error details)"
+
             raise BlossomError(
                 message=f"Payment Required: {error_msg}",
                 error_type=ErrorType.API,
@@ -193,12 +224,18 @@ class BaseGenerator(ABC):
             retry_after = DEFAULT_RETRY_AFTER
             if response_data:
                 try:
-                    decoded = response_data.decode('utf-8')
+                    decoded = response_data.decode('utf-8', errors='ignore')
                     error_data = json.loads(decoded)
                     retry_after = error_data.get('retry_after', DEFAULT_RETRY_AFTER)
                 except:
                     pass
-            raise RateLimitError(message="Rate limit exceeded", retry_after=retry_after)
+
+            # Also check HTTP header
+            # (will be passed separately in retry decorator)
+            raise RateLimitError(
+                message="Rate limit exceeded",
+                retry_after=retry_after
+            )
 
 # ============================================================================
 # SYNC GENERATOR (REFACTORED)
@@ -235,6 +272,7 @@ class SyncGenerator(BaseGenerator):
         kwargs['headers'] = headers
 
         print_debug(f"Request {request_id}: {method} {_log_safe_url(url)}")
+        print_debug(f"Headers: {_sanitize_headers(headers)}")
 
         response = self.session.request(method, url, params=params or {}, **kwargs)
 
@@ -287,6 +325,14 @@ class SyncGenerator(BaseGenerator):
                 return result if result else fallback
             return fallback
 
+        except requests.exceptions.HTTPError as e:
+            # 404 is expected for some endpoints - return fallback silently
+            if e.response.status_code == 404:
+                print_debug(f"Endpoint {endpoint} returned 404, using fallback")
+                return fallback
+            # Other HTTP errors - log warning
+            print_warning(f"HTTP error fetching {endpoint}: {e.response.status_code}")
+            return fallback
         except (json.JSONDecodeError, ValueError) as e:
             print_warning(f"Failed to parse {endpoint} response: {e}")
             return fallback
@@ -338,6 +384,7 @@ class AsyncGenerator(BaseGenerator):
         headers.update(self._get_auth_headers(request_id))
 
         print_debug(f"Async Request {request_id}: {method} {_log_safe_url(url)}")
+        print_debug(f"Headers: {_sanitize_headers(headers)}")
 
         if stream:
             response = await session.request(
@@ -390,6 +437,13 @@ class AsyncGenerator(BaseGenerator):
                 return result if result else fallback
             return fallback
 
+        except aiohttp.ClientResponseError as e:
+            # 404 is expected for some endpoints
+            if e.status == 404:
+                print_debug(f"Endpoint {endpoint} returned 404, using fallback")
+                return fallback
+            print_warning(f"HTTP error fetching {endpoint}: {e.status}")
+            return fallback
         except (json.JSONDecodeError, ValueError) as e:
             print_warning(f"Failed to parse {endpoint} response: {e}")
             return fallback

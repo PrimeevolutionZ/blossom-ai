@@ -1,7 +1,6 @@
 """
-Blossom AI – Parameter Builders (v0.5.0-refactored)
+Blossom AI – Parameter Builders (v0.5.0)
 Type-safe, single-source builders for V2 API.
-
 """
 
 from __future__ import annotations
@@ -167,6 +166,25 @@ class ChatParamsV2(BaseParams):
             if v is None or v == 0 or v is False:
                 continue
             body[k] = v
+
+        # Validate total message length (rough estimate)
+        total_chars = sum(
+            len(str(msg.get('content', '')))
+            for msg in self.messages
+        )
+
+        # API limit is 10,000 characters
+        if total_chars > 10000:
+            from blossom_ai.core.errors import ValidationError
+            raise ValidationError(
+                message=f"Total message length ({total_chars:,} chars) exceeds API limit (10,000 chars)",
+                suggestion=(
+                    "Solutions:\n"
+                    "1. Shorten your prompt or system message\n"
+                    "2. Reduce file content using read_file_truncated()\n"
+                    "3. Split into multiple requests"
+                )
+            )
 
         return body
 

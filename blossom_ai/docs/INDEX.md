@@ -304,7 +304,7 @@ from blossom_ai import Blossom, MessageBuilder
 with Blossom(api_token="your_token") as client:
     # Analyze image from URL
     messages = [
-        MessageBuilder.image_message(
+        MessageBuilder.image(
             role="user",
             text="What's in this image?",
             image_url="https://example.com/image.jpg"

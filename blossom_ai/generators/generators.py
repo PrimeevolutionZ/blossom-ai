@@ -1,6 +1,7 @@
 """
-Blossom AI – Generators (v0.5.0-hotfix)
+Blossom AI – Generators (v0.5.0)
 V2 API only (enter.pollinations.ai)
+
 """
 
 from __future__ import annotations
@@ -311,7 +312,11 @@ class AsyncTextGenerator(
         self._validate_prompt(prompt)
         msgs = self._normalize_messages(prompt, system, messages)
         if stream:
-            return self.chat(messages=msgs, stream=True, **kw)                                     # type: ignore
+            # Return async generator directly, don't await
+            async def _stream_wrapper():
+                async for chunk in self.chat(messages=msgs, stream=True, **kw):
+                    yield chunk
+            return _stream_wrapper()
         return await self.chat_text(messages=msgs, stream=False, **kw)
 
     async def chat_text(

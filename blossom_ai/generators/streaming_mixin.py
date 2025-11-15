@@ -1,6 +1,5 @@
 """
 Blossom AI - Streaming Mixins
-Unified streaming logic for sync and async generators
 """
 
 import time
@@ -352,6 +351,11 @@ class AsyncStreamingMixin(ABC):
 
         try:
             async for chunk in response.content.iter_any():
+                # Check if task was cancelled (Ctrl-C)
+                if asyncio.current_task().cancelled():
+                    print_debug("Stream cancelled by user")
+                    break
+
                 current_time = asyncio.get_event_loop().time()
 
                 if current_time - last_data_time > LIMITS.STREAM_CHUNK_TIMEOUT:
@@ -392,6 +396,9 @@ class AsyncStreamingMixin(ABC):
                     if content:
                         yield content
 
+        except asyncio.CancelledError:
+            print_debug("Stream cancelled via CancelledError")
+            raise
         except StreamError:
             raise
         except Exception as e:

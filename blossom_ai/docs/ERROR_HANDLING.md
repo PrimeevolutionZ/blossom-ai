@@ -1,1374 +1,1026 @@
-# 🛡️ Error Handling Guide
+# Error Handling Guide - Blossom AI V2
 
-Complete guide to handling errors gracefully in Blossom AI V2 API.
-
----
-
-## 📋 Table of Contents
-
-- [Overview](#overview)
-- [Error Hierarchy](#error-hierarchy)
-- [Common Errors](#common-errors)
-- [Error Attributes](#error-attributes)
-- [Handling Specific Errors](#handling-specific-errors)
-- [Retry Strategies](#retry-strategies)
-- [Best Practices](#best-practices)
-- [Production Patterns](#production-patterns)
-- [Debugging](#debugging)
+> **Based on real-world usage patterns from test suite**
 
 ---
 
-## 🌟 Overview
+## Table of Contents
 
-Blossom AI provides a comprehensive error handling system with:
-
-- 🎯 **Specific Exceptions** - Different error types for different problems
-- 💡 **Helpful Suggestions** - Built-in advice on how to fix issues
-- 🔄 **Retry Information** - Automatic retry-after hints for rate limits
-- 📊 **Error Context** - Detailed information about what went wrong
-- 🐛 **Debug Support** - Enhanced logging for troubleshooting
-
-### Philosophy
-
-Blossom AI errors are designed to be:
-1. **Informative** - Clear messages about what went wrong
-2. **Actionable** - Suggestions on how to fix the problem
-3. **Catchable** - Specific exception types for targeted handling
-4. **Debuggable** - Rich context for troubleshooting
+1. [Error Types](#error-types)
+2. [Common Error Scenarios](#common-error-scenarios)
+3. [Error Handling Patterns](#error-handling-patterns)
+4. [Retry Strategies](#retry-strategies)
+5. [Cleanup and Resource Management](#cleanup-and-resource-management)
+6. [Streaming Error Handling](#streaming-error-handling)
+7. [Async Error Handling](#async-error-handling)
+8. [Best Practices](#best-practices)
 
 ---
 
-## 🌳 Error Hierarchy
+## Error Types
 
-All Blossom AI errors inherit from `BlossomError`.
-
-```
-BlossomError (base exception)
-│
-├── NetworkError          # Connection/network issues
-├── TimeoutError          # Request timeout
-├── StreamError           # Streaming failures
-├── FileTooLargeError     # File size exceeded
-│
-└── APIError (API-related errors)
-    ├── AuthenticationError    # Invalid/missing token
-    ├── RateLimitError        # Rate limit exceeded
-    └── ValidationError       # Invalid parameters
-```
-
-### Import All Errors
+### Core Error Hierarchy
 
 ```python
-from blossom_ai import (
-    BlossomError,          # Base exception
-    NetworkError,          # Network issues
-    TimeoutError,          # Timeouts
-    StreamError,           # Streaming errors
-    FileTooLargeError,     # File size issues
-    APIError,              # API errors (base)
-    AuthenticationError,   # Auth failures
-    RateLimitError,        # Rate limiting
-    ValidationError        # Invalid input
+from blossom_ai import BlossomError, ErrorType
+from blossom_ai.core.errors import (
+    AuthenticationError,
+    ValidationError,
+    FileTooLargeError,
+    StreamError,
+    RateLimitError
 )
 ```
 
----
+### Error Type Enum
 
-## ⚠️ Common Errors
+From real code usage:
 
-### Quick Reference
+```python
+class ErrorType:
+    INVALID_PARAM = "invalid_parameter"
+    AUTH_ERROR = "authentication_error"
+    RATE_LIMIT = "rate_limit_exceeded"
+    SERVER_ERROR = "server_error"
+    STREAM_ERROR = "stream_error"
+    FILE_ERROR = "file_error"
+    # ... other types
+```
 
-| Error                 | When It Happens           | Quick Fix                                                             |
-|-----------------------|---------------------------|-----------------------------------------------------------------------|
-| `AuthenticationError` | Invalid/missing API token | Check token at [enter.pollinations.ai](https://enter.pollinations.ai) |
-| `RateLimitError`      | Too many requests         | Wait or upgrade plan                                                  |
-| `ValidationError`     | Invalid parameters        | Check parameter values/types                                          |
-| `NetworkError`        | Connection failed         | Check internet connection                                             |
-| `TimeoutError`        | Request took too long     | Increase timeout or retry                                             |
-| `StreamError`         | Streaming interrupted     | Reconnect and retry                                                   |
-| `FileTooLargeError`   | File exceeds limit        | Use truncation or smaller file                                        |
+### BlossomError Structure
 
----
-
-## 📦 Error Attributes
-
-All Blossom AI errors have these attributes:
-
-### BlossomError Base Attributes
+All errors inherit from `BlossomError`:
 
 ```python
 try:
-    # API call
-    pass
+    client.text.generate("prompt")
 except BlossomError as e:
-    # All errors have these:
-    print(e.error_type)    # ErrorType enum
-    print(e.message)       # Human-readable description
-    print(e.suggestion)    # How to fix (or None)
-    print(e.status_code)   # HTTP status (or None)
-    print(e.retry_after)   # Retry delay (or None)
+    print(f"Error type: {e.error_type}")
+    print(f"Message: {e.message}")
+    print(f"Suggestion: {e.suggestion}")
+    print(f"Status code: {e.status_code}")  # HTTP status if available
 ```
 
-**Attributes:**
+---
 
-- `error_type` (ErrorType): Error type enum for programmatic handling
-- `message` (str): Human-readable error description
-- `suggestion` (str | None): Actionable advice on how to fix
-- `status_code` (int | None): HTTP status code if applicable
-- `retry_after` (int | None): Seconds to wait before retry (rate limits)
+## Common Error Scenarios
 
-### ErrorType Enum
+### 1. Authentication Errors
+
+**From test_integration.py:**
 
 ```python
-from blossom_ai import ErrorType
+from blossom_ai import Blossom
+from blossom_ai.core.errors import AuthenticationError
 
-ErrorType.NETWORK           # Network/connection error
-ErrorType.TIMEOUT           # Request timeout
-ErrorType.AUTH              # Authentication failed
-ErrorType.RATE_LIMIT        # Rate limit exceeded
-ErrorType.INVALID_PARAM     # Invalid parameter
-ErrorType.API_ERROR         # General API error
-ErrorType.STREAM_ERROR      # Streaming error
-ErrorType.FILE_TOO_LARGE    # File size limit exceeded
+# Invalid token raises AuthenticationError
+try:
+    with Blossom(api_token="invalid_token_12345") as client:
+        client.text.generate("test")
+except AuthenticationError as e:
+    print(f"Auth failed: {e.message}")
+    # Output: "Authentication failed: Invalid API token"
 ```
 
-**Example - Using ErrorType:**
+**Best Practice:**
+
+```python
+import os
+from blossom_ai import Blossom, AuthenticationError
+
+def create_client():
+    """Create client with proper token validation"""
+    api_token = os.getenv("BLOSSOM_API_TOKEN")
+    
+    if not api_token:
+        raise ValueError("BLOSSOM_API_TOKEN environment variable not set")
+    
+    try:
+        return Blossom(api_token=api_token)
+    except AuthenticationError:
+        raise ValueError("Invalid API token - get yours at https://enter.pollinations.ai")
+
+# Usage
+try:
+    with create_client() as client:
+        response = client.text.generate("Hello")
+except ValueError as e:
+    print(f"Setup error: {e}")
+```
+
+### 2. Validation Errors
+
+**From v2_tests.py:**
 
 ```python
 from blossom_ai import Blossom, BlossomError, ErrorType
 
+with Blossom(api_token=API_TOKEN) as client:
+    try:
+        # Prompt too long (>256 chars)
+        very_long_prompt = "a" * 300
+        client.image.generate(very_long_prompt)
+    except BlossomError as e:
+        assert e.error_type == ErrorType.INVALID_PARAM
+        print(f"Validation failed: {e.message}")
+        print(f"Suggestion: {e.suggestion}")
+```
+
+**Common Validation Errors:**
+
+```python
+# 1. Prompt length validation
 try:
-    with Blossom(api_token="your-token") as client:
-        response = client.text.generate("Hello")
-except BlossomError as e:
-    if e.error_type == ErrorType.RATE_LIMIT:
-        print("Rate limited - need to wait")
-    elif e.error_type == ErrorType.AUTH:
-        print("Authentication failed - check token")
-    else:
-        print(f"Other error: {e.message}")
-```
+    client.image.generate("x" * 300)  # Too long for image prompts
+except ValidationError as e:
+    print(f"Prompt exceeds maximum length: {e.message}")
 
----
-
-## 🎯 Handling Specific Errors
-
-### AuthenticationError
-
-**Cause:** Invalid or missing API token.
-
-**Status Code:** 401 Unauthorized
-
-```python
-from blossom_ai import Blossom, AuthenticationError
-
+# 2. File size validation
 try:
-    client = Blossom(api_token="invalid_token")
-    response = client.text.generate("Hello")
-    
-except AuthenticationError as e:
-    print(f"❌ Auth failed: {e.message}")
-    print(f"💡 {e.suggestion}")
-    # Suggestion: "Check your API token at https://enter.pollinations.ai"
+    reader.read_file("huge_file.txt")  # >8000 chars
+except FileTooLargeError as e:
+    print(f"File too large: {e.message}")
+    print(f"Try: {e.suggestion}")  # "Use read_file_truncated() instead"
+
+# 3. Invalid parameters
+try:
+    client.image.generate("test", width=99999)  # Invalid dimension
+except ValidationError as e:
+    print(f"Invalid parameter: {e.message}")
 ```
 
-**Common causes:**
-- Typo in API token
-- Token not set (env var missing)
-- Token expired or revoked
-- Wrong token for environment
+### 3. Rate Limit Errors
 
-**How to fix:**
-```python
-# 1. Verify token is set
-import os
-token = os.getenv("POLLINATIONS_API_KEY")
-if not token:
-    print("❌ Token not set!")
-    
-# 2. Test with explicit token
-client = Blossom(api_token="your-actual-token-here")
-
-# 3. Regenerate token if needed at:
-# https://enter.pollinations.ai
-```
-
-### RateLimitError
-
-**Cause:** Too many requests in short time.
-
-**Status Code:** 429 Too Many Requests
+**From test_reasoning_cache.py with retry logic:**
 
 ```python
+import time
+import requests
 from blossom_ai import Blossom, RateLimitError
-import time
 
-try:
-    with Blossom(api_token="your-token") as client:
-        response = client.text.generate("Hello")
-        
-except RateLimitError as e:
-    print(f"❌ Rate limited: {e.message}")
-    
-    if e.retry_after:
-        print(f"⏳ Retry after {e.retry_after} seconds")
-        time.sleep(e.retry_after)
-        # Retry request here
-    else:
-        print("⏳ Wait a moment and retry")
-```
+def retry_on_server_error(max_attempts=3, initial_wait=1.0):
+    """Decorator for exponential backoff on server errors"""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code in [502, 503, 504]:
+                        if attempt < max_attempts - 1:
+                            wait = initial_wait * (2 ** attempt)
+                            print(f"⏳ Server error {e.response.status_code}, retrying in {wait}s...")
+                            time.sleep(wait)
+                            continue
+                    raise
+        return wrapper
+    return decorator
 
-**Common causes:**
-- Sending requests too quickly
-- Exceeding plan limits
-- Burst traffic
-
-**How to fix:**
-```python
-# 1. Implement exponential backoff
-def api_call_with_backoff():
-    for attempt in range(5):
-        try:
-            with Blossom(api_token="your-token") as client:
-                return client.text.generate("Hello")
-        except RateLimitError as e:
-            if attempt < 4:
-                wait = e.retry_after or (2 ** attempt)
-                print(f"Waiting {wait}s...")
-                time.sleep(wait)
-            else:
-                raise
-
-# 2. Add delays between requests
-import time
-
-for prompt in prompts:
-    response = client.text.generate(prompt)
-    time.sleep(1)  # Add delay
-
-# 3. Use caching to reduce requests
-from blossom_ai.utils import cached
-
-@cached(ttl=3600)
-def generate_cached(prompt):
-    with Blossom(api_token="your-token") as client:
+# Usage
+@retry_on_server_error(max_attempts=5)
+def generate_with_retry(prompt):
+    with Blossom(api_token=API_TOKEN) as client:
         return client.text.generate(prompt)
 ```
 
-### ValidationError
+### 4. File Handling Errors
 
-**Cause:** Invalid parameters or input.
-
-**Status Code:** 400 Bad Request
+**From test_file_reader.py:**
 
 ```python
-from blossom_ai import Blossom, ValidationError
-
-try:
-    with Blossom(api_token="your-token") as client:
-        # Prompt too long
-        response = client.image.generate("x" * 300)
-        
-except ValidationError as e:
-    print(f"❌ Invalid: {e.message}")
-    print(f"💡 {e.suggestion}")
-```
-
-**Common causes:**
-- Prompt too long (>250 chars for images)
-- Invalid width/height (not 64-2048)
-- Invalid model name
-- Invalid parameter values
-- File not found
-- Unsupported file type
-
-**How to fix:**
-```python
-# 1. Validate before calling API
-def safe_generate_image(prompt, width, height):
-    # Check prompt length
-    if len(prompt) > 250:
-        raise ValueError("Prompt too long (max 250 chars)")
-    
-    # Check dimensions
-    if not (64 <= width <= 2048 and 64 <= height <= 2048):
-        raise ValueError("Dimensions must be 64-2048")
-    
-    # Now safe to call
-    with Blossom(api_token="your-token") as client:
-        return client.image.generate(prompt, width=width, height=height)
-
-# 2. Truncate long prompts
-def truncate_prompt(prompt, max_length=250):
-    if len(prompt) > max_length:
-        return prompt[:max_length-3] + "..."
-    return prompt
-
-prompt = truncate_prompt("very long prompt here...")
-
-# 3. Validate file existence
-from pathlib import Path
-
-image_path = Path("photo.jpg")
-if not image_path.exists():
-    print(f"❌ File not found: {image_path}")
-else:
-    # Safe to use
-    pass
-```
-
-### NetworkError
-
-**Cause:** Connection or network issues.
-
-**Status Code:** Various (502, 503, etc.)
-
-```python
-from blossom_ai import Blossom, NetworkError
-import time
-
-try:
-    with Blossom(api_token="your-token") as client:
-        response = client.text.generate("Hello")
-        
-except NetworkError as e:
-    print(f"❌ Network error: {e.message}")
-    print(f"💡 {e.suggestion}")
-    
-    # Retry after delay
-    time.sleep(5)
-    # Try again...
-```
-
-**Common causes:**
-- No internet connection
-- DNS resolution failure
-- Server temporarily down
-- Firewall blocking request
-- Proxy issues
-
-**How to fix:**
-```python
-# 1. Implement retry logic
-def api_call_with_retry(max_retries=3):
-    for attempt in range(max_retries):
-        try:
-            with Blossom(api_token="your-token") as client:
-                return client.text.generate("Hello")
-        except NetworkError as e:
-            if attempt < max_retries - 1:
-                wait = 2 ** attempt  # Exponential backoff
-                print(f"Attempt {attempt+1} failed, retrying in {wait}s...")
-                time.sleep(wait)
-            else:
-                print("Max retries reached")
-                raise
-
-# 2. Check connection before calling
-import socket
-
-def check_internet():
-    try:
-        socket.create_connection(("8.8.8.8", 53), timeout=3)
-        return True
-    except OSError:
-        return False
-
-if check_internet():
-    # Safe to call API
-    pass
-else:
-    print("❌ No internet connection")
-```
-
-### TimeoutError
-
-**Cause:** Request took longer than timeout limit.
-
-```python
-from blossom_ai import Blossom, TimeoutError
-
-try:
-    client = Blossom(api_token="your-token", timeout=10)
-    response = client.text.generate("Complex task...")
-    
-except TimeoutError as e:
-    print(f"❌ Timeout: {e.message}")
-    print(f"💡 {e.suggestion}")
-```
-
-**Common causes:**
-- Timeout too short for task
-- Server overloaded
-- Network latency
-- Large file processing
-
-**How to fix:**
-```python
-# 1. Increase timeout for slow operations
-client = Blossom(api_token="your-token", timeout=60)
-
-# 2. Set per-request timeout
-response = client.text.generate(
-    "Complex task",
-    timeout=120  # 2 minutes for this specific call
-)
-
-# 3. Use streaming for long responses
-for chunk in client.text.generate("Long task", stream=True, timeout=120):
-    print(chunk, end="", flush=True)
-```
-
-### StreamError
-
-**Cause:** Streaming connection interrupted.
-
-```python
-from blossom_ai import Blossom, StreamError
-
-try:
-    with Blossom(api_token="your-token") as client:
-        for chunk in client.text.generate("Count to 100", stream=True):
-            print(chunk, end="", flush=True)
-            
-except StreamError as e:
-    print(f"\n❌ Stream error: {e.message}")
-    print(f"💡 {e.suggestion}")
-```
-
-**Common causes:**
-- Connection dropped mid-stream
-- Client timeout during streaming
-- Server-side stream termination
-- Network instability
-
-**How to fix:**
-```python
-# 1. Implement stream recovery
-def stream_with_recovery(prompt):
-    max_attempts = 3
-    
-    for attempt in range(max_attempts):
-        try:
-            with Blossom(api_token="your-token", timeout=60) as client:
-                for chunk in client.text.generate(prompt, stream=True):
-                    yield chunk
-            break  # Success
-            
-        except StreamError as e:
-            if attempt < max_attempts - 1:
-                print(f"\n⚠️ Stream interrupted, reconnecting...")
-                time.sleep(2)
-            else:
-                raise
-
-# 2. Collect chunks with error handling
-def safe_streaming(prompt):
-    chunks = []
-    
-    try:
-        with Blossom(api_token="your-token") as client:
-            for chunk in client.text.generate(prompt, stream=True):
-                chunks.append(chunk)
-                print(chunk, end="", flush=True)
-    except StreamError:
-        print("\n⚠️ Stream interrupted")
-        
-    return "".join(chunks)
-```
-
-### FileTooLargeError
-
-**Cause:** File exceeds API size limits.
-
-```python
-from blossom_ai import FileTooLargeError
-from blossom_ai.utils import read_file_for_prompt
-
-try:
-    content = read_file_for_prompt("huge_file.txt")
-    
-except FileTooLargeError as e:
-    print(f"❌ File too large: {e.message}")
-    print(f"💡 {e.suggestion}")
-    # Suggestion: "Use read_file_truncated() or reduce file size"
-```
-
-**Common causes:**
-- File exceeds 8000-character limit
-- Combined files too large
-- Image file too big (>20MB)
-
-**How to fix:**
-```python
-# 1. Use truncation
-from blossom_ai.utils import read_file_for_prompt
-
-content = read_file_for_prompt(
-    "large_file.txt",
-    max_length=5000,
-    truncate_if_needed=True
-)
-
-# 2. Use FileContentReader directly
 from blossom_ai.utils import FileContentReader
+from blossom_ai.core.errors import ValidationError, FileTooLargeError
 
 reader = FileContentReader()
-file_content = reader.read_file_truncated(
-    "large_file.txt",
-    max_chars=5000
-)
 
-# 3. Resize images before sending
-from PIL import Image
+# 1. File not found
+try:
+    reader.read_file("nonexistent.txt")
+except ValidationError as e:
+    print(f"File error: {e.message}")  # "File not found: nonexistent.txt"
 
-def resize_image(path, max_size_mb=10):
-    img = Image.open(path)
-    
-    # Calculate new size
-    import os
-    size_mb = os.path.getsize(path) / (1024 * 1024)
-    
-    if size_mb > max_size_mb:
-        ratio = (max_size_mb / size_mb) ** 0.5
-        new_size = tuple(int(d * ratio) for d in img.size)
-        img = img.resize(new_size, Image.Resampling.LANCZOS)
-        
-        resized_path = f"resized_{path}"
-        img.save(resized_path, quality=85)
-        return resized_path
-    
-    return path
+# 2. File too large
+try:
+    reader.read_file("huge_file.txt")  # 9000+ chars
+except FileTooLargeError as e:
+    print(f"Size error: {e.message}")
+    print(f"Actual size: 9,000 chars")
+    print(f"Max allowed: 8,000 chars")
+    print(f"Solution: {e.suggestion}")  # "Use read_file_truncated()"
+
+# 3. Unsupported file type
+try:
+    reader.read_file("program.exe")
+except ValidationError as e:
+    print(f"Type error: {e.message}")  # "Unsupported file type: .exe"
+
+# 4. Empty file
+try:
+    reader.read_file("empty.txt")
+except ValidationError as e:
+    print(f"Content error: {e.message}")  # "File is empty"
 ```
 
 ---
 
-## 🔄 Retry Strategies
+## Error Handling Patterns
 
-### Basic Retry
-
-```python
-from blossom_ai import Blossom, BlossomError
-import time
-
-def api_call_with_retry(prompt, max_retries=3):
-    for attempt in range(max_retries):
-        try:
-            with Blossom(api_token="your-token") as client:
-                return client.text.generate(prompt)
-        except BlossomError as e:
-            if attempt < max_retries - 1:
-                print(f"Attempt {attempt+1} failed: {e.message}")
-                time.sleep(1)
-            else:
-                print("Max retries reached")
-                raise
-
-# Use it
-response = api_call_with_retry("Hello AI")
-```
-
-### Exponential Backoff
-
-```python
-from blossom_ai import Blossom, BlossomError
-import time
-
-def api_call_with_backoff(prompt, max_retries=5):
-    for attempt in range(max_retries):
-        try:
-            with Blossom(api_token="your-token") as client:
-                return client.text.generate(prompt)
-                
-        except BlossomError as e:
-            if attempt < max_retries - 1:
-                # Exponential backoff: 1s, 2s, 4s, 8s, 16s
-                wait_time = 2 ** attempt
-                print(f"Retry {attempt+1}/{max_retries} after {wait_time}s")
-                time.sleep(wait_time)
-            else:
-                raise
-
-# Use it
-response = api_call_with_backoff("Hello AI")
-```
-
-### Smart Retry (Selective)
-
-```python
-from blossom_ai import (
-    Blossom,
-    NetworkError,
-    TimeoutError,
-    RateLimitError,
-    AuthenticationError,
-    ValidationError
-)
-import time
-
-def smart_retry(prompt, max_retries=3):
-    """Only retry on transient errors"""
-    
-    for attempt in range(max_retries):
-        try:
-            with Blossom(api_token="your-token") as client:
-                return client.text.generate(prompt)
-                
-        except (NetworkError, TimeoutError, RateLimitError) as e:
-            # Transient errors - retry
-            if attempt < max_retries - 1:
-                wait = e.retry_after if hasattr(e, 'retry_after') and e.retry_after else 2 ** attempt
-                print(f"Transient error, retrying in {wait}s...")
-                time.sleep(wait)
-            else:
-                raise
-                
-        except (AuthenticationError, ValidationError) as e:
-            # Permanent errors - don't retry
-            print(f"❌ Permanent error: {e.message}")
-            raise
-
-# Use it
-response = smart_retry("Hello AI")
-```
-
-### Retry with Fallback
+### Pattern 1: Graceful Degradation
 
 ```python
 from blossom_ai import Blossom, BlossomError
 
-def api_call_with_fallback(prompt, fallback_models=["openai", "openai-fast"]):
-    """Try multiple models if one fails"""
-    
-    for model in fallback_models:
-        try:
-            with Blossom(api_token="your-token") as client:
-                return client.text.generate(prompt, model=model)
-        except BlossomError as e:
-            print(f"Model {model} failed: {e.message}")
-            if model == fallback_models[-1]:
-                print("All models failed")
-                raise
-            else:
-                print(f"Trying next model...")
-
-# Use it
-response = api_call_with_fallback("Hello AI")
-```
-
----
-
-## ✅ Best Practices
-
-### 1. Always Use Try-Except
-
-```python
-# ❌ Bad - no error handling
-response = client.text.generate("Hello")
-
-# ✅ Good - basic error handling
-try:
-    response = client.text.generate("Hello")
-except BlossomError as e:
-    print(f"Error: {e.message}")
-
-# ✅ Better - specific error handling
-try:
-    response = client.text.generate("Hello")
-except AuthenticationError as e:
-    print(f"Auth error: {e.message}")
-except RateLimitError as e:
-    print(f"Rate limited: wait {e.retry_after}s")
-except BlossomError as e:
-    print(f"Other error: {e.message}")
-```
-
-### 2. Use Context Managers
-
-```python
-# ❌ Bad - manual cleanup needed
-client = Blossom(api_token="your-token")
-try:
-    response = client.text.generate("Hello")
-finally:
-    client.close_sync()
-
-# ✅ Good - automatic cleanup
-with Blossom(api_token="your-token") as client:
-    response = client.text.generate("Hello")
-```
-
-### 3. Log Errors for Debugging
-
-```python
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-try:
-    with Blossom(api_token="your-token") as client:
-        response = client.text.generate("Hello")
-except BlossomError as e:
-    logger.error(
-        f"API call failed: {e.error_type.value}",
-        extra={
-            "message": e.message,
-            "suggestion": e.suggestion,
-            "status_code": e.status_code
-        }
-    )
-    raise
-```
-
-### 4. Validate Input Before API Calls
-
-```python
-def safe_generate_image(prompt, width, height):
-    # Validate prompt
-    if not prompt or len(prompt) < 3:
-        raise ValueError("Prompt too short (min 3 chars)")
-    if len(prompt) > 250:
-        raise ValueError("Prompt too long (max 250 chars)")
-    
-    # Validate dimensions
-    if not (64 <= width <= 2048):
-        raise ValueError(f"Width must be 64-2048, got {width}")
-    if not (64 <= height <= 2048):
-        raise ValueError(f"Height must be 64-2048, got {height}")
-    
-    # Now safe to call API
-    with Blossom(api_token="your-token") as client:
-        return client.image.generate(prompt, width=width, height=height)
-```
-
-### 5. Provide User-Friendly Error Messages
-
-```python
-def generate_with_friendly_errors(prompt):
+def generate_with_fallback(prompt, fallback="Unable to generate response"):
+    """Generate with fallback on error"""
     try:
-        with Blossom(api_token="your-token") as client:
+        with Blossom(api_token=API_TOKEN) as client:
             return client.text.generate(prompt)
-            
-    except AuthenticationError:
-        return "⚠️ Authentication failed. Please check your API token."
-        
-    except RateLimitError as e:
-        wait = e.retry_after or 60
-        return f"⚠️ Too many requests. Please wait {wait} seconds."
-        
-    except ValidationError as e:
-        return f"⚠️ Invalid input: {e.message}"
-        
-    except NetworkError:
-        return "⚠️ Network error. Please check your connection."
-        
     except BlossomError as e:
-        return f"⚠️ Error: {e.message}"
+        print(f"Error: {e.message}")
+        return fallback
+
+# Usage
+response = generate_with_fallback("Explain AI")
+print(response)  # Either real response or fallback
 ```
 
-### 6. Use Timeouts Appropriately
+### Pattern 2: Error Classification
 
 ```python
-# Short timeout for quick tasks
-client = Blossom(api_token="your-token", timeout=10)
-response = client.text.generate("Quick question")
+from blossom_ai import BlossomError, ErrorType
 
-# Longer timeout for complex tasks
-client = Blossom(api_token="your-token", timeout=60)
-response = client.text.generate("Write detailed analysis...")
+def handle_error(error: BlossomError) -> str:
+    """Classify and handle different error types"""
+    if error.error_type == ErrorType.AUTH_ERROR:
+        return "Authentication failed. Check your API token."
+    
+    elif error.error_type == ErrorType.RATE_LIMIT:
+        return f"Rate limit exceeded. {error.suggestion}"
+    
+    elif error.error_type == ErrorType.INVALID_PARAM:
+        return f"Invalid request: {error.message}"
+    
+    elif error.error_type == ErrorType.SERVER_ERROR:
+        return "Server error. Please retry later."
+    
+    else:
+        return f"Unexpected error: {error.message}"
 
-# Per-request timeout override
-response = client.text.generate(
-    "Very complex task",
-    timeout=120
-)
+# Usage
+try:
+    with Blossom(api_token=API_TOKEN) as client:
+        response = client.text.generate("x" * 1000)
+except BlossomError as e:
+    user_message = handle_error(e)
+    print(user_message)
 ```
 
-### 7. Implement Circuit Breaker
+### Pattern 3: Context-Aware Error Handling
 
 ```python
-from datetime import datetime, timedelta
+def safe_generate(prompt: str, context: str = "general"):
+    """Generate with context-aware error handling"""
+    try:
+        with Blossom(api_token=API_TOKEN) as client:
+            return client.text.generate(prompt)
+    
+    except AuthenticationError:
+        raise RuntimeError(f"[{context}] Authentication failed - check API token")
+    
+    except ValidationError as e:
+        raise ValueError(f"[{context}] Invalid input: {e.message}")
+    
+    except RateLimitError:
+        raise RuntimeError(f"[{context}] Rate limit exceeded - slow down requests")
+    
+    except BlossomError as e:
+        raise RuntimeError(f"[{context}] Generation failed: {e.message}")
+
+# Usage with context
+try:
+    response = safe_generate("Hello", context="user_onboarding")
+except RuntimeError as e:
+    log_error(str(e))  # Logs: "[user_onboarding] ..."
+```
+
+---
+
+## Retry Strategies
+
+### Strategy 1: Exponential Backoff (Production-Ready)
+
+**From test_reasoning_cache.py:**
+
+```python
+import time
+from blossom_ai import Blossom, BlossomError, RateLimitError
+
+def generate_with_exponential_backoff(
+    prompt: str,
+    max_retries: int = 3,
+    initial_delay: float = 1.0,
+    backoff_factor: float = 2.0
+):
+    """Generate with exponential backoff on transient errors"""
+    
+    for attempt in range(max_retries):
+        try:
+            with Blossom(api_token=API_TOKEN) as client:
+                return client.text.generate(prompt)
+        
+        except RateLimitError as e:
+            if attempt < max_retries - 1:
+                delay = initial_delay * (backoff_factor ** attempt)
+                print(f"Rate limited, retrying in {delay}s...")
+                time.sleep(delay)
+            else:
+                raise
+        
+        except BlossomError as e:
+            # Server errors (502, 503, 504) - retry
+            if e.status_code in [502, 503, 504]:
+                if attempt < max_retries - 1:
+                    delay = initial_delay * (backoff_factor ** attempt)
+                    print(f"Server error {e.status_code}, retrying in {delay}s...")
+                    time.sleep(delay)
+                else:
+                    raise
+            else:
+                # Other errors - don't retry
+                raise
+
+# Usage
+response = generate_with_exponential_backoff("Explain quantum computing")
+```
+
+### Strategy 2: Retry with Jitter
+
+```python
+import random
+import time
+
+def generate_with_jitter(prompt: str, max_retries: int = 3):
+    """Retry with jitter to avoid thundering herd"""
+    
+    for attempt in range(max_retries):
+        try:
+            with Blossom(api_token=API_TOKEN) as client:
+                return client.text.generate(prompt)
+        
+        except RateLimitError:
+            if attempt < max_retries - 1:
+                # Base delay with random jitter
+                base_delay = 2 ** attempt
+                jitter = random.uniform(0, base_delay * 0.3)
+                delay = base_delay + jitter
+                print(f"Retry {attempt + 1} after {delay:.2f}s...")
+                time.sleep(delay)
+            else:
+                raise
+
+# Usage
+response = generate_with_jitter("Generate text")
+```
+
+### Strategy 3: Circuit Breaker
+
+```python
+import time
+from collections import deque
 
 class CircuitBreaker:
+    """Circuit breaker to prevent cascading failures"""
+    
     def __init__(self, failure_threshold=5, timeout=60):
         self.failure_threshold = failure_threshold
         self.timeout = timeout
-        self.failures = 0
+        self.failures = deque(maxlen=failure_threshold)
+        self.state = "closed"  # closed, open, half_open
         self.last_failure_time = None
-        self.state = "closed"  # closed, open, half-open
     
-    def call(self, func, *args, **kwargs):
-        if self.state == "open":
-            if datetime.now() - self.last_failure_time > timedelta(seconds=self.timeout):
-                self.state = "half-open"
-            else:
-                raise Exception("Circuit breaker is OPEN")
+    def record_failure(self):
+        """Record a failure"""
+        now = time.time()
+        self.failures.append(now)
+        self.last_failure_time = now
         
-        try:
-            result = func(*args, **kwargs)
-            self.on_success()
-            return result
-        except Exception as e:
-            self.on_failure()
-            raise
+        if len(self.failures) >= self.failure_threshold:
+            self.state = "open"
     
-    def on_success(self):
-        self.failures = 0
+    def record_success(self):
+        """Record a success"""
+        self.failures.clear()
         self.state = "closed"
     
-    def on_failure(self):
-        self.failures += 1
-        self.last_failure_time = datetime.now()
-        if self.failures >= self.failure_threshold:
-            self.state = "open"
+    def can_attempt(self):
+        """Check if request can be attempted"""
+        if self.state == "closed":
+            return True
+        
+        if self.state == "open":
+            # Check if timeout has elapsed
+            if time.time() - self.last_failure_time > self.timeout:
+                self.state = "half_open"
+                return True
+            return False
+        
+        # half_open state
+        return True
 
-# Use it
-breaker = CircuitBreaker()
+# Usage
+breaker = CircuitBreaker(failure_threshold=5, timeout=60)
 
-def api_call():
-    with Blossom(api_token="your-token") as client:
-        return client.text.generate("Hello")
+def generate_with_circuit_breaker(prompt: str):
+    """Generate with circuit breaker protection"""
+    
+    if not breaker.can_attempt():
+        raise RuntimeError("Circuit breaker is open - too many failures")
+    
+    try:
+        with Blossom(api_token=API_TOKEN) as client:
+            response = client.text.generate(prompt)
+        
+        breaker.record_success()
+        return response
+    
+    except BlossomError as e:
+        breaker.record_failure()
+        raise
 
+# Usage
 try:
-    response = breaker.call(api_call)
-except Exception as e:
+    response = generate_with_circuit_breaker("Hello")
+except RuntimeError as e:
     print(f"Circuit breaker: {e}")
 ```
 
 ---
 
-## 🏭 Production Patterns
+## Cleanup and Resource Management
 
-### Complete Error Handler
+### Context Manager (Recommended)
+
+**From v2_tests.py pattern:**
 
 ```python
-from blossom_ai import (
-    Blossom,
-    BlossomError,
-    AuthenticationError,
-    RateLimitError,
-    ValidationError,
-    NetworkError,
-    TimeoutError,
-    StreamError
-)
-import logging
-import time
+from blossom_ai import Blossom
 
-logger = logging.getLogger(__name__)
+# ✅ CORRECT: Automatic cleanup
+with Blossom(api_token=API_TOKEN) as client:
+    response = client.text.generate("Hello")
+# Cleanup happens automatically
 
-def production_api_call(prompt, max_retries=3):
-    """Production-ready API call with comprehensive error handling"""
-    
-    for attempt in range(max_retries):
-        try:
-            with Blossom(api_token="your-token", timeout=60) as client:
-                response = client.text.generate(prompt)
-                logger.info(f"API call successful")
-                return {"success": True, "result": response}
-                
-        except AuthenticationError as e:
-            # Don't retry auth errors
-            logger.error(f"Authentication failed: {e.message}")
-            return {
-                "success": False,
-                "error": "authentication",
-                "message": "Invalid API token. Please check credentials.",
-                "retryable": False
-            }
-            
-        except ValidationError as e:
-            # Don't retry validation errors
-            logger.error(f"Validation failed: {e.message}")
-            return {
-                "success": False,
-                "error": "validation",
-                "message": e.message,
-                "suggestion": e.suggestion,
-                "retryable": False
-            }
-            
-        except RateLimitError as e:
-            # Retry with wait time
-            logger.warning(f"Rate limited: {e.message}")
-            
-            if attempt < max_retries - 1:
-                wait_time = e.retry_after or (2 ** attempt)
-                logger.info(f"Waiting {wait_time}s before retry...")
-                time.sleep(wait_time)
-            else:
-                return {
-                    "success": False,
-                    "error": "rate_limit",
-                    "message": "Rate limit exceeded. Please try again later.",
-                    "retry_after": e.retry_after,
-                    "retryable": True
-                }
-                
-        except (NetworkError, TimeoutError) as e:
-            # Retry transient errors
-            logger.warning(f"Transient error: {e.message}")
-            
-            if attempt < max_retries - 1:
-                wait_time = 2 ** attempt
-                logger.info(f"Retry {attempt+1}/{max_retries} in {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                return {
-                    "success": False,
-                    "error": "transient",
-                    "message": "Service temporarily unavailable. Please try again.",
-                    "retryable": True
-                }
-                
-        except BlossomError as e:
-            # Catch-all for other errors
-            logger.error(f"API error: {e.message}", exc_info=True)
-            return {
-                "success": False,
-                "error": "unknown",
-                "message": e.message,
-                "suggestion": e.suggestion,
-                "retryable": False
-            }
-
-# Use it
-result = production_api_call("Generate text")
-if result["success"]:
-    print(f"Result: {result['result']}")
-else:
-    print(f"Error: {result['message']}")
-    if result.get("retryable"):
-        print("You can retry this request")
+# ✅ CORRECT: With error handling
+try:
+    with Blossom(api_token=API_TOKEN) as client:
+        response = client.text.generate("Hello")
+except BlossomError as e:
+    print(f"Error: {e.message}")
+# Cleanup still happens even with error!
 ```
 
-### Async Error Handling
+### Reusable Client Pattern
+
+**From v2_tests.py helper functions:**
+
+```python
+# Global client management
+client: Blossom | None = None
+
+def _get_client() -> Blossom:
+    """Get or create client"""
+    global client
+    if client is None:
+        client = Blossom(api_token=API_TOKEN)
+    return client
+
+def _close_client() -> None:
+    """Close and cleanup client"""
+    global client
+    if client is not None:
+        # Client will cleanup on context exit
+        client = None
+
+# Usage in tests
+def test_something():
+    """Test with shared client"""
+    c = _get_client()
+    try:
+        result = c.text.generate("test")
+        assert result
+    finally:
+        _close_client()
+```
+
+### Multiple Operations Pattern
+
+```python
+from blossom_ai import Blossom
+
+def batch_process(prompts: list[str]) -> list[str]:
+    """Process multiple prompts with single client"""
+    results = []
+    
+    with Blossom(api_token=API_TOKEN) as client:
+        for prompt in prompts:
+            try:
+                result = client.text.generate(prompt)
+                results.append(result)
+            except BlossomError as e:
+                print(f"Error on '{prompt}': {e.message}")
+                results.append(None)
+    
+    # Client cleaned up here
+    return results
+
+# Usage
+prompts = ["What is AI?", "What is ML?", "What is DL?"]
+responses = batch_process(prompts)
+```
+
+---
+
+## Streaming Error Handling
+
+### Synchronous Streaming
+
+**From test_examples.py:**
+
+```python
+from blossom_ai import Blossom, StreamError
+
+with Blossom(api_token=API_TOKEN) as client:
+    try:
+        chunks = []
+        
+        for chunk in client.text.generate("Count to 5", stream=True):
+            chunks.append(chunk)
+            print(chunk, end='', flush=True)
+        
+        print()  # Newline after streaming
+        
+        # Verify we got data
+        assert len(chunks) > 0, "Should receive chunks"
+        
+    except StreamError as e:
+        print(f"\nStream error: {e.message}")
+        print(f"Partial data: {''.join(chunks)}")
+    
+    except BlossomError as e:
+        print(f"\nGeneral error: {e.message}")
+```
+
+### Streaming with Timeout
+
+```python
+import signal
+from contextlib import contextmanager
+
+class TimeoutError(Exception):
+    pass
+
+@contextmanager
+def timeout(seconds):
+    """Context manager for timeout"""
+    def handler(signum, frame):
+        raise TimeoutError(f"Operation timed out after {seconds}s")
+    
+    signal.signal(signal.SIGALRM, handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+
+# Usage
+with Blossom(api_token=API_TOKEN) as client:
+    try:
+        with timeout(30):  # 30 second timeout
+            for chunk in client.text.generate("Long task", stream=True):
+                print(chunk, end='', flush=True)
+    
+    except TimeoutError as e:
+        print(f"\n{e}")
+    
+    except StreamError as e:
+        print(f"\nStream failed: {e.message}")
+```
+
+### Streaming with Buffer Management
+
+```python
+from blossom_ai import Blossom, StreamError
+
+def stream_with_buffer(prompt: str, max_buffer_size: int = 1000):
+    """Stream with buffer size management"""
+    buffer = []
+    buffer_size = 0
+    
+    with Blossom(api_token=API_TOKEN) as client:
+        try:
+            for chunk in client.text.generate(prompt, stream=True):
+                buffer.append(chunk)
+                buffer_size += len(chunk)
+                
+                # Flush buffer if too large
+                if buffer_size >= max_buffer_size:
+                    yield ''.join(buffer)
+                    buffer = []
+                    buffer_size = 0
+            
+            # Flush remaining
+            if buffer:
+                yield ''.join(buffer)
+        
+        except StreamError as e:
+            # Return partial data
+            if buffer:
+                yield ''.join(buffer)
+            raise
+
+# Usage
+for buffered_chunk in stream_with_buffer("Long generation"):
+    print(buffered_chunk)
+```
+
+---
+
+## Async Error Handling
+
+### Basic Async Errors
+
+**From test_reasoning_cache.py:**
 
 ```python
 import asyncio
 from blossom_ai import Blossom, BlossomError
 
-async def async_api_call_safe(prompt):
-    """Async API call with error handling"""
-    
+async def async_generate_safe(prompt: str):
+    """Safe async generation with error handling"""
     try:
-        async with Blossom(api_token="your-token") as client:
-            response = await client.text.generate(prompt)
-            return {"success": True, "result": response}
-            
+        async with Blossom(api_token=API_TOKEN) as client:
+            return await client.text.generate(prompt)
+    
+    except AuthenticationError as e:
+        print(f"Auth error: {e.message}")
+        return None
+    
     except BlossomError as e:
-        return {
-            "success": False,
-            "error": e.error_type.value,
-            "message": e.message
-        }
+        print(f"Generation error: {e.message}")
+        return None
 
-# Use it
-async def main():
-    result = await async_api_call_safe("Hello")
-    print(result)
-
-asyncio.run(main())
+# Usage
+response = await async_generate_safe("Hello")
 ```
 
-### Batch Processing with Error Recovery
+### Async Parallel with Error Collection
 
 ```python
+import asyncio
 from blossom_ai import Blossom, BlossomError
 
-def batch_process_with_errors(prompts):
-    """Process multiple prompts with error recovery"""
-    
+async def generate_many_safe(prompts: list[str]):
+    """Generate many prompts, collecting errors"""
     results = []
+    errors = []
     
-    with Blossom(api_token="your-token") as client:
+    async with Blossom(api_token=API_TOKEN) as client:
+        tasks = []
+        
         for i, prompt in enumerate(prompts):
-            try:
-                response = client.text.generate(prompt)
-                results.append({
-                    "index": i,
-                    "prompt": prompt,
-                    "success": True,
-                    "result": response
-                })
-                print(f"✅ {i+1}/{len(prompts)} completed")
-                
-            except BlossomError as e:
-                results.append({
-                    "index": i,
-                    "prompt": prompt,
-                    "success": False,
-                    "error": e.message
-                })
-                print(f"❌ {i+1}/{len(prompts)} failed: {e.message}")
-                
-            # Small delay between requests
-            time.sleep(0.5)
+            async def generate_one(idx, p):
+                try:
+                    result = await client.text.generate(p)
+                    return (idx, result, None)
+                except BlossomError as e:
+                    return (idx, None, str(e))
+            
+            tasks.append(generate_one(i, prompt))
+        
+        outcomes = await asyncio.gather(*tasks)
+        
+        for idx, result, error in outcomes:
+            if error:
+                errors.append((idx, prompts[idx], error))
+            else:
+                results.append((idx, result))
     
-    # Summary
-    successful = sum(1 for r in results if r["success"])
-    failed = len(results) - successful
-    print(f"\n📊 Results: {successful} succeeded, {failed} failed")
-    
-    return results
+    return results, errors
 
-# Use it
-prompts = ["Question 1", "Question 2", "Question 3"]
-results = batch_process_with_errors(prompts)
+# Usage
+prompts = ["Q1", "Q2", "Q3"]
+results, errors = await generate_many_safe(prompts)
+
+print(f"Succeeded: {len(results)}")
+print(f"Failed: {len(errors)}")
+for idx, prompt, error in errors:
+    print(f"  [{idx}] '{prompt}' failed: {error}")
+```
+
+### Async Streaming Errors
+
+**From test_integration.py:**
+
+```python
+import asyncio
+from blossom_ai import Blossom, StreamError
+
+async def async_stream_safe(prompt: str):
+    """Safe async streaming"""
+    chunks = []
+    
+    async with Blossom(api_token=API_TOKEN) as client:
+        try:
+            stream = await client.text.generate(prompt, stream=True)
+            
+            async for chunk in stream:
+                chunks.append(chunk)
+                print(chunk, end='', flush=True)
+            
+            print()  # Newline
+            return ''.join(chunks)
+        
+        except StreamError as e:
+            print(f"\nStream error: {e.message}")
+            # Return partial data
+            return ''.join(chunks)
+
+# Usage
+result = await async_stream_safe("Count to 10")
 ```
 
 ---
 
-## 🐛 Debugging
+## Best Practices
 
-### Enable Debug Mode
+### 1. Always Use Context Managers
 
 ```python
-from blossom_ai import Blossom
+# ✅ GOOD
+with Blossom(api_token=API_TOKEN) as client:
+    response = client.text.generate("Hello")
 
-# Enable debug logging
-client = Blossom(api_token="your-token", debug=True)
-
-# Now all API calls will show debug info
+# ❌ BAD
+client = Blossom(api_token=API_TOKEN)
 response = client.text.generate("Hello")
+# Forgot cleanup!
 ```
 
-### Custom Logging
+### 2. Handle Specific Exceptions First
+
+```python
+from blossom_ai import Blossom, AuthenticationError, ValidationError, BlossomError
+
+try:
+    with Blossom(api_token=API_TOKEN) as client:
+        response = client.text.generate("Hello")
+
+except AuthenticationError:
+    print("Check your API token")
+
+except ValidationError as e:
+    print(f"Invalid input: {e.message}")
+
+except BlossomError as e:
+    print(f"Other error: {e.message}")
+```
+
+### 3. Log Errors with Context
 
 ```python
 import logging
+
+logger = logging.getLogger(__name__)
+
+def generate_with_logging(prompt: str, user_id: str):
+    """Generate with comprehensive logging"""
+    try:
+        with Blossom(api_token=API_TOKEN) as client:
+            logger.info(f"Generating for user {user_id}")
+            response = client.text.generate(prompt)
+            logger.info(f"Success for user {user_id}")
+            return response
+    
+    except BlossomError as e:
+        logger.error(
+            f"Generation failed for user {user_id}",
+            extra={
+                "error_type": e.error_type,
+                "message": e.message,
+                "status_code": e.status_code,
+                "prompt_length": len(prompt)
+            }
+        )
+        raise
+```
+
+### 4. Provide User-Friendly Messages
+
+```python
+from blossom_ai import BlossomError, ErrorType
+
+def get_user_message(error: BlossomError) -> str:
+    """Convert technical error to user-friendly message"""
+    messages = {
+        ErrorType.AUTH_ERROR: "Authentication failed. Please check your API key in settings.",
+        ErrorType.RATE_LIMIT: "Too many requests. Please wait a moment and try again.",
+        ErrorType.INVALID_PARAM: "Invalid input. Please check your request and try again.",
+        ErrorType.SERVER_ERROR: "Service temporarily unavailable. Please try again in a few minutes.",
+    }
+    
+    return messages.get(
+        error.error_type,
+        f"An error occurred: {error.message}"
+    )
+
+# Usage
+try:
+    with Blossom(api_token=API_TOKEN) as client:
+        response = client.text.generate(prompt)
+except BlossomError as e:
+    user_message = get_user_message(e)
+    print(user_message)  # Show to user
+    logger.error(f"Technical details: {e}")  # Log technical details
+```
+
+### 5. Test Error Paths
+
+```python
+import pytest
+from blossom_ai import Blossom, ValidationError
+
+def test_error_handling():
+    """Test that errors are handled correctly"""
+    with Blossom(api_token=API_TOKEN) as client:
+        # Test invalid input
+        with pytest.raises(ValidationError):
+            client.image.generate("x" * 300)
+        
+        # Test recovery
+        response = client.text.generate("Valid prompt")
+        assert response is not None
+```
+
+### 6. Use Timeouts
+
+```python
 from blossom_ai import Blossom
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('blossom_debug.log'),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger(__name__)
-
-# Use in error handling
-try:
-    with Blossom(api_token="your-token", debug=True) as client:
-        response = client.text.generate("Hello")
-except Exception as e:
-    logger.exception("API call failed")
-    raise
-```
-
-### Error Context Inspection
-
-```python
-from blossom_ai import Blossom, BlossomError
-
-try:
-    with Blossom(api_token="your-token") as client:
-        response = client.text.generate("Hello")
-except BlossomError as e:
-    print("=== ERROR DETAILS ===")
-    print(f"Type: {e.error_type}")
-    print(f"Message: {e.message}")
-    print(f"Suggestion: {e.suggestion}")
-    print(f"Status Code: {e.status_code}")
-    print(f"Retry After: {e.retry_after}")
-    print("====================")
-```
-
-### Debug Helper Function
-
-```python
-from blossom_ai import Blossom, BlossomError
-import traceback
-
-def debug_api_call(prompt, **kwargs):
-    """API call with detailed debugging"""
-    
-    print(f"🔍 DEBUG: Calling API with prompt: {prompt[:50]}...")
-    print(f"🔍 DEBUG: Parameters: {kwargs}")
-    
+# Set timeout in client
+with Blossom(api_token=API_TOKEN, timeout=30) as client:
     try:
-        with Blossom(api_token="your-token", debug=True) as client:
-            response = client.text.generate(prompt, **kwargs)
-            print(f"✅ DEBUG: Success! Response length: {len(response)}")
+        response = client.text.generate("Long task")
+    except TimeoutError:
+        print("Request took too long")
+```
+
+### 7. Implement Health Checks
+
+```python
+from blossom_ai import Blossom, BlossomError
+
+def health_check() -> bool:
+    """Check if API is accessible"""
+    try:
+        with Blossom(api_token=API_TOKEN, timeout=5) as client:
+            # Quick test
+            client.text.generate("test")
+            return True
+    except BlossomError:
+        return False
+
+# Usage
+if not health_check():
+    print("API unavailable")
+```
+
+---
+
+## Error Recovery Examples
+
+### Example 1: User Input Validation
+
+```python
+from blossom_ai import Blossom, ValidationError
+
+def process_user_prompt(user_input: str):
+    """Validate and process user input"""
+    # Pre-validation
+    if not user_input.strip():
+        return "Error: Please enter a prompt"
+    
+    if len(user_input) > 1000:
+        return "Error: Prompt too long (max 1000 characters)"
+    
+    # API call
+    try:
+        with Blossom(api_token=API_TOKEN) as client:
+            response = client.text.generate(user_input)
             return response
-            
+    
+    except ValidationError as e:
+        return f"Invalid input: {e.message}"
+    
     except BlossomError as e:
-        print(f"❌ DEBUG: Error occurred")
-        print(f"   Type: {e.error_type.value}")
-        print(f"   Message: {e.message}")
-        print(f"   Status: {e.status_code}")
-        print(f"   Suggestion: {e.suggestion}")
-        print("\n🔍 DEBUG: Full traceback:")
-        traceback.print_exc()
+        return f"Service error: Please try again later"
+
+# Usage
+user_input = input("Enter prompt: ")
+result = process_user_prompt(user_input)
+print(result)
+```
+
+### Example 2: File Processing with Fallback
+
+```python
+from blossom_ai.utils import FileContentReader
+from blossom_ai.core.errors import FileTooLargeError
+
+def process_file_safe(file_path: str) -> str:
+    """Process file with automatic truncation fallback"""
+    reader = FileContentReader()
+    
+    try:
+        # Try normal read
+        content = reader.read_file(file_path)
+        return content.content
+    
+    except FileTooLargeError:
+        # Fallback to truncated read
+        print("File too large, truncating...")
+        content = reader.read_file_truncated(file_path, max_chars=5000)
+        return content.content
+
+# Usage
+content = process_file_safe("large_file.txt")
+```
+
+### Example 3: Streaming with Resume
+
+```python
+from blossom_ai import Blossom, StreamError
+
+def stream_with_resume(prompt: str, checkpoint_file: str = None):
+    """Stream with ability to resume from checkpoint"""
+    accumulated = []
+    checkpoint = ""
+    
+    # Load checkpoint if exists
+    if checkpoint_file and os.path.exists(checkpoint_file):
+        with open(checkpoint_file) as f:
+            checkpoint = f.read()
+            accumulated.append(checkpoint)
+    
+    try:
+        with Blossom(api_token=API_TOKEN) as client:
+            for chunk in client.text.generate(prompt, stream=True):
+                accumulated.append(chunk)
+                
+                # Save checkpoint periodically
+                if len(accumulated) % 10 == 0 and checkpoint_file:
+                    with open(checkpoint_file, 'w') as f:
+                        f.write(''.join(accumulated))
+    
+    except StreamError as e:
+        print(f"Stream interrupted: {e.message}")
+        # Save partial result
+        if checkpoint_file:
+            with open(checkpoint_file, 'w') as f:
+                f.write(''.join(accumulated))
         raise
-
-# Use it
-response = debug_api_call("Hello", temperature=0.7, max_tokens=100)
-```
-
-### Test Error Scenarios
-
-```python
-from blossom_ai import Blossom, BlossomError
-
-def test_error_scenarios():
-    """Test different error conditions"""
     
-    print("Testing error scenarios...\n")
+    finally:
+        # Cleanup checkpoint on success
+        if checkpoint_file and os.path.exists(checkpoint_file):
+            os.remove(checkpoint_file)
     
-    # Test 1: Invalid token
-    print("1. Testing invalid token...")
-    try:
-        client = Blossom(api_token="invalid_token_xyz")
-        client.text.generate("test")
-    except BlossomError as e:
-        print(f"   ✅ Caught: {e.error_type.value}")
-    
-    # Test 2: Invalid parameters
-    print("2. Testing invalid parameters...")
-    try:
-        with Blossom(api_token="your-token") as client:
-            client.image.generate("x" * 300)
-    except BlossomError as e:
-        print(f"   ✅ Caught: {e.error_type.value}")
-    
-    # Test 3: Timeout
-    print("3. Testing timeout...")
-    try:
-        client = Blossom(api_token="your-token", timeout=0.001)
-        client.text.generate("test")
-    except BlossomError as e:
-        print(f"   ✅ Caught: {e.error_type.value}")
-    
-    print("\n✅ All error scenarios tested")
+    return ''.join(accumulated)
 
-# Run tests
-test_error_scenarios()
+# Usage
+try:
+    result = stream_with_resume("Long generation", "checkpoint.txt")
+except StreamError:
+    print("Can resume later from checkpoint.txt")
 ```
 
 ---
 
-## 📚 Complete Examples
-
-### Example 1: Robust API Wrapper
-
-```python
-from blossom_ai import Blossom, BlossomError
-import time
-import logging
-
-logger = logging.getLogger(__name__)
-
-class RobustBlossomClient:
-    """Wrapper with built-in error handling and retry logic"""
-    
-    def __init__(self, api_token, max_retries=3, timeout=60):
-        self.api_token = api_token
-        self.max_retries = max_retries
-        self.timeout = timeout
-    
-    def generate_text(self, prompt, **kwargs):
-        """Generate text with automatic retry"""
-        
-        for attempt in range(self.max_retries):
-            try:
-                with Blossom(api_token=self.api_token, timeout=self.timeout) as client:
-                    return client.text.generate(prompt, **kwargs)
-                    
-            except BlossomError as e:
-                logger.warning(f"Attempt {attempt+1} failed: {e.message}")
-                
-                if attempt < self.max_retries - 1:
-                    wait = e.retry_after if hasattr(e, 'retry_after') and e.retry_after else 2 ** attempt
-                    time.sleep(wait)
-                else:
-                    logger.error(f"All {self.max_retries} attempts failed")
-                    raise
-    
-    def generate_image(self, prompt, filename, **kwargs):
-        """Generate image with automatic retry"""
-        
-        for attempt in range(self.max_retries):
-            try:
-                with Blossom(api_token=self.api_token, timeout=self.timeout) as client:
-                    return client.image.save(prompt, filename, **kwargs)
-                    
-            except BlossomError as e:
-                logger.warning(f"Attempt {attempt+1} failed: {e.message}")
-                
-                if attempt < self.max_retries - 1:
-                    wait = 2 ** attempt
-                    time.sleep(wait)
-                else:
-                    raise
-
-# Use it
-client = RobustBlossomClient(api_token="your-token")
-response = client.generate_text("Hello AI")
-```
-
-### Example 2: Error Monitoring
-
-```python
-from blossom_ai import Blossom, BlossomError
-from collections import defaultdict
-from datetime import datetime
-
-class ErrorMonitor:
-    """Monitor and track API errors"""
-    
-    def __init__(self):
-        self.error_counts = defaultdict(int)
-        self.error_log = []
-    
-    def track_error(self, error):
-        """Track error occurrence"""
-        self.error_counts[error.error_type.value] += 1
-        self.error_log.append({
-            "timestamp": datetime.now(),
-            "type": error.error_type.value,
-            "message": error.message,
-            "status_code": error.status_code
-        })
-    
-    def get_stats(self):
-        """Get error statistics"""
-        return {
-            "total_errors": len(self.error_log),
-            "error_counts": dict(self.error_counts),
-            "recent_errors": self.error_log[-5:]
-        }
-    
-    def api_call(self, func, *args, **kwargs):
-        """Make API call with monitoring"""
-        try:
-            return func(*args, **kwargs)
-        except BlossomError as e:
-            self.track_error(e)
-            raise
-
-# Use it
-monitor = ErrorMonitor()
-
-with Blossom(api_token="your-token") as client:
-    for prompt in ["Q1", "Q2", "Q3"]:
-        try:
-            result = monitor.api_call(
-                client.text.generate,
-                prompt
-            )
-            print(f"✅ {prompt}: {result[:50]}")
-        except BlossomError as e:
-            print(f"❌ {prompt}: {e.message}")
-
-# View stats
-stats = monitor.get_stats()
-print(f"\n📊 Error Stats: {stats}")
-```
-
-### Example 3: Graceful Degradation
-
-```python
-from blossom_ai import Blossom, BlossomError
-
-def generate_with_fallback(prompt, fallback_text="Error: Unable to generate response"):
-    """Generate with graceful fallback"""
-    
-    try:
-        with Blossom(api_token="your-token") as client:
-            return client.text.generate(prompt)
-            
-    except BlossomError as e:
-        # Log error but return fallback
-        print(f"⚠️ Generation failed: {e.message}")
-        print(f"💡 Using fallback response")
-        return fallback_text
-
-# Use it
-response = generate_with_fallback(
-    "Hello AI",
-    fallback_text="Hello! I'm temporarily unavailable. Please try again later."
-)
-print(response)
-```
-
----
-
-## 🎓 Summary
+## Summary
 
 ### Key Takeaways
 
-1. **Always handle errors** - Use try-except blocks for all API calls
-2. **Catch specific exceptions** - Handle different error types appropriately
-3. **Implement retries** - Use exponential backoff for transient errors
-4. **Validate input** - Check parameters before making API calls
-5. **Log errors** - Track errors for debugging and monitoring
-6. **Provide feedback** - Give users helpful error messages
-7. **Use context managers** - Ensure proper cleanup with `with` statements
-8. **Test error scenarios** - Verify error handling works correctly
+1. **Always use context managers** (`with` or `async with`)
+2. **Handle specific exceptions** before general ones
+3. **Implement retry logic** for transient errors (502, 503, 504, rate limits)
+4. **Use exponential backoff** with jitter for retries
+5. **Provide user-friendly messages** while logging technical details
+6. **Test error paths** as thoroughly as success paths
+7. **Implement timeouts** and health checks
+8. **Clean up resources** properly, even on errors
 
-### Quick Error Reference
+### Related Documentation
 
-```python
-from blossom_ai import (
-    BlossomError,          # Base - catch all errors
-    AuthenticationError,   # 401 - invalid token
-    RateLimitError,        # 429 - too many requests
-    ValidationError,       # 400 - invalid input
-    NetworkError,          # Connection issues
-    TimeoutError,          # Request timeout
-    StreamError,           # Streaming failures
-    FileTooLargeError      # File size exceeded
-)
-
-# Basic pattern
-try:
-    with Blossom(api_token="your-token") as client:
-        response = client.text.generate("Hello")
-except AuthenticationError:
-    # Handle auth
-    pass
-except RateLimitError as e:
-    # Handle rate limit with e.retry_after
-    pass
-except ValidationError:
-    # Handle invalid input
-    pass
-except BlossomError as e:
-    # Handle other errors
-    print(f"Error: {e.message}")
-```
-
----
-
-## 🔗 Related Documentation
-
-- **[API Reference](API_REFERENCE.md)** - Complete API documentation
-- **[Quick Start](QUICKSTART.md)** - Get started quickly
-- **[Image Generation](IMAGE_GENERATION.md)** - Image generation guide
-- **[Text Generation](TEXT_GENERATION.md)** - Text generation guide
-- **[Production Guide](RESOURCE_MANAGEMENT.md)** - Best practices for production
-
----
-
-## 🆘 Need Help?
-
-- 📖 **Documentation:** [INDEX.md](INDEX.md)
-- 🐛 **Report Bug:** [GitHub Issues](https://github.com/PrimeevolutionZ/blossom-ai/issues)
-- 💬 **Ask Question:** [GitHub Discussions](https://github.com/PrimeevolutionZ/blossom-ai/discussions)
-- 🔒 **Security:** [Security Policy](../../SECURITY.md)
-
----
-
-<div align="center">
-
-**Made with 🌸 by the [Eclips Team](https://github.com/PrimeevolutionZ)**
-
-[← Back to API Reference](API_REFERENCE.md) | [Index](INDEX.md) | [Next: Production Guide →](RESOURCE_MANAGEMENT.md)
-
-</div>
+- [API Reference](API_REFERENCE.md) - Complete API documentation
+- [Async Guide](ASYNC_GUIDE.md) - Async programming patterns
+- [Configuration](CONFIGURATION.md) - Client configuration options
+- [File Handling](FILE_HANDLING.md) - File processing and errors

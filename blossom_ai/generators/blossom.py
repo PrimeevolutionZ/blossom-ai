@@ -34,9 +34,11 @@ def _is_inside_event_loop() -> bool:
 def _ensure_sync(coro: Awaitable[T]) -> T:
     """Runs a coroutine synchronously, if safe to do so."""
     if _is_inside_event_loop():
+        # Already in event loop (Jupyter, etc.) - can't use asyncio.run()
+        # Return coroutine and let caller handle it with await
         raise RuntimeError(
             "Cannot run async code from sync when an event loop is already running. "
-            "Use `await` or call from a truly synchronous context."
+            "Use `await` instead of synchronous call, or run from a truly synchronous context."
         )
     return asyncio.run(coro)
 
@@ -75,8 +77,14 @@ class _DualCaller(Generic[T, R]):
         # synchronize coroutine if outside event loop
         if inspect.iscoroutine(result):
             if _is_inside_event_loop():
+                # In Jupyter/async context - return coroutine to be awaited
                 return result  # type: ignore
-            return _ensure_sync(result)  # type: ignore
+            # Outside event loop - run synchronously
+            try:
+                return _ensure_sync(result)  # type: ignore
+            except RuntimeError:
+                # Fallback: return coroutine if we can't run it
+                return result  # type: ignore
         return result
 
 
