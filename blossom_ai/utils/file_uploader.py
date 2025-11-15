@@ -15,13 +15,16 @@ from blossom_ai.core.errors import ValidationError, FileTooLargeError
 # ============================================================================
 
 # API total limit (file + prompt combined)
-API_MAX_TOTAL_LENGTH = 10000
+# Updated: Increased from 10,000 to 90,000 characters (v0.5.0)
+API_MAX_TOTAL_LENGTH = 90000
 
 # Default max file content length (leaves space for prompt)
-DEFAULT_MAX_FILE_LENGTH = 8000
+# Increased proportionally: 8,000 → 72,000 (80% of total)
+DEFAULT_MAX_FILE_LENGTH = 72000
 
 # Recommended prompt space reservation
-DEFAULT_PROMPT_SPACE = 2000
+# Increased proportionally: 2,000 → 18,000 (20% of total)
+DEFAULT_PROMPT_SPACE = 18000
 
 # Maximum file size to read (safety limit)
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -69,17 +72,17 @@ class FileContentReader:
     """
     Reads text file content and validates it fits within API limits
 
-    IMPORTANT: The Pollinations API has a total limit of 10,000 characters
+    IMPORTANT: The Pollinations API has a total limit of 90,000 characters
     for the combined prompt + file content. By default, this reader limits
-    file content to 8,000 characters to leave space for your prompt.
+    file content to 72,000 characters to leave space for your prompt.
 
     Example:
         reader = FileContentReader()
-        content = reader.read_file("data.txt")  # Max 8000 chars by default
+        content = reader.read_file("data.txt")  # Max 72,000 chars by default
 
         # Combine with prompt
         full_prompt = f"Analyze this file:\\n\\n{content.content}"
-        # Total should be <= 10,000 characters
+        # Total should be <= 90,000 characters
     """
 
     def __init__(
@@ -93,8 +96,8 @@ class FileContentReader:
         Initialize file content reader
 
         Args:
-            max_file_length: Maximum allowed file content length (default: 8000)
-            prompt_space: Space reserved for prompt text (default: 2000)
+            max_file_length: Maximum allowed file content length (default: 72,000)
+            prompt_space: Space reserved for prompt text (default: 18,000)
             encoding: Default encoding to try first
             fallback_encodings: List of encodings to try if default fails
         """
@@ -106,8 +109,8 @@ class FileContentReader:
         # Validate configuration
         if self.max_file_length + self.prompt_space > API_MAX_TOTAL_LENGTH:
             raise ValidationError(
-                message=f"Configuration error: max_file_length ({max_file_length}) + prompt_space ({prompt_space}) exceeds API limit ({API_MAX_TOTAL_LENGTH})",
-                suggestion=f"Reduce max_file_length or prompt_space so their sum is <= {API_MAX_TOTAL_LENGTH}"
+                message=f"Configuration error: max_file_length ({max_file_length:,}) + prompt_space ({prompt_space:,}) exceeds API limit ({API_MAX_TOTAL_LENGTH:,})",
+                suggestion=f"Reduce max_file_length or prompt_space so their sum is <= {API_MAX_TOTAL_LENGTH:,}"
             )
 
     def read_file(
@@ -119,8 +122,8 @@ class FileContentReader:
         """
         Read file content with automatic validation
 
-        IMPORTANT: By default, this limits file content to 8,000 characters
-        to leave space for your prompt (API total limit is 10,000 characters).
+        IMPORTANT: By default, this limits file content to 72,000 characters
+        to leave space for your prompt (API total limit is 90,000 characters).
 
         Args:
             file_path: Path to text file
@@ -473,21 +476,21 @@ def read_file_for_prompt(
     """
     Quick function to read file content for use in prompts
 
-    IMPORTANT: By default, limits file to 8,000 characters to leave space
-    for your prompt. API total limit is 10,000 characters (file + prompt).
+    IMPORTANT: By default, limits file to 72,000 characters to leave space
+    for your prompt. API total limit is 90,000 characters (file + prompt).
 
     Args:
         file_path: Path to file
-        max_length: Maximum characters (default: 8000)
+        max_length: Maximum characters (default: 72,000)
         truncate_if_needed: If True, truncate instead of raising error
 
     Returns:
         File content as string
 
     Example:
-        content = read_file_for_prompt("data.txt", max_length=5000)
+        content = read_file_for_prompt("data.txt", max_length=50000)
         prompt = f"Analyze this data:\\n\\n{content}"
-        # Ensure len(prompt) <= 10,000 characters total
+        # Ensure len(prompt) <= 90,000 characters total
     """
     # Calculate prompt space reservation
     prompt_space = API_MAX_TOTAL_LENGTH - max_length

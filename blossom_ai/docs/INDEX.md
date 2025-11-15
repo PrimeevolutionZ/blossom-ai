@@ -143,16 +143,6 @@ Build real-world applications.
 
 ---
 
-## 📚 Migration & Compatibility
-
-| Document                                        | Description                                    |
-|-------------------------------------------------|------------------------------------------------|
-| **[V1 to V2 Migration](V1_TO_V2_MIGRATION.md)** | Migrate from V1 API (if upgrading from <0.5.0) |
-| **[Breaking Changes](BREAKING_CHANGES.md)**     | What changed in v0.5.0                         |
-| **[Compatibility Notes](COMPATIBILITY.md)**     | Python versions and dependencies               |
-
----
-
 ## 🤝 Contributing & Security
 
 Get involved and keep the project secure.
@@ -380,7 +370,8 @@ result = analyze_with_reasoning("Design a microservices architecture")
 | **File Reader**             | ✅               | ✅                       |
 
 ---
-
+- See [CHANGELOG.md](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md) to Version history and updates
+---
 ## 🆘 Need Help?
 
 - 🐛 **Found a bug?** [Report it on GitHub](https://github.com/PrimeevolutionZ/blossom-ai/issues)
@@ -388,7 +379,6 @@ result = analyze_with_reasoning("Design a microservices architecture")
 - 💡 **Have a question?** Check the [Error Handling Guide](ERROR_HANDLING.md)
 - 📚 **Want examples?** See individual feature guides above
 - 🤝 **Want to contribute?** Read the [Contributing Guide](../../CONTRIBUTING.md)
-
 ---
 
 <div align="center">

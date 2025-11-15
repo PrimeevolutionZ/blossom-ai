@@ -1,6 +1,5 @@
 """
 Blossom AI – Parameter Builders (v0.5.0)
-Type-safe, single-source builders for V2 API.
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ from mimetypes import guess_type
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from blossom_ai.core.config import DEFAULTS
+from blossom_ai.core.config import DEFAULTS, LIMITS
 from blossom_ai.core.errors import BlossomError, ErrorType
 
 # --------------------------------------------------------------------------- #
@@ -168,21 +167,22 @@ class ChatParamsV2(BaseParams):
             body[k] = v
 
         # Validate total message length (rough estimate)
+        # Uses LIMITS.MAX_TEXT_PROMPT_LENGTH from config (90,000)
         total_chars = sum(
             len(str(msg.get('content', '')))
             for msg in self.messages
         )
 
-        # API limit is 10,000 characters
-        if total_chars > 10000:
+        if total_chars > LIMITS.MAX_TEXT_PROMPT_LENGTH:
             from blossom_ai.core.errors import ValidationError
             raise ValidationError(
-                message=f"Total message length ({total_chars:,} chars) exceeds API limit (10,000 chars)",
+                message=f"Total message length ({total_chars:,} chars) exceeds API limit ({LIMITS.MAX_TEXT_PROMPT_LENGTH:,} chars)",
                 suggestion=(
                     "Solutions:\n"
                     "1. Shorten your prompt or system message\n"
                     "2. Reduce file content using read_file_truncated()\n"
-                    "3. Split into multiple requests"
+                    "3. Split into multiple requests\n"
+                    "4. Use summarization for large content"
                 )
             )
 
@@ -284,9 +284,9 @@ class ParameterValidator:
     def prompt_length(prompt: str, max_len: int, name: str = "prompt") -> None:
         if len(prompt) > max_len:
             raise BlossomError(
-                message=f"{name} exceeds {max_len} characters",
+                message=f"{name} exceeds {max_len:,} characters",
                 error_type=ErrorType.INVALID_PARAM,
-                suggestion=f"Shorten the {name}.",
+                suggestion=f"Shorten the {name} or use read_file_truncated() for file content.",
             )
 
     @staticmethod
