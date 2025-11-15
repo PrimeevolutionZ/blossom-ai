@@ -350,27 +350,13 @@ Initial stable releases with core functionality:
 
 ### Under Consideration
 - Custom model fine-tuning
-- Local model support
 - Plugin system
 - WebSocket streaming
-
----
-
-## 📊 Version History Summary
-
-| Version | Release Date | Highlights |
-|---------|-------------|------------|
-| **0.5.0** | Dec 2024 | 🌟 Complete rewrite, Vision support, V2 API only |
-| 0.4.7 | Nov 2024 | CLI interface, Performance boost |
-| 0.4.6 | Nov 2024 | Production hardening |
-| 0.4.5 | Nov 2024 | Security enhancements |
-| 0.4.0 | Oct 2024 | Stable release |
-
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
 
 ### How to Help
 - 🐛 Report bugs
