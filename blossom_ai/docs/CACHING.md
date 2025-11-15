@@ -35,13 +35,13 @@ The Caching module helps you store and reuse AI responses, dramatically reducing
 
 ### Key Features
 
-| Feature | Description |
-|---------|-------------|
+| Feature            | Description                       |
+|--------------------|-----------------------------------|
 | **Hybrid Storage** | Memory (fast) + Disk (persistent) |
-| **TTL Support** | Automatic expiration |
-| **Statistics** | Hit rate tracking |
-| **Easy Decorator** | `@cached` for instant caching |
-| **Custom Keys** | Flexible cache key generation |
+| **TTL Support**    | Automatic expiration              |
+| **Statistics**     | Hit rate tracking                 |
+| **Easy Decorator** | `@cached` for instant caching     |
+| **Custom Keys**    | Flexible cache key generation     |
 
 ---
 

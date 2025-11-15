@@ -3,7 +3,7 @@
 # 🌸 Blossom AI
 ### <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=600&size=24&pause=1000&color=FF69B4&center=true&vCenter=true&width=700&lines=Beautiful+Python+SDK+for+Pollinations.AI;Generate+Images%2C+Text+%26+Vision+with+AI;CLI+Interface+%2B+Python+Library;Beautifully+Simple+%E2%9C%A8" alt="Typing SVG" />
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/PrimeevolutionZ/blossom-ai)

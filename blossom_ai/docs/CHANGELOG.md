@@ -196,46 +196,17 @@ content = read_file_for_prompt("data.txt", max_length=70000)
 - No connection leaks
 
 ---
-
-### 🔍 What Changed Under the Hood
-
-**Complete Module Restructure**
-- `core/` - Configuration, errors, models, sessions
-- `generators/` - Image and text generation logic
-- `utils/` - Caching, reasoning, file reading, CLI
-
-**New Components**
-- `parameter_builder.py` - Type-safe parameter construction
-- `streaming_mixin.py` - SSE streaming support
-- `base_generator.py` - Unified sync/async base
-- `session_manager.py` - Smart connection pooling
-
-**Improved Patterns**
-- Context managers for automatic cleanup
-- Frozen dataclasses for immutability
-- Mixins for code reuse
-- Protocol-based interfaces
-
----
-
 ### 📚 Documentation
 
 **New Guides**
-- [Vision Support](docs/VISION.md) - Image analysis with AI
-- [Web Applications](docs/WEB_APP.md) - FastAPI/Flask integration
-- [Multimodal Guide](docs/MULTIMODAL.md) - Text, images, audio
-- [Security Policy](SECURITY.md) - Updated for v0.5.0
+- [Vision Support](VISION.md) - Image analysis with AI
+- [Web Applications](WEB_APP.md) - FastAPI/Flask integration
+- [Multimodal Guide](MULTIMODAL.md) - Text, images, audio
+- [Security Policy](../../SECURITY.md) - Updated for v0.5.0
 
-**Updated Guides**
-- Complete rewrite of all existing documentation
-- Production-ready examples
-- Best practices for security
-- Migration guide from v0.4.x
 
 ---
-
 ### 🎉 Highlights
-
 ```python
 # Before v0.5.0: Simple but limited
 client.text.generate("Hello")
@@ -264,96 +235,6 @@ with Blossom(api_token="token") as client:
     )
 ```
 
----
-
-### 💔 Breaking Changes
-
-If you're upgrading from v0.4.x, please note:
-
-1. **V1 API Removed** - Only V2 API supported
-2. **Import Changes** - Some utilities moved to `blossom_ai.utils`
-3. **Parameter Names** - Standardized for consistency
-4. **Error Types** - New error hierarchy
-5. **Audio** - TTS temporarily unavailable in V2 (coming soon)
-
-**Migration Guide:** See [V1_TO_V2_MIGRATION.md](docs/V1_TO_V2_MIGRATION.md)
-
----
-
-### 🙏 Acknowledgments
-
-This massive rewrite wouldn't be possible without:
-- The Pollinations.AI team for the amazing V2 API
-- Community feedback and bug reports
-- Contributors who tested early versions
-
----
-
-## 📦 v0.4.7 (November 2024)
-
-### Features
-- 🖥️ CLI Interface for terminal access
-- ⚡ 100x faster import time (5s → 50ms)
-- 🧠 Smart model caching with TTL
-- 📉 19x less memory usage
-
-### Improvements
-- Integration tests with VCR.py
-- Intelligent retry with API delays
-- Better error handling
-
-### Security
-- Tokens only in headers
-- SSL certificate verification enforced
-- No token exposure in logs
-
----
-
-## 📦 v0.4.6 (November 2024)
-
-### Features
-- Production-ready reliability
-- Enhanced error recovery
-- Memory optimization
-
----
-
-## 📦 v0.4.5 (November 2024)
-
-### Features
-- Security improvements
-- Performance optimizations
-- Bug fixes
-
----
-
-## 📦 v0.4.0 - v0.4.4
-
-Initial stable releases with core functionality:
-- Image generation
-- Text generation
-- Audio generation (V1 API)
-- Basic streaming
-- Caching module
-- Reasoning enhancement
-
----
-
-## 🔮 Future Plans
-
-### Coming Soon
-- Audio generation in V2 API
-- More vision models
-- Advanced multimodal features
-- Batch processing support
-- Webhook integrations
-
-### Under Consideration
-- Custom model fine-tuning
-- Plugin system
-- WebSocket streaming
----
-
 ## 🤝 Contributing
 
 We welcome contributions! See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
@@ -369,7 +250,7 @@ We welcome contributions! See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guide
 
 ## 📜 License
 
-MIT License - See [LICENSE](LICENSE) for details.
+MIT License - See [LICENSE](../../LICENSE) for details.
 
 ---
 

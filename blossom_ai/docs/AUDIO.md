@@ -36,11 +36,11 @@ Learn how to use audio output features in Blossom AI V2 API for creating voice-e
 
 ### Model Support
 
-| Model | Audio Output | Audio Input |
-|-------|--------------|-------------|
-| `openai` | ✅ Yes | ❌ Not yet |
-| `gemini` | ❌ No | ❌ No |
-| Other models | ❌ No | ❌ No |
+| Model        | Audio Output | Audio Input |
+|--------------|--------------|-------------|
+| `openai`     | ✅ Yes        | ❌ Not yet   |
+| `gemini`     | ❌ No         | ❌ No        |
+| Other models | ❌ No         | ❌ No        |
 
 ---
 

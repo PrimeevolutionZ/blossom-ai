@@ -13,10 +13,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "eclips-blossom-ai"
-version = "0.5.0"
+version = "0.5.1"
 description = "🌸 Beautiful and simple AI generation library for images, text, and audio"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Eclips Team", email = "develop@eclips-team.ru"}
@@ -55,7 +55,6 @@ classifiers = [
     # Programming Language
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
