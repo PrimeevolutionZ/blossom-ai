@@ -1,5 +1,5 @@
 """
-Blossom AI - Configuration (v0.5.1)
+Blossom AI - Configuration (v0.5.2)
 V2 API Only (enter.pollinations.ai)
 """
 
