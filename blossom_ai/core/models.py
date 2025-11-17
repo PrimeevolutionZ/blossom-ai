@@ -1,5 +1,5 @@
 """
-Blossom AI - Models and Enums (v0.5.0)
+Blossom AI - Models and Enums (v0.5.2)
 V2 API Only (enter.pollinations.ai)
 """
 
@@ -112,7 +112,6 @@ class DynamicModel:
         if not force and cache.is_valid():
             return True
 
-
         with cache.lock:
             if not force and cache.is_valid():
                 return True
@@ -171,17 +170,23 @@ class DynamicModel:
         cls._cache.reset()
 
 # ==============================================================================
-# CONCRETE MODELS
+# CONCRETE MODELS (UPDATED FOR V2 API)
 # ==============================================================================
 
 class TextModel(DynamicModel):
     @classmethod
     def get_defaults(cls) -> List[str]:
         return [
+            # Main models
             "openai", "openai-fast", "openai-large", "openai-reasoning",
-            "deepseek", "gemini", "gemini-search", "mistral", "claude",
-            "qwen-coder", "perplexity-fast", "perplexity-reasoning",
-            "naughty", "chickytutor", "midijourney"
+            # Other providers
+            "deepseek", "gemini", "gemini-search", "mistral", "mistral-fast",
+            "claude", "claude-large",
+            # Specialized models
+            "qwen-coder", "grok",
+            "perplexity-fast", "perplexity-reasoning",
+            # Community models
+            "naughty", "chickytutor", "midijourney",
         ]
 
     @classmethod
@@ -192,7 +197,9 @@ class TextModel(DynamicModel):
 class ImageModel(DynamicModel):
     @classmethod
     def get_defaults(cls) -> List[str]:
-        return ["flux", "turbo", "gptimage", "seedream", "kontext", "nanobanana"]
+        return [
+            "flux", "turbo", "gptimage", "seedream", "kontext", "nanobanana"
+        ]
 
     @classmethod
     def get_api_endpoints(cls) -> List[str]:

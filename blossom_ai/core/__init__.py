@@ -61,16 +61,12 @@ from .models import (
 
 from .config import (
     # Configuration classes
-    APIEndpoints,
-    Limits,
-    Defaults,
     Config,
 
     # Singletons
     ENDPOINTS,
     LIMITS,
     DEFAULTS,
-    AUTH_URL,
 
     # Global config management
     get_config,
@@ -129,14 +125,10 @@ __all__ = [
     "DEFAULT_TEXT_MODELS",
 
     # Configuration
-    "APIEndpoints",
-    "Limits",
-    "Defaults",
     "Config",
     "ENDPOINTS",
     "LIMITS",
     "DEFAULTS",
-    "AUTH_URL",
     "get_config",
     "set_config",
     "reset_config",

@@ -1,5 +1,5 @@
 """
-Blossom AI - Configuration (v0.5.0)
+Blossom AI - Configuration (v0.5.1)
 V2 API Only (enter.pollinations.ai)
 """
 
@@ -45,10 +45,10 @@ BASE_URL = "https://enter.pollinations.ai/api"
 
 ENDPOINTS = SimpleNamespace(
     BASE=BASE_URL,
-    IMAGE=f"{BASE_URL}/generate/image",
     TEXT=f"{BASE_URL}/generate/v1/chat/completions",
-    IMAGE_MODELS=f"{BASE_URL}/generate/image/models",
     TEXT_MODELS=f"{BASE_URL}/generate/v1/models",
+    IMAGE=f"{BASE_URL}/generate/image",
+    IMAGE_MODELS=f"{BASE_URL}/generate/image/models",
     AUTH="https://auth.pollinations.ai",
 )
 
@@ -82,56 +82,22 @@ DEFAULTS = SimpleNamespace(
     FREQUENCY_PENALTY=0.0,
     PRESENCE_PENALTY=0.0,
     STREAM=False,
+    AUDIO_VOICE="alloy",
+    AUDIO_FORMAT="wav",
+    REASONING_EFFORT="medium",
 )
 
-# ==============================================================================
-# BACKWARD COMPATIBILITY: классы-заглушки
-# ==============================================================================
+AUDIO = SimpleNamespace(
+    VOICES=["alloy", "echo", "fable", "onyx", "nova", "shimmer"],
+    FORMATS=["wav", "mp3", "flac", "opus", "pcm16"],
+    DEFAULT_VOICE="alloy",
+    DEFAULT_FORMAT="wav",
+)
 
-class APIEndpoints:
-    """Deprecated: use ENDPOINTS"""
-    BASE = ENDPOINTS.BASE
-    IMAGE = ENDPOINTS.IMAGE
-    TEXT = ENDPOINTS.TEXT
-    IMAGE_MODELS = ENDPOINTS.IMAGE_MODELS
-    TEXT_MODELS = ENDPOINTS.TEXT_MODELS
-    AUTH = ENDPOINTS.AUTH
-
-class Limits:
-    """Deprecated: use LIMITS"""
-    MAX_IMAGE_PROMPT_LENGTH = LIMITS.MAX_IMAGE_PROMPT_LENGTH
-    MAX_TEXT_PROMPT_LENGTH = LIMITS.MAX_TEXT_PROMPT_LENGTH
-    MAX_FILE_SIZE_MB = LIMITS.MAX_FILE_SIZE_MB
-    DEFAULT_TIMEOUT = LIMITS.DEFAULT_TIMEOUT
-    CONNECT_TIMEOUT = LIMITS.CONNECT_TIMEOUT
-    READ_TIMEOUT = LIMITS.READ_TIMEOUT
-    STREAM_CHUNK_TIMEOUT = LIMITS.STREAM_CHUNK_TIMEOUT
-    MAX_RETRIES = LIMITS.MAX_RETRIES
-    RETRY_MIN_WAIT = LIMITS.RETRY_MIN_WAIT
-    RETRY_MAX_WAIT = LIMITS.RETRY_MAX_WAIT
-    RETRY_EXPONENTIAL_BASE = LIMITS.RETRY_EXPONENTIAL_BASE
-    RATE_LIMIT_BURST = LIMITS.RATE_LIMIT_BURST
-    RATE_LIMIT_REFILL = LIMITS.RATE_LIMIT_REFILL
-
-    @property
-    def max_file_size_bytes(self) -> int:
-        return self.MAX_FILE_SIZE_MB * 1024 * 1024
-
-class Defaults:
-    """Deprecated: use DEFAULTS"""
-    IMAGE_MODEL = DEFAULTS.IMAGE_MODEL
-    TEXT_MODEL = DEFAULTS.TEXT_MODEL
-    IMAGE_WIDTH = DEFAULTS.IMAGE_WIDTH
-    IMAGE_HEIGHT = DEFAULTS.IMAGE_HEIGHT
-    IMAGE_SEED = DEFAULTS.IMAGE_SEED
-    IMAGE_QUALITY = DEFAULTS.IMAGE_QUALITY
-    IMAGE_NEGATIVE_PROMPT = DEFAULTS.IMAGE_NEGATIVE_PROMPT
-    TEMPERATURE = DEFAULTS.TEMPERATURE
-    MAX_TOKENS = DEFAULTS.MAX_TOKENS
-    TOP_P = DEFAULTS.TOP_P
-    FREQUENCY_PENALTY = DEFAULTS.FREQUENCY_PENALTY
-    PRESENCE_PENALTY = DEFAULTS.PRESENCE_PENALTY
-    STREAM = DEFAULTS.STREAM
+REASONING = SimpleNamespace(
+    EFFORTS=["low", "medium", "high"],
+    DEFAULT_EFFORT="medium",
+)
 
 # ==============================================================================
 # VALIDATION
@@ -174,12 +140,6 @@ class Config:
 
     def validate(self) -> None:
         validate_config()
-
-# ==============================================================================
-# BACKWARD COMPATIBILITY
-# ==============================================================================
-
-AUTH_URL: Final[str] = ENDPOINTS.AUTH
 
 # ==============================================================================
 # GLOBAL CONFIG

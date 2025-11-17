@@ -1,5 +1,5 @@
 """
-Blossom AI – Parameter Builders (v0.5.0)
+Blossom AI – Parameter Builders (v0.5.2)
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from mimetypes import guess_type
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from blossom_ai.core.config import DEFAULTS, LIMITS
+from blossom_ai.core.config import DEFAULTS, LIMITS, AUDIO, REASONING
 from blossom_ai.core.errors import BlossomError, ErrorType
 
 # --------------------------------------------------------------------------- #
@@ -24,11 +24,9 @@ def _b64_from_path(path: Path) -> str:
     mime = mime or "application/octet-stream"
     return f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode()
 
-
 def _drop_defaults(data: Dict[str, Any], defaults: Dict[str, Any]) -> Dict[str, Any]:
     """Return dict without keys whose values == defaults."""
     return {k: v for k, v in data.items() if k not in defaults or v != defaults[k]}
-
 
 # --------------------------------------------------------------------------- #
 # Base – immutable + safe repr
@@ -56,7 +54,6 @@ class BaseParams:
         klass = self.__class__.__name__
         public = self.to_dict()
         return f"{klass}({', '.join(f'{k}=*' for k in public)})"
-
 
 # --------------------------------------------------------------------------- #
 # Image
@@ -97,33 +94,45 @@ class ImageParamsV2(BaseParams):
             "transparent": False,
         }
 
-
 # --------------------------------------------------------------------------- #
 # Audio
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True, slots=True)
 class AudioParamsV2(BaseParams):
-    """Audio generation / input parameters."""
+    """
+    Audio generation parameters.
+    """
 
-    model: str = "openai"
-    voice: Optional[str] = None
-    modalities: List[str] = field(default_factory=lambda: ["text"])
-    audio: Optional[Dict[str, Any]] = None
+    voice: Optional[str] = None  # alloy, echo, fable, onyx, nova, shimmer
+    format: str = AUDIO.DEFAULT_FORMAT  # wav, mp3, flac, opus, pcm16
 
     def __post_init__(self) -> None:
-        # normalise to lower-case unique list
-        object.__setattr__(self, "modalities", list({m.lower() for m in self.modalities}))
+        # Validate voice if specified
+        if self.voice and self.voice not in AUDIO.VOICES:
+            raise BlossomError(
+                message=f"Invalid voice: {self.voice}",
+                error_type=ErrorType.INVALID_PARAM,
+                suggestion=f"Choose from: {', '.join(AUDIO.VOICES)}"
+            )
+        # Validate format
+        if self.format not in AUDIO.FORMATS:
+            raise BlossomError(
+                message=f"Invalid audio format: {self.format}",
+                error_type=ErrorType.INVALID_PARAM,
+                suggestion=f"Choose from: {', '.join(AUDIO.FORMATS)}"
+            )
 
     def _default_map(self) -> Dict[str, Any]:
-        return {"model": "openai", "modalities": ["text"]}
-
+        return {"format": AUDIO.DEFAULT_FORMAT}
 
 # --------------------------------------------------------------------------- #
 # Chat
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True, slots=True)
 class ChatParamsV2(BaseParams):
-    """OpenAI-compatible chat completion + vision/audio/reasoning."""
+    """
+    OpenAI-compatible chat completion + vision/reasoning (V2 API).
+    """
 
     model: str = DEFAULTS.TEXT_MODEL
     messages: List[Dict[str, Any]] = field(default_factory=list)
@@ -137,20 +146,29 @@ class ChatParamsV2(BaseParams):
     presence_penalty: float = 0
     top_p: float = 1.0
     n: int = 1
-    thinking: Optional[Dict[str, Any]] = None
-    modalities: Optional[List[str]] = None
-    audio: Optional[Dict[str, Any]] = None
+
+    thinking: Optional[Dict[str, Any]] = None  # {type: "enabled|disabled", budget_tokens: int}
+    reasoning_effort: Optional[str] = None  # "low", "medium", "high"
+    thinking_budget: Optional[int] = None  # Alternative to thinking.budget_tokens
+
     extra_params: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if self.modalities is not None:
-            object.__setattr__(self, "modalities", list({m.lower() for m in self.modalities}))
+        # Validate reasoning_effort
+        if self.reasoning_effort and self.reasoning_effort not in REASONING.EFFORTS:
+            raise BlossomError(
+                message=f"Invalid reasoning_effort: {self.reasoning_effort}",
+                error_type=ErrorType.INVALID_PARAM,
+                suggestion=f"Choose from: {', '.join(REASONING.EFFORTS)}"
+            )
 
     # ---------- wire body builder ----------
     def to_body(self) -> Dict[str, Any]:
-        """Build JSON body for POST /generate/v1/chat/completions ."""
-        defaults = self._default_map()
+        """Build JSON body for POST /generate/v1/chat/completions."""
         body = self.to_dict(include_defaults=False)
+
+        if "model" not in body:
+            body["model"] = self.model
 
         # inject response_format when json_mode
         if self.json_mode and "response_format" not in body:
@@ -160,6 +178,10 @@ class ChatParamsV2(BaseParams):
         if self.stream:
             body["stream_options"] = {"include_usage": True}
 
+        # FIXED: Remove fields that are NOT real API parameters
+        body.pop("json_mode", None)
+        body.pop("extra_params", None)
+
         # merge extra_params last, skip None / zeros / False
         for k, v in self.extra_params.items():
             if v is None or v == 0 or v is False:
@@ -167,7 +189,6 @@ class ChatParamsV2(BaseParams):
             body[k] = v
 
         # Validate total message length (rough estimate)
-        # Uses LIMITS.MAX_TEXT_PROMPT_LENGTH from config (90,000)
         total_chars = sum(
             len(str(msg.get('content', '')))
             for msg in self.messages
@@ -200,12 +221,11 @@ class ChatParamsV2(BaseParams):
             "json_mode": False,
         }
 
-
 # --------------------------------------------------------------------------- #
 # Message helpers – secrets safe
 # --------------------------------------------------------------------------- #
 class MessageBuilder:
-    """Factory for OpenAI-style messages (text, image, audio)."""
+    """Factory for OpenAI-style messages (text, image)."""
 
     @staticmethod
     def text(role: str, content: str, name: Optional[str] = None) -> Dict[str, Any]:
@@ -251,24 +271,14 @@ class MessageBuilder:
         audio_data: Optional[bytes] = None,
         format: str = "wav",
     ) -> Dict[str, Any]:
-        """Build audio-input message. One audio source required."""
-        if not (audio_url or audio_path or audio_data):
-            raise ValueError("One audio source required")
-
-        content: List[Dict[str, Any]] = []
-        if text:
-            content.append({"type": "text", "text": text})
-
-        if audio_url:
-            content.append({"type": "input_audio", "input_audio": {"url": audio_url, "format": format}})
-        elif audio_path:
-            uri = _b64_from_path(Path(audio_path))
-            content.append({"type": "input_audio", "input_audio": {"url": uri, "format": format}})
-        else:  # audio_data
-            b64 = base64.b64encode(audio_data).decode()
-            content.append({"type": "input_audio", "input_audio": {"data": b64, "format": format}})
-
-        return {"role": role, "content": content}
+        """
+        ⚠️ DEPRECATED: Audio input in messages is NOT supported by Pollinations API!
+        """
+        raise NotImplementedError(
+            "Audio input in chat messages is not supported by Pollinations API.\n"
+            "For TTS (text-to-speech), use:\n"
+            "  ai.audio.generate(text, voice='alloy')\n"
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -277,8 +287,9 @@ class MessageBuilder:
 class ParameterValidator:
     """Pure validators – raise BlossomError on failure."""
 
-    VALID_MODALITIES = {"text", "audio", "image"}
-    VALID_AUDIO_FMT = {"wav", "mp3", "pcm16", "g711_ulaw", "g711_alaw"}
+    VALID_AUDIO_FMT = AUDIO.FORMATS
+    VALID_VOICES = AUDIO.VOICES
+    VALID_REASONING_EFFORTS = REASONING.EFFORTS
 
     @staticmethod
     def prompt_length(prompt: str, max_len: int, name: str = "prompt") -> None:
@@ -306,20 +317,28 @@ class ParameterValidator:
             )
 
     @staticmethod
-    def modalities(values: List[str]) -> None:
-        extra = set(values) - ParameterValidator.VALID_MODALITIES
-        if extra:
-            raise BlossomError(
-                message=f"Invalid modalities: {extra}",
-                error_type=ErrorType.INVALID_PARAM,
-                suggestion=f"Choose from {ParameterValidator.VALID_MODALITIES}",
-            )
-
-    @staticmethod
     def audio_format(fmt: str) -> None:
         if fmt.lower() not in ParameterValidator.VALID_AUDIO_FMT:
             raise BlossomError(
                 message=f"Unsupported audio format {fmt}",
                 error_type=ErrorType.INVALID_PARAM,
                 suggestion=f"Use one of {ParameterValidator.VALID_AUDIO_FMT}",
+            )
+
+    @staticmethod
+    def audio_voice(voice: str) -> None:
+        if voice not in ParameterValidator.VALID_VOICES:
+            raise BlossomError(
+                message=f"Invalid voice: {voice}",
+                error_type=ErrorType.INVALID_PARAM,
+                suggestion=f"Use one of {ParameterValidator.VALID_VOICES}",
+            )
+
+    @staticmethod
+    def reasoning_effort(effort: str) -> None:
+        if effort not in ParameterValidator.VALID_REASONING_EFFORTS:
+            raise BlossomError(
+                message=f"Invalid reasoning effort: {effort}",
+                error_type=ErrorType.INVALID_PARAM,
+                suggestion=f"Use one of {ParameterValidator.VALID_REASONING_EFFORTS}",
             )

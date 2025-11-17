@@ -1,6 +1,7 @@
 """
-Blossom AI – Universal Client (v0.5.0)
+Blossom AI – Universal Client (v0.5.3)
 V2 API only (enter.pollinations.ai)
+UPDATED: Added AudioGenerator support
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from typing import (
 from blossom_ai.generators.generators import (
     ImageGenerator, AsyncImageGenerator,
     TextGenerator, AsyncTextGenerator,
+    AudioGenerator, AsyncAudioGenerator,  # NEW: Import audio generators
 )
 
 
@@ -34,8 +36,6 @@ def _is_inside_event_loop() -> bool:
 def _ensure_sync(coro: Awaitable[T]) -> T:
     """Runs a coroutine synchronously, if safe to do so."""
     if _is_inside_event_loop():
-        # Already in event loop (Jupyter, etc.) - can't use asyncio.run()
-        # Return coroutine and let caller handle it with await
         raise RuntimeError(
             "Cannot run async code from sync when an event loop is already running. "
             "Use `await` instead of synchronous call, or run from a truly synchronous context."
@@ -118,6 +118,18 @@ class HybridTextGenerator:
     # fmt: on
 
 
+class HybridAudioGenerator:
+    """Synchronous-asynchronous audio generator (NEW)."""
+
+    def __init__(self, sync_gen: AudioGenerator, async_gen: AsyncAudioGenerator):
+        self._caller = _DualCaller(sync_gen, async_gen, "audio")
+
+    # fmt: off
+    def generate(self, text: str, voice: str = "alloy", **kw: Any) -> bytes:   return self._caller("generate", text, voice, **kw)     # type: ignore
+    def save(self, text: str, filename: str, voice: str = "alloy", **kw: Any) -> str: return self._caller("save", text, filename, voice, **kw)  # type: ignore
+    # fmt: on
+
+
 # --------------------------------------------------------------------------- #
 # Main client
 # --------------------------------------------------------------------------- #
@@ -136,7 +148,7 @@ class Blossom(AbstractContextManager, AbstractAsyncContextManager):
     ) -> None:
         self.timeout = timeout
         self.debug = debug
-        self._api_token = api_token  # private field — excluded from repr
+        self._api_token = api_token  # private field – excluded from repr
 
         # instantiate generators
         self.image = HybridImageGenerator(
@@ -147,10 +159,23 @@ class Blossom(AbstractContextManager, AbstractAsyncContextManager):
             TextGenerator(timeout=timeout, api_token=api_token),
             AsyncTextGenerator(timeout=timeout, api_token=api_token),
         )
+        # NEW: Audio generator
+        self.audio = HybridAudioGenerator(
+            AudioGenerator(timeout=timeout, api_token=api_token),
+            AsyncAudioGenerator(timeout=timeout, api_token=api_token),
+        )
 
         # for closing sessions
-        self._sync_gens = (self.image._caller._sync, self.text._caller._sync)
-        self._async_gens = (self.image._caller._async, self.text._caller._async)
+        self._sync_gens = (
+            self.image._caller._sync,
+            self.text._caller._sync,
+            self.audio._caller._sync,  # NEW
+        )
+        self._async_gens = (
+            self.image._caller._async,
+            self.text._caller._async,
+            self.audio._caller._async,  # NEW
+        )
 
     # --- sync context ------------------------------------------------------------
     def __enter__(self) -> Blossom:
@@ -188,7 +213,7 @@ class Blossom(AbstractContextManager, AbstractAsyncContextManager):
     # --- debug / repr ------------------------------------------------------------
     def __repr__(self) -> str:
         token_info = "with token" if self._api_token else "without token"
-        return f"<Blossom AI v0.5.0 (V2 API, {self.timeout}s, {token_info})>"
+        return f"<Blossom AI v0.5.3 (V2 API, {self.timeout}s, {token_info})>"
 
 
 # --------------------------------------------------------------------------- #
