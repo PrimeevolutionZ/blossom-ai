@@ -1,5 +1,5 @@
 """
-Blossom AI - Base Generator Classes
+Blossom AI - Base Generator Classes (v0.5.3)
 """
 
 import json
@@ -65,7 +65,7 @@ def _get_retry_after(response) -> Optional[int]:
     return None
 
 # ============================================================================
-# RETRY DECORATOR (REFACTORED)
+# RETRY DECORATOR
 # ============================================================================
 
 def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
@@ -80,7 +80,6 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
                 except RateLimitError as e:
                     last_exception = e
                     if attempt < max_attempts - 1:
-                        # Always respect retry_after, don't cap it
                         wait_time = e.retry_after or DEFAULT_RETRY_AFTER
                         print_info(f"Rate limited. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_attempts})")
                         time.sleep(wait_time)
@@ -89,7 +88,6 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
                 except requests.exceptions.HTTPError as e:
                     last_exception = e
                     if e.response.status_code in RETRYABLE_HTTP_CODES and attempt < max_attempts - 1:
-                        # Respect Retry-After header if present
                         retry_after = _get_retry_after(e.response)
                         wait_time = retry_after if retry_after else _calculate_wait_time(attempt)
                         print_info(f"Retrying {e.response.status_code} error (attempt {attempt + 1}/{max_attempts}, waiting {wait_time:.1f}s)...")
@@ -118,7 +116,6 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
                 except RateLimitError as e:
                     last_exception = e
                     if attempt < max_attempts - 1:
-                        # Always respect retry_after, don't cap it
                         wait_time = e.retry_after or DEFAULT_RETRY_AFTER
                         print_info(f"Rate limited. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_attempts})")
                         await asyncio.sleep(wait_time)
@@ -150,7 +147,7 @@ def with_retry(max_attempts: int = LIMITS.MAX_RETRIES):
     return decorator
 
 # ============================================================================
-# BASE GENERATOR (REFACTORED)
+# BASE GENERATOR
 # ============================================================================
 
 class BaseGenerator(ABC):
@@ -159,7 +156,7 @@ class BaseGenerator(ABC):
     def __init__(self, base_url: str, timeout: int, api_token: Optional[str] = None):
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
-        self._api_token = api_token  # private to avoid accidental exposure
+        self._api_token = api_token
 
     @abstractmethod
     def _validate_prompt(self, prompt: str) -> None:
@@ -182,6 +179,10 @@ class BaseGenerator(ABC):
         """Check if this is V2 API."""
         return 'enter.pollinations.ai' in self.base_url
 
+    def _is_audio_endpoint(self) -> bool:
+        """Check if this is audio endpoint (doesn't require auth)."""
+        return 'text.pollinations.ai' in self.base_url
+
     def _get_auth_headers(self, request_id: Optional[str] = None) -> Dict[str, str]:
         """Get authentication headers."""
         headers = {}
@@ -191,8 +192,11 @@ class BaseGenerator(ABC):
             headers['X-Request-ID'] = request_id
         return headers
 
-    def _handle_http_error(self, status_code: int, response_data: Optional[bytes] = None) -> None:
-        """Handle HTTP errors securely."""
+    def _handle_http_error(self, status_code: int, response_data: Optional[bytes] = None) -> bool:
+        """
+        Handle HTTP errors securely.
+        Returns True if error should be ignored, False if it should raise.
+        """
         if status_code == 401:
             raise AuthenticationError(
                 message="Invalid or missing API token",
@@ -202,18 +206,19 @@ class BaseGenerator(ABC):
             error_msg = "Payment Required"
             if response_data:
                 try:
-                    # Try to decode and parse
                     decoded = response_data.decode('utf-8', errors='ignore')
-
-                    # Try JSON first
                     try:
                         error_data = json.loads(decoded)
                         error_msg = error_data.get('error', error_msg)
                     except json.JSONDecodeError:
-                        # Fallback to raw text (truncated)
                         error_msg = decoded[:200]
                 except Exception:
                     error_msg = "Payment Required (could not parse error details)"
+
+            if self._is_audio_endpoint():
+                print_warning(f"Audio endpoint returned 402 but should work without auth: {error_msg}")
+                print_warning("Ignoring 402 error - audio API doesn't require payment")
+                return True  # Ignore this error
 
             raise BlossomError(
                 message=f"Payment Required: {error_msg}",
@@ -230,15 +235,14 @@ class BaseGenerator(ABC):
                 except:
                     pass
 
-            # Also check HTTP header
-            # (will be passed separately in retry decorator)
             raise RateLimitError(
                 message="Rate limit exceeded",
                 retry_after=retry_after
             )
+        return False  # Don't ignore other errors
 
 # ============================================================================
-# SYNC GENERATOR (REFACTORED)
+# SYNC GENERATOR
 # ============================================================================
 
 class SyncGenerator(BaseGenerator):
@@ -277,8 +281,10 @@ class SyncGenerator(BaseGenerator):
         response = self.session.request(method, url, params=params or {}, **kwargs)
 
         if response.status_code >= 400:
-            self._handle_http_error(response.status_code, response.content)
-            response.raise_for_status()
+            # Returns True if error should be ignored
+            should_ignore = self._handle_http_error(response.status_code, response.content)
+            if not should_ignore:
+                response.raise_for_status()
 
         return response
 
@@ -326,11 +332,9 @@ class SyncGenerator(BaseGenerator):
             return fallback
 
         except requests.exceptions.HTTPError as e:
-            # 404 is expected for some endpoints - return fallback silently
             if e.response.status_code == 404:
                 print_debug(f"Endpoint {endpoint} returned 404, using fallback")
                 return fallback
-            # Other HTTP errors - log warning
             print_warning(f"HTTP error fetching {endpoint}: {e.response.status_code}")
             return fallback
         except (json.JSONDecodeError, ValueError) as e:
@@ -351,7 +355,7 @@ class SyncGenerator(BaseGenerator):
         return False
 
 # ============================================================================
-# ASYNC GENERATOR (REFACTORED)
+# ASYNC GENERATOR
 # ============================================================================
 
 class AsyncGenerator(BaseGenerator):
@@ -393,14 +397,15 @@ class AsyncGenerator(BaseGenerator):
             )
             if response.status >= 400:
                 data = await response.read()
-                await response.close()
-                self._handle_http_error(response.status, data)
-                raise aiohttp.ClientResponseError(
-                    request_info=response.request_info,
-                    history=response.history,
-                    status=response.status,
-                    message=f"HTTP {response.status}"
-                )
+                should_ignore = self._handle_http_error(response.status, data)
+                if not should_ignore:
+                    await response.close()
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=response.status,
+                        message=f"HTTP {response.status}"
+                    )
             return response
         else:
             async with session.request(
@@ -409,13 +414,14 @@ class AsyncGenerator(BaseGenerator):
             ) as response:
                 data = await response.read()
                 if response.status >= 400:
-                    self._handle_http_error(response.status, data)
-                    raise aiohttp.ClientResponseError(
-                        request_info=response.request_info,
-                        history=response.history,
-                        status=response.status,
-                        message=data.decode('utf-8', errors='replace')
-                    )
+                    should_ignore = self._handle_http_error(response.status, data)
+                    if not should_ignore:
+                        raise aiohttp.ClientResponseError(
+                            request_info=response.request_info,
+                            history=response.history,
+                            status=response.status,
+                            message=data.decode('utf-8', errors='replace')
+                        )
                 return data
 
     async def _fetch_list(self, endpoint: str, fallback: list) -> list:
@@ -438,7 +444,6 @@ class AsyncGenerator(BaseGenerator):
             return fallback
 
         except aiohttp.ClientResponseError as e:
-            # 404 is expected for some endpoints
             if e.status == 404:
                 print_debug(f"Endpoint {endpoint} returned 404, using fallback")
                 return fallback
@@ -462,7 +467,7 @@ class AsyncGenerator(BaseGenerator):
         return False
 
 # ============================================================================
-# MODEL AWARE MIXIN (REFACTORED)
+# MODEL AWARE MIXIN
 # ============================================================================
 
 class ModelAwareGenerator:

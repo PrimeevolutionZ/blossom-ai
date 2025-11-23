@@ -1,5 +1,5 @@
 """
-Blossom AI - Models and Enums (v0.5.2)
+Blossom AI - Models and Enums (v0.5.3)
 V2 API Only (enter.pollinations.ai)
 """
 
@@ -185,6 +185,7 @@ class TextModel(DynamicModel):
             # Specialized models
             "qwen-coder", "grok",
             "perplexity-fast", "perplexity-reasoning",
+            "searchgpt",  # NEW: Added search model
             # Community models
             "naughty", "chickytutor", "midijourney",
         ]

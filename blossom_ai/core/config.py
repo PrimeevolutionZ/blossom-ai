@@ -1,5 +1,5 @@
 """
-Blossom AI - Configuration (v0.5.2)
+Blossom AI - Configuration (v0.5.3)
 V2 API Only (enter.pollinations.ai)
 """
 
@@ -42,13 +42,15 @@ def _validate_positive(value: float, name: str) -> float:
 # ==============================================================================
 
 BASE_URL = "https://enter.pollinations.ai/api"
+IMAGE_BASE_URL = "https://image.pollinations.ai"
+TEXT_BASE_URL = "https://text.pollinations.ai"
 
 ENDPOINTS = SimpleNamespace(
     BASE=BASE_URL,
     TEXT=f"{BASE_URL}/generate/v1/chat/completions",
     TEXT_MODELS=f"{BASE_URL}/generate/v1/models",
-    IMAGE=f"{BASE_URL}/generate/image",
-    IMAGE_MODELS=f"{BASE_URL}/generate/image/models",
+    IMAGE=f"{IMAGE_BASE_URL}/prompt",
+    IMAGE_MODELS=f"{IMAGE_BASE_URL}/models",
     AUTH="https://auth.pollinations.ai",
 )
 

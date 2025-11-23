@@ -2,10 +2,14 @@
 
 > **Beautiful Python SDK for Pollinations.AI**  
 > Track the evolution of Blossom AI across versions
-
+## 🌸 v0.5.3 — Sync with Pollinations API 2025
+Internal update — zero breaking changes
+Aligns every endpoint, model and parameter with the latest upstream docs.
+>🔒 Public API
+>No signatures changed; existing code runs without modification.
 ---
 
-## 🌸 v0.5.2 — *Audio & Stability* (November 2024)
+## 🌸 v0.5.2 — *Audio & Stability*
 
 > **New TTS Support & Critical Fixes**  
 > This release adds proper text-to-speech generation and resolves major audio/modalities parameter issues.

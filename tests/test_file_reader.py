@@ -72,12 +72,11 @@ def large_file(temp_dir):
 
 @pytest.fixture
 def huge_file(temp_dir):
-    """Create huge test file (15000 chars)"""
+    """Create huge test file (75000 chars - exceeds 72000 limit)"""
     file_path = temp_dir / "huge.txt"
-    content = "D" * 15000
+    content = "D" * 75000
     file_path.write_text(content, encoding='utf-8')
     return file_path
-
 
 @pytest.fixture
 def empty_file(temp_dir):
@@ -178,20 +177,20 @@ class TestSizeLimits:
         reader = FileContentReader()
         assert reader.max_file_length == DEFAULT_MAX_FILE_LENGTH
         assert reader.prompt_space == DEFAULT_PROMPT_SPACE
-        assert DEFAULT_MAX_FILE_LENGTH == 8000
-        assert DEFAULT_PROMPT_SPACE == 2000
-        assert API_MAX_TOTAL_LENGTH == 10000
+        assert DEFAULT_MAX_FILE_LENGTH == 72000
+        assert DEFAULT_PROMPT_SPACE == 18000
+        assert API_MAX_TOTAL_LENGTH == 90000
 
-    def test_file_exceeds_default_limit(self, large_file):
-        """Test FileTooLargeError when file exceeds 8000 chars"""
+    def test_file_exceeds_default_limit(self, huge_file):
+        """Test FileTooLargeError when file exceeds 72000 chars"""
         reader = FileContentReader()
 
         with pytest.raises(FileTooLargeError) as exc_info:
-            reader.read_file(large_file)
+            reader.read_file(huge_file)
 
         error = exc_info.value
-        assert "9,000" in error.message or "9000" in error.message
-        assert "8,000" in error.message or "8000" in error.message
+        assert "72,000" in error.message or "72000" in error.message
+        assert "75,000" in error.message or "80000" in error.message
         assert "read_file_truncated" in error.suggestion
 
     def test_custom_file_limit(self, medium_file):
@@ -213,7 +212,7 @@ class TestSizeLimits:
     def test_invalid_config(self):
         """Test invalid configuration (exceeds API limit)"""
         with pytest.raises(ValidationError) as exc_info:
-            FileContentReader(max_file_length=8000, prompt_space=3000)  # 11000 > 10000
+            FileContentReader(max_file_length=80000, prompt_space=20000)  # 100 000 > 90 000
 
         error = exc_info.value
         assert "Configuration error" in error.message
@@ -226,14 +225,14 @@ class TestSizeLimits:
 class TestTruncation:
     """Test file truncation functionality"""
 
-    def test_truncate_large_file(self, large_file):
+    def test_truncate_large_file(self, huge_file):
         """Test truncating large file"""
         reader = FileContentReader()
-        file_content = reader.read_file_truncated(large_file)
+        file_content = reader.read_file_truncated(huge_file)
 
         assert file_content.char_count <= DEFAULT_MAX_FILE_LENGTH + 100  # +100 for truncation note
         assert "[... truncated" in file_content.content
-        assert "9,000" in file_content.content or "9000" in file_content.content
+        assert "75,000" in file_content.content or "75000" in file_content.content
 
     def test_truncate_with_custom_limit(self, huge_file):
         """Test truncation with custom limit"""
@@ -397,14 +396,14 @@ class TestValidation:
         reader = FileContentReader()
         file_content = reader.read_file_truncated(large_file)  # 8000 chars
 
-        prompt = f"{'X' * 3000}\n\n{file_content.content}"  # 3000 + 8000+ = > 10000
+        prompt = f"{'X' * 85000}\n\n{file_content.content}"  # 85000 + 72000+ = > 90000
 
         with pytest.raises(ValidationError) as exc_info:
             reader.validate_prompt_length(prompt)
 
         error = exc_info.value
         assert "too large" in error.message.lower()
-        assert "10,000" in error.message or "10000" in error.message
+        assert "90,000" in error.message or "90000" in error.message
 
     def test_validate_with_file_content(self, medium_file):
         """Test validation with FileContent object"""
@@ -432,7 +431,7 @@ class TestValidation:
         reader = FileContentReader()
 
         # Very long prompt
-        prompt_template = "X" * 11000
+        prompt_template = "X" * 91000
 
         with pytest.raises(ValidationError) as exc_info:
             reader.calculate_available_space(prompt_template)
@@ -538,10 +537,9 @@ class TestConvenienceFunctions:
         assert len(content) <= 5200  # 5000 + truncation note
         assert "[... truncated" in content
 
-    def test_read_file_for_prompt_error(self, large_file):
-        """Test read_file_for_prompt raises error without truncate"""
+    def test_read_file_for_prompt_error(self, huge_file):
         with pytest.raises(FileTooLargeError):
-            read_file_for_prompt(large_file, truncate_if_needed=False)
+            read_file_for_prompt(huge_file, truncate_if_needed=False)
 
     def test_get_file_info(self, small_file):
         """Test get_file_info function"""
@@ -661,9 +659,9 @@ class TestConstants:
 
     def test_api_constants(self):
         """Test API constant values"""
-        assert API_MAX_TOTAL_LENGTH == 10000
-        assert DEFAULT_MAX_FILE_LENGTH == 8000
-        assert DEFAULT_PROMPT_SPACE == 2000
+        assert API_MAX_TOTAL_LENGTH == 90000
+        assert DEFAULT_MAX_FILE_LENGTH == 72000
+        assert DEFAULT_PROMPT_SPACE == 18000
         assert DEFAULT_MAX_FILE_LENGTH + DEFAULT_PROMPT_SPACE == API_MAX_TOTAL_LENGTH
 
     def test_supported_extensions(self):

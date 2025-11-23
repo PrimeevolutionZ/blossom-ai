@@ -1,4 +1,4 @@
-# 📚 Blossom AI Documentation v0.5.0
+# 📚 Blossom AI Documentation v0.5.3
 
 > **Complete guide to building AI-powered applications with Blossom AI V2 API**
 

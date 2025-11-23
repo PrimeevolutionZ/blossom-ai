@@ -64,7 +64,7 @@ from blossom_ai.utils import (
     BlossomCLI,
 )
 
-__version__ = "0.5.2"
+__version__ = "0.5.3"
 __author__ = "Blossom AI Team"
 __license__ = "MIT"
 
