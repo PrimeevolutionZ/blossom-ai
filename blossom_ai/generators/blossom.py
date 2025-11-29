@@ -1,40 +1,39 @@
 """
-Blossom AI – Universal Client (v0.5.3)
-V2 API only (enter.pollinations.ai)
-UPDATED: Added AudioGenerator support
+Blossom AI – Universal Client (v0.5.4)
+Single hybrid facade, no manual proxying, keeps public API 100 % intact.
 """
 
 from __future__ import annotations
-from contextlib import AbstractContextManager, AbstractAsyncContextManager
+
 import asyncio
 import inspect
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, AbstractAsyncContextManager
 from typing import (
-    Any, Awaitable, Callable, Dict, Generator, Generic, Iterator,
-    Optional, TypeVar, Union, cast
+    Any, Awaitable, Callable, Dict, Iterator, AsyncIterator,
+    Optional, TypeVar, Union, cast,
 )
 
+# импортируем уже отрефакторенные генераторы
 from blossom_ai.generators.generators import (
     ImageGenerator, AsyncImageGenerator,
     TextGenerator, AsyncTextGenerator,
-    AudioGenerator, AsyncAudioGenerator,  # NEW: Import audio generators
+    AudioGenerator, AsyncAudioGenerator,
 )
 
+# --------------------------------------------------------------------------- #
+# utils
+# --------------------------------------------------------------------------- #
 
-# --------------------------------------------------------------------------- #
-# low-level utils
-# --------------------------------------------------------------------------- #
 def _is_inside_event_loop() -> bool:
-    """Returns True if an event loop is already running."""
     try:
         asyncio.get_running_loop()
         return True
     except RuntimeError:
         return False
 
+T = TypeVar("T")
 
 def _ensure_sync(coro: Awaitable[T]) -> T:
-    """Runs a coroutine synchronously, if safe to do so."""
     if _is_inside_event_loop():
         raise RuntimeError(
             "Cannot run async code from sync when an event loop is already running. "
@@ -42,97 +41,74 @@ def _ensure_sync(coro: Awaitable[T]) -> T:
         )
     return asyncio.run(coro)
 
+# --------------------------------------------------------------------------- #
+# Universal dual-caller (internal)
+# --------------------------------------------------------------------------- #
 
-T = TypeVar("T")
-R = TypeVar("R")
-
-
-class _DualCaller(Generic[T, R]):
-    """
-    Internal helper: holds sync and async versions of the same object
-    and delegates method calls to the correct one based on execution context.
-    """
-
+class _DualCaller:
     __slots__ = ("_sync", "_async", "_name")
 
-    def __init__(self, sync_obj: T, async_obj: T, name: str = "") -> None:
+    def __init__(self, sync_obj: Any, async_obj: Any, name: str = "") -> None:
         self._sync = sync_obj
         self._async = async_obj
         self._name = name
 
-    def _pick(self) -> T:
-        """Returns the appropriate implementation depending on context."""
+    def _pick(self) -> Any:
         return self._async if _is_inside_event_loop() else self._sync
 
-    # universal call dispatcher
-    def __call__(self, __method: str, *args: Any, **kw: Any) -> R:
+    def __getattr__(self, name: str) -> Callable[..., Any]:
         target = self._pick()
-        method: Callable[..., R] = getattr(target, __method)
-        result = method(*args, **kw)
+        method = getattr(target, name)
+        if inspect.isgeneratorfunction(method) or name == "models":
+            # генераторы / итераторы отдаём как есть
+            return method
 
-        # return generators/iterators as-is
-        if inspect.isgenerator(result) or isinstance(result, Iterator):
+        def _wrapper(*args: Any, **kw: Any) -> Any:
+            result = method(*args, **kw)
+            if inspect.iscoroutine(result):
+                if _is_inside_event_loop():
+                    return result  # в Jupyter – возвращаем корутину
+                return _ensure_sync(result)  # вне цикла – синхронно
             return result
 
-        # synchronize coroutine if outside event loop
-        if inspect.iscoroutine(result):
-            if _is_inside_event_loop():
-                # In Jupyter/async context - return coroutine to be awaited
-                return result  # type: ignore
-            # Outside event loop - run synchronously
-            try:
-                return _ensure_sync(result)  # type: ignore
-            except RuntimeError:
-                # Fallback: return coroutine if we can't run it
-                return result  # type: ignore
-        return result
-
+        return _wrapper
 
 # --------------------------------------------------------------------------- #
-# Hybrid wrappers
+# Hybrid facades
 # --------------------------------------------------------------------------- #
+
 class HybridImageGenerator:
-    """Synchronous-asynchronous image generator."""
-
     def __init__(self, sync_gen: ImageGenerator, async_gen: AsyncImageGenerator):
         self._caller = _DualCaller(sync_gen, async_gen, "image")
 
-    # fmt: off
-    def generate(self, prompt: str, **kw: Any) -> bytes:                       return self._caller("generate", prompt, **kw)          # type: ignore
-    def generate_url(self, prompt: str, **kw: Any) -> str:                     return self._caller("generate_url", prompt, **kw)      # type: ignore
-    def save(self, prompt: str, filename: str, **kw: Any) -> str:              return self._caller("save", prompt, filename, **kw)    # type: ignore
-    def models(self) -> list:                                                    return self._caller("models")                            # type: ignore
-    # fmt: on
+    # публичное API проксируется динамически
+    generate = property(lambda self: self._caller.generate)
+    generate_url = property(lambda self: self._caller.generate_url)
+    save = property(lambda self: self._caller.save)
+    models = property(lambda self: self._caller.models)
 
 
 class HybridTextGenerator:
-    """Synchronous-asynchronous text generator."""
-
     def __init__(self, sync_gen: TextGenerator, async_gen: AsyncTextGenerator):
         self._caller = _DualCaller(sync_gen, async_gen, "text")
 
-    # fmt: off
-    def generate(self, prompt: str, **kw: Any) -> Union[str, Iterator[str]]:    return self._caller("generate", prompt, **kw)          # type: ignore
-    def chat(self, messages: list, **kw: Any) -> Union[str, Iterator[str]]:    return self._caller("chat", messages, **kw)            # type: ignore
-    def models(self) -> list:                                                    return self._caller("models")                            # type: ignore
-    # fmt: on
+    generate = property(lambda self: self._caller.generate)
+    chat = property(lambda self: self._caller.chat)
+    models = property(lambda self: self._caller.models)
 
 
 class HybridAudioGenerator:
-    """Synchronous-asynchronous audio generator (NEW)."""
-
     def __init__(self, sync_gen: AudioGenerator, async_gen: AsyncAudioGenerator):
         self._caller = _DualCaller(sync_gen, async_gen, "audio")
 
-    # fmt: off
-    def generate(self, text: str, voice: str = "alloy", **kw: Any) -> bytes:   return self._caller("generate", text, voice, **kw)     # type: ignore
-    def save(self, text: str, filename: str, voice: str = "alloy", **kw: Any) -> str: return self._caller("save", text, filename, voice, **kw)  # type: ignore
-    # fmt: on
+    generate = property(lambda self: self._caller.generate)
+    save = property(lambda self: self._caller.save)
 
 
 # --------------------------------------------------------------------------- #
-# Main client
+# Main universal client
 # --------------------------------------------------------------------------- #
+
 class Blossom(AbstractContextManager, AbstractAsyncContextManager):
     """
     Universal Blossom AI client (V2 API).
@@ -148,9 +124,9 @@ class Blossom(AbstractContextManager, AbstractAsyncContextManager):
     ) -> None:
         self.timeout = timeout
         self.debug = debug
-        self._api_token = api_token  # private field – excluded from repr
+        self._api_token = api_token
 
-        # instantiate generators
+        # гибридные генераторы
         self.image = HybridImageGenerator(
             ImageGenerator(timeout=timeout, api_token=api_token),
             AsyncImageGenerator(timeout=timeout, api_token=api_token),
@@ -159,66 +135,70 @@ class Blossom(AbstractContextManager, AbstractAsyncContextManager):
             TextGenerator(timeout=timeout, api_token=api_token),
             AsyncTextGenerator(timeout=timeout, api_token=api_token),
         )
-        # NEW: Audio generator
         self.audio = HybridAudioGenerator(
             AudioGenerator(timeout=timeout, api_token=api_token),
             AsyncAudioGenerator(timeout=timeout, api_token=api_token),
         )
 
-        # for closing sessions
+        # для закрытия
         self._sync_gens = (
             self.image._caller._sync,
             self.text._caller._sync,
-            self.audio._caller._sync,  # NEW
+            self.audio._caller._sync,
         )
         self._async_gens = (
             self.image._caller._async,
             self.text._caller._async,
-            self.audio._caller._async,  # NEW
+            self.audio._caller._async,
         )
 
-    # --- sync context ------------------------------------------------------------
+    # ---------- sync context ----------
     def __enter__(self) -> Blossom:
         return self
 
     def __exit__(self, *_: Any) -> None:
         self._close_sync()
 
-    # --- async context -----------------------------------------------------------
+    # ---------- async context ----------
     async def __aenter__(self) -> Blossom:
         return self
 
     async def __aexit__(self, *_: Any) -> None:
         await self._close_async()
 
-    # --- resource cleanup --------------------------------------------------------
+    # ---------- resource cleanup ----------
     def _close_sync(self) -> None:
         for gen in self._sync_gens:
-            try:
-                if hasattr(gen, "close") and callable(gen.close):
+            if hasattr(gen, "close") and callable(gen.close):
+                try:
                     gen.close()
-            except Exception:  # noqa: S110
-                pass
+                except Exception:
+                    pass  # noqa: S110
 
     async def _close_async(self) -> None:
         for gen in self._async_gens:
-            try:
-                if hasattr(gen, "close") and inspect.iscoroutinefunction(gen.close):
-                    await gen.close()
-                elif hasattr(gen, "_session_manager"):
-                    await gen._session_manager.close()
-            except Exception:  # noqa: S110
-                pass
+            if hasattr(gen, "close"):
+                if inspect.iscoroutinefunction(gen.close):
+                    try:
+                        await gen.close()
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        gen.close()
+                    except Exception:
+                        pass
 
-    # --- debug / repr ------------------------------------------------------------
+    # ---------- repr ----------
     def __repr__(self) -> str:
         token_info = "with token" if self._api_token else "without token"
-        return f"<Blossom AI v0.5.3 (V2 API, {self.timeout}s, {token_info})>"
+        return f"<Blossom AI v0.5.4 (V2 API, {self.timeout}s, {token_info})>"
 
 
 # --------------------------------------------------------------------------- #
 # Factory
 # --------------------------------------------------------------------------- #
+
 def create_client(api_token: Optional[str] = None, **kw: Any) -> Blossom:
-    """Instantiates a client in one line."""
+    """One-line factory."""
     return Blossom(api_token=api_token, **kw)

@@ -1,5 +1,5 @@
 """
-Blossom AI - Generators Module (v0.5.0)
+Blossom AI - Generators Module (v0.5.4)
 V2 API Only (enter.pollinations.ai)
 """
 
@@ -9,6 +9,11 @@ from .generators import (
     AsyncImageGenerator,
     TextGenerator,
     AsyncTextGenerator,
+    AudioGenerator,
+    AsyncAudioGenerator,
+    ImageGen,
+    TextGen,
+    AudioGen,
 )
 
 # Main client
@@ -34,6 +39,11 @@ __all__ = [
     "AsyncImageGenerator",
     "TextGenerator",
     "AsyncTextGenerator",
+    "AudioGenerator",
+    "AsyncAudioGenerator",
+    "ImageGen",
+    "TextGen",
+    "AudioGen",
 
     # Main client
     "Blossom",

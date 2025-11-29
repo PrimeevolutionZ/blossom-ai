@@ -1,20 +1,35 @@
 """
-Blossom AI - Error Handling (v0.5.0)
+Blossom AI – Error Handling (v0.5.4)
+Blossom520Error + centralized suggestions + public logging helpers.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Optional, Dict, Any, Union, NamedTuple
+from typing import Optional, Dict, Any, Union, NamedTuple, Final
 
 import aiohttp
 import requests
 
 logger = logging.getLogger("blossom_ai")
 
-# ==============================================================================
-# ERROR TYPES
-# ==============================================================================
+# --------------------------------------------------------------------------- #
+# Central suggestions
+# --------------------------------------------------------------------------- #
+
+_SUGGESTIONS: Final[Dict[str, str]] = {
+    "auth": "Check your API token at https://enter.pollinations.ai",
+    "timeout": "Try increasing timeout or check your connection",
+    "rate_limit": "Please wait {retry_after}s before retrying",
+    "payment": "Visit https://auth.pollinations.ai to upgrade or check your API token",
+    "validation": "See allowed values in documentation",
+    "file_large": "Reduce file size or compress before upload",
+    "stream_fail": "Try non-streaming mode or check your connection",
+}
+
+# --------------------------------------------------------------------------- #
+# Error types
+# --------------------------------------------------------------------------- #
 
 class ErrorType:
     NETWORK = "NETWORK_ERROR"
@@ -26,10 +41,11 @@ class ErrorType:
     FILE_TOO_LARGE = "FILE_TOO_LARGE_ERROR"
     TIMEOUT = "TIMEOUT_ERROR"
     UNKNOWN = "UNKNOWN_ERROR"
+    HTTP_520 = "HTTP_520_ERROR"
 
-# ==============================================================================
-# ERROR CONTEXT
-# ==============================================================================
+# --------------------------------------------------------------------------- #
+# Error context
+# --------------------------------------------------------------------------- #
 
 class ErrorContext(NamedTuple):
     operation: str
@@ -56,11 +72,13 @@ class ErrorContext(NamedTuple):
     def to_dict(self) -> Dict[str, Any]:
         return self._asdict()
 
-# ==============================================================================
-# BASE ERROR
-# ==============================================================================
+# --------------------------------------------------------------------------- #
+# Base error
+# --------------------------------------------------------------------------- #
 
 class BlossomError(Exception):
+    __slots__ = ("message", "error_type", "suggestion", "context", "original_error", "retry_after")
+
     def __init__(
         self,
         message: str,
@@ -69,7 +87,7 @@ class BlossomError(Exception):
         context: Optional[ErrorContext] = None,
         original_error: Optional[Exception] = None,
         retry_after: Optional[int] = None,
-    ):
+    ) -> None:
         self.message = message
         self.error_type = error_type
         self.suggestion = suggestion
@@ -91,7 +109,10 @@ class BlossomError(Exception):
         return "\n".join(parts)
 
     def __repr__(self) -> str:
-        return f"BlossomError(type={self.error_type}, message={self.message!r}, suggestion={self.suggestion!r})"
+        return (
+            f"BlossomError(type={self.error_type}, message={self.message!r}, "
+            f"suggestion={self.suggestion!r})"
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -103,80 +124,68 @@ class BlossomError(Exception):
             "original_error": str(self.original_error) if self.original_error else None,
         }
 
-# ==============================================================================
-# SPECIFIC ERRORS
-# ==============================================================================
+# --------------------------------------------------------------------------- #
+# Concrete errors
+# --------------------------------------------------------------------------- #
 
 class NetworkError(BlossomError):
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.NETWORK, **kwargs)
+    def __init__(self, message: str, **kwargs: Any):
+        super().__init__(message, ErrorType.NETWORK, **kwargs)
 
 class APIError(BlossomError):
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.API, **kwargs)
+    def __init__(self, message: str, **kwargs: Any):
+        super().__init__(message, ErrorType.API, **kwargs)
 
 class AuthenticationError(BlossomError):
-    def __init__(self, message: str, **kwargs):
-        kwargs.setdefault("suggestion", "Check your API token at https://enter.pollinations.ai")
-        super().__init__(message, error_type=ErrorType.AUTH, **kwargs)
+    def __init__(self, message: str, **kwargs: Any):
+        kwargs.setdefault("suggestion", _SUGGESTIONS["auth"])
+        super().__init__(message, ErrorType.AUTH, **kwargs)
 
 class ValidationError(BlossomError):
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.INVALID_PARAM, **kwargs)
+    def __init__(self, message: str, **kwargs: Any):
+        kwargs.setdefault("suggestion", _SUGGESTIONS["validation"])
+        super().__init__(message, ErrorType.INVALID_PARAM, **kwargs)
 
 class RateLimitError(BlossomError):
-    def __init__(self, message: str, retry_after: Optional[int] = None, **kwargs):
+    def __init__(self, message: str, retry_after: Optional[int] = None, **kwargs: Any):
         if retry_after:
-            kwargs.setdefault("suggestion", f"Please wait {retry_after} seconds before retrying")
-        super().__init__(message, error_type=ErrorType.RATE_LIMIT, retry_after=retry_after, **kwargs)
+            kwargs.setdefault("suggestion", _SUGGESTIONS["rate_limit"].format(retry_after=retry_after))
+        super().__init__(message, ErrorType.RATE_LIMIT, retry_after=retry_after, **kwargs)
 
 class StreamError(BlossomError):
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.STREAM, **kwargs)
+    def __init__(self, message: str, **kwargs: Any):
+        kwargs.setdefault("suggestion", _SUGGESTIONS["stream_fail"])
+        super().__init__(message, ErrorType.STREAM, **kwargs)
 
 class FileTooLargeError(BlossomError):
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, error_type=ErrorType.FILE_TOO_LARGE, **kwargs)
+    def __init__(self, message: str, **kwargs: Any):
+        kwargs.setdefault("suggestion", _SUGGESTIONS["file_large"])
+        super().__init__(message, ErrorType.FILE_TOO_LARGE, **kwargs)
 
 class TimeoutError(BlossomError):
-    def __init__(self, message: str, **kwargs):
-        kwargs.setdefault("suggestion", "Try increasing timeout or check your connection")
-        super().__init__(message, error_type=ErrorType.TIMEOUT, **kwargs)
+    def __init__(self, message: str, **kwargs: Any):
+        kwargs.setdefault("suggestion", _SUGGESTIONS["timeout"])
+        super().__init__(message, ErrorType.TIMEOUT, **kwargs)
 
-# ==============================================================================
-# LOGGING UTILITIES
-# ==============================================================================
+class Blossom520Error(APIError):
+    """Special handling for Cloudflare 520 (unknown error)."""
+    def __init__(self, message: str = "Cloudflare 520 Unknown Error", **kwargs: Any):
+        super().__init__(message, error_type=ErrorType.HTTP_520, **kwargs)
 
-def print_info(message: str):
-    logger.info(message)
+# --------------------------------------------------------------------------- #
+# Handlers
+# --------------------------------------------------------------------------- #
 
-def print_warning(message: str):
-    logger.warning(message)
-
-def print_error(message: str):
-    logger.error(message)
-
-def print_debug(message: str):
-    logger.debug(message)
-
-def print_success(message: str):
-    logger.info(message)
-
-# ==============================================================================
-# ERROR HANDLERS
-# ==============================================================================
-
-def _extract_retry_after(response_or_headers) -> Optional[int]:
+def _extract_retry_after(response_or_headers: Any) -> int:
     try:
         headers = getattr(response_or_headers, "headers", response_or_headers)
-        retry_after = headers.get("Retry-After")
-        return int(retry_after) if retry_after else None
+        retry_after = headers.get("Retry-After") or headers.get("retry-after")
+        return int(retry_after) if retry_after else 60
     except (ValueError, TypeError, AttributeError):
-        logger.warning("Retry-After header missing or invalid, using fallback: 60s")
         return 60
 
 def handle_request_error(
-    e: Exception,
+    exc: Exception,
     operation: str,
     url: Optional[str] = None,
     method: Optional[str] = None,
@@ -184,60 +193,79 @@ def handle_request_error(
 ) -> BlossomError:
     context = ErrorContext(operation=operation, url=url, method=method, request_id=request_id)
 
-    if isinstance(e, aiohttp.ClientResponseError):
-        return _handle_aiohttp_error(e, context)
-    if isinstance(e, requests.exceptions.RequestException):
-        return _handle_requests_error(e, context)
-
+    if isinstance(exc, aiohttp.ClientResponseError):
+        return _handle_aiohttp_error(exc, context)
+    if isinstance(exc, requests.exceptions.RequestException):
+        return _handle_requests_error(exc, context)
     return BlossomError(
-        message=f"Unexpected error: {e}",
-        error_type=ErrorType.UNKNOWN,
+        f"Unexpected error: {exc}",
         context=context,
-        suggestion="Please report this issue if it persists",
-        original_error=e,
+        original_error=exc,
     )
 
-def _handle_aiohttp_error(e: aiohttp.ClientResponseError, context: ErrorContext) -> BlossomError:
-    context = context._replace(status_code=e.status)
-    if e.status == 401:
-        return AuthenticationError(f"Authentication failed: {e.message}", context=context, original_error=e)
-    if e.status == 429:
-        retry_after = _extract_retry_after(e)
-        return RateLimitError(f"Rate limit exceeded: {e.message}", context=context, retry_after=retry_after, original_error=e)
-    if e.status >= 500:
-        return APIError(f"Server error {e.status}: {e.message}", context=context, original_error=e)
-    return APIError(f"HTTP {e.status}: {e.message}", context=context, original_error=e)
+def _handle_aiohttp_error(exc: aiohttp.ClientResponseError, ctx: ErrorContext) -> BlossomError:
+    ctx = ctx._replace(status_code=exc.status)
+    if exc.status == 401:
+        return AuthenticationError("Authentication failed", context=ctx, original_error=exc)
+    if exc.status == 429:
+        retry_after = _extract_retry_after(exc)
+        return RateLimitError("Rate limit exceeded", retry_after=retry_after, context=ctx, original_error=exc)
+    if exc.status == 520:
+        return Blossom520Error(context=ctx, original_error=exc)
+    if exc.status >= 500:
+        return APIError(f"Server error {exc.status}", context=ctx, original_error=exc)
+    return APIError(f"HTTP {exc.status}: {exc.message}", context=ctx, original_error=exc)
 
-def _handle_requests_error(e: requests.exceptions.RequestException, context: ErrorContext) -> BlossomError:
-    if isinstance(e, requests.exceptions.HTTPError):
-        status = e.response.status_code
-        context = context._replace(status_code=status)
+def _handle_requests_error(exc: requests.exceptions.RequestException, ctx: ErrorContext) -> BlossomError:
+    if isinstance(exc, requests.exceptions.HTTPError):
+        status = exc.response.status_code
+        ctx = ctx._replace(status_code=status)
         if status == 401:
-            return AuthenticationError("Authentication failed", context=context, original_error=e)
+            return AuthenticationError("Authentication failed", context=ctx, original_error=exc)
         if status == 429:
-            retry_after = _extract_retry_after(e.response)
-            return RateLimitError("Rate limit exceeded", context=context, retry_after=retry_after, original_error=e)
+            retry_after = _extract_retry_after(exc.response)
+            return RateLimitError("Rate limit exceeded", retry_after=retry_after, context=ctx, original_error=exc)
+        if status == 520:
+            return Blossom520Error(context=ctx, original_error=exc)
         if status >= 500:
-            return APIError(f"Server error {status}", context=context, original_error=e)
-        return APIError(f"HTTP {status}: {e.response.text[:200]}", context=context, original_error=e)
-
-    if isinstance(e, requests.exceptions.ConnectionError):
-        return NetworkError("Connection failed", context=context, original_error=e)
-    if isinstance(e, requests.exceptions.Timeout):
-        return TimeoutError("Request timed out", context=context, original_error=e)
-    return NetworkError(f"Network error: {e}", context=context, original_error=e)
+            return APIError(f"Server error {status}", context=ctx, original_error=exc)
+        return APIError(f"HTTP {status}: {exc.response.text[:200]}", context=ctx, original_error=exc)
+    if isinstance(exc, requests.exceptions.ConnectionError):
+        return NetworkError("Connection failed", context=ctx, original_error=exc)
+    if isinstance(exc, requests.exceptions.Timeout):
+        return TimeoutError("Request timed out", context=ctx, original_error=exc)
+    return NetworkError(f"Network error: {exc}", context=ctx, original_error=exc)
 
 def handle_validation_error(
     param_name: str,
     param_value: Any,
     reason: str,
-    allowed_values: Optional[list] = None,
+    allowed: Optional[tuple[str, ...]] = None,
 ) -> ValidationError:
-    metadata = {"parameter": param_name, "value": str(param_value)}
-    if allowed_values:
-        metadata["allowed_values"] = allowed_values
-    context = ErrorContext(operation="parameter_validation", metadata=metadata)
+    meta: Dict[str, Any] = {"parameter": param_name, "value": str(param_value)}
+    if allowed:
+        meta["allowed_values"] = allowed
+    ctx = ErrorContext(operation="parameter_validation", metadata=meta)
     msg = f"Invalid parameter '{param_name}': {reason}"
-    if allowed_values:
-        msg += f"\nAllowed values: {', '.join(map(str, allowed_values))}"
-    return ValidationError(msg, context=context, suggestion=f"Check '{param_name}'")
+    if allowed:
+        msg += f"\nAllowed values: {', '.join(allowed)}"
+    return ValidationError(msg, context=ctx)
+
+# --------------------------------------------------------------------------- #
+# Logging utilities – публичные, чтобы не было «неразрешённых ссылок»
+# --------------------------------------------------------------------------- #
+
+def print_info(message: str) -> None:
+    logger.info(message)
+
+def print_warning(message: str) -> None:
+    logger.warning(message)
+
+def print_error(message: str) -> None:
+    logger.error(message)
+
+def print_debug(message: str) -> None:
+    logger.debug(message)
+
+def print_success(message: str) -> None:
+    logger.info(message)

@@ -1,5 +1,5 @@
 """
-Blossom AI - Core Module (v0.5.0)
+Blossom AI - Core Module (v0.5.0)  →  v0.6.0-refactor
 V2 API Only
 """
 
@@ -22,6 +22,7 @@ from .errors import (
     StreamError,
     FileTooLargeError,
     TimeoutError,
+    Blossom520Error,
 
     # Error handlers
     handle_request_error,
@@ -62,6 +63,8 @@ from .models import (
 from .config import (
     # Configuration classes
     Config,
+    SessionConfig,
+    DEFAULT_CONFIG,
 
     # Singletons
     ENDPOINTS,
@@ -108,6 +111,10 @@ __all__ = [
     "StreamError",
     "FileTooLargeError",
     "TimeoutError",
+    # NEW
+    "Blossom520Error",
+
+    # Error handlers
     "handle_request_error",
     "handle_validation_error",
     "print_info",
@@ -126,6 +133,8 @@ __all__ = [
 
     # Configuration
     "Config",
+    "SessionConfig",      # NEW
+    "DEFAULT_CONFIG",     # NEW
     "ENDPOINTS",
     "LIMITS",
     "DEFAULTS",

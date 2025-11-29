@@ -1,54 +1,43 @@
 """
-Blossom AI – Generators (v0.5.2)
-V2 API only (enter.pollinations.ai)
+Blossom AI – Generators (v0.5.4)
+Single implementation for sync/async via generic ImageGen/AudioGen.
 """
 
 from __future__ import annotations
-
+import asyncio
 import json
 from typing import (
-    Any, AsyncIterator, Dict, Iterator, List, Optional, Union, cast
+    Any,Final, AsyncIterator, Dict, Iterator, List, Optional, Union, TypeVar, Generic,
 )
-from urllib.parse import urlencode, quote
+from urllib.parse import quote
 
-from blossom_ai.generators.base_generator import (
-    AsyncGenerator, SyncGenerator, ModelAwareGenerator
-)
-from blossom_ai.generators.streaming_mixin import (
-    AsyncStreamingMixin, SyncStreamingMixin, SSEParser
-)
-from blossom_ai.generators.parameter_builder import (
-    ChatParamsV2, ImageParamsV2, MessageBuilder, ParameterValidator
-)
 from blossom_ai.core.config import DEFAULTS, ENDPOINTS, LIMITS
-from blossom_ai.core.errors import print_warning, print_debug, BlossomError, ErrorType
-from blossom_ai.core.models import (
-    DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS, ImageModel, TextModel
-)
+from blossom_ai.core.errors import BlossomError, ErrorType, print_warning, print_debug
+from blossom_ai.core.models import DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS, ImageModel, TextModel
+from blossom_ai.generators.base_generator import BaseGenerator, SyncGenerator, AsyncGenerator
+from blossom_ai.generators.streaming_mixin import StreamingMixin
+from blossom_ai.generators.parameter_builder import ImageParamsV2, ChatParamsV2, ParameterValidator
+
+T = TypeVar("T", bound=BaseGenerator)
 
 # --------------------------------------------------------------------------- #
-# Image – internal helpers
+# Image – generic sync/async
 # --------------------------------------------------------------------------- #
-class _ImageBase:
-    """Shared logic for sync & async image generators."""
 
-    _fallback_models = DEFAULT_IMAGE_MODELS
+class _ImageBase(Generic[T]):
+    fallback_models = DEFAULT_IMAGE_MODELS
 
     @staticmethod
-    def _validate_prompt(prompt: str) -> None:
-        ParameterValidator.prompt_length(
-            prompt, LIMITS.MAX_IMAGE_PROMPT_LENGTH, "prompt"
-        )
+    def validate_prompt(prompt: str) -> None:
+        ParameterValidator.prompt_length(prompt, LIMITS.MAX_IMAGE_PROMPT_LENGTH, "prompt")
 
     def _make_url(self, base_url: str, prompt: str, params: ImageParamsV2) -> str:
-        """Compose *safe* URL (no token)."""
-        encoded = self._encode_prompt(prompt)
+        encoded = quote(prompt)
         url = f"{base_url.rstrip('/')}/{encoded}"
-        qs = urlencode(params.to_dict())
+        qs = params.to_query()
         return f"{url}?{qs}" if qs else url
 
     def _extract_models(self, payload: Any) -> List[str]:
-        """Normalize server response to list of names."""
         models: List[str] = []
         if not isinstance(payload, list):
             return models
@@ -59,168 +48,97 @@ class _ImageBase:
                 name = item.get("name") or item.get("id")
                 if name:
                     models.append(name)
-        return models or self._fallback_models
+        return models or self.fallback_models
 
-# --------------------------------------------------------------------------- #
-# Sync Image
-# --------------------------------------------------------------------------- #
-class ImageGenerator(SyncGenerator, ModelAwareGenerator, _ImageBase):
-    """Synchronous image generator with 520 error handling."""
+class ImageGen(Generic[T], _ImageBase[T]):
+    """Generic image generator (sync or async)."""
+    def __init__(self, gen: T) -> None:
+        self.gen = gen
 
-    def __init__(
-        self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None
-    ) -> None:
-        SyncGenerator.__init__(self, ENDPOINTS.IMAGE, timeout, api_token)
-        ModelAwareGenerator.__init__(self, ImageModel, self._fallback_models)
+    # ---------- generate ----------
+    def generate(self, prompt: str, **kw: Any) -> Union[bytes, Any]:
+        self.validate_prompt(prompt)
+        model = ImageModel.from_string(kw.pop("model", DEFAULTS.IMAGE_MODEL))
+        params = ImageParamsV2(model=model, **kw)
+        url = self._make_url(self.gen.base_url, prompt, params)
 
-    def _validate_prompt(self, prompt: str) -> None:
-        _ImageBase._validate_prompt(prompt)
+        if isinstance(self.gen, AsyncGenerator):
+            return self._agenerate(url)
+        return self._sgenerate(url)
 
-    def generate(self, prompt: str, **kw: Any) -> bytes:
-        """Generate image with automatic retry on 520 errors."""
-        self._validate_prompt(prompt)
-        params = ImageParamsV2(
-            model=self._validate_model(kw.pop("model", DEFAULTS.IMAGE_MODEL)),
-            **kw
-        )
-        url = self._make_url(self.base_url, prompt, params)
+    def _sgenerate(self, url: str) -> bytes:
+        resp = self.gen._make_request("GET", url)
+        return resp.content
 
-        # Try with retry logic for 520 errors
-        max_attempts = 3
-        last_error = None
+    async def _agenerate(self, url: str) -> bytes:
+        async with await self.gen._amake_request("GET", url) as resp:
+            return await resp.read()
 
-        for attempt in range(max_attempts):
-            try:
-                resp = self._make_request("GET", url)
-                return resp.content
-            except Exception as e:
-                last_error = e
-                # Check if it's a 520 error
-                if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
-                    if e.response.status_code == 520 and attempt < max_attempts - 1:
-                        print_warning(f"520 error on attempt {attempt + 1}, retrying...")
-                        import time
-                        time.sleep(2 ** attempt)  # Exponential backoff
-                        continue
-                raise
-
-        raise last_error
-
+    # ---------- generate_url ----------
     def generate_url(self, prompt: str, **kw: Any) -> str:
-        self._validate_prompt(prompt)
-        params = ImageParamsV2(
-            model=self._validate_model(kw.pop("model", DEFAULTS.IMAGE_MODEL)),
-            **kw
-        )
-        return self._make_url(self.base_url, prompt, params)
+        self.validate_prompt(prompt)
+        model = ImageModel.from_string(kw.pop("model", DEFAULTS.IMAGE_MODEL))
+        params = ImageParamsV2(model=model, **kw)
+        return self._make_url(self.gen.base_url, prompt, params)
 
+    # ---------- save ----------
     def save(self, prompt: str, filename: str, **kw: Any) -> str:
         data = self.generate(prompt, **kw)
+        if asyncio.iscoroutine(data):
+            return asyncio.run_coroutine_threadsafe(self._asave(data, filename), asyncio.get_event_loop()).result()  # type: ignore
+        with open(filename, "wb") as fh:
+            fh.write(data)  # type: ignore
+        return filename
+
+    async def _asave(self, coro: Any, filename: str) -> str:
+        data = await coro
         with open(filename, "wb") as fh:
             fh.write(data)
         return filename
 
-    def models(self) -> List[str]:
-        if self._models_cache:
-            return self._models_cache
+    # ---------- models ----------
+    def models(self) -> Union[List[str], Any]:
+        if isinstance(self.gen, AsyncGenerator):
+            return self._amodels()
+        return self._smodels()
+
+    def _smodels(self) -> List[str]:
         try:
-            resp = self._make_request("GET", ENDPOINTS.IMAGE_MODELS)
-            self._models_cache = self._extract_models(resp.json())
-            self._update_known_models(self._models_cache)
+            resp = self.gen._make_request("GET", ENDPOINTS.IMAGE_MODELS)
+            payload = resp.json()
+            models = self._extract_models(payload)
+            ImageModel.update_known_values(models)
+            return models
         except Exception as exc:
             print_warning(f"Failed to fetch image models: {exc}")
-            self._models_cache = self._fallback_models
-        return self._models_cache
+            return self.fallback_models
 
-# --------------------------------------------------------------------------- #
-# Async Image
-# --------------------------------------------------------------------------- #
-class AsyncImageGenerator(AsyncGenerator, ModelAwareGenerator, _ImageBase):
-    """Asynchronous image generator with 520 error handling."""
-
-    def __init__(
-        self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None
-    ) -> None:
-        AsyncGenerator.__init__(self, ENDPOINTS.IMAGE, timeout, api_token)
-        ModelAwareGenerator.__init__(self, ImageModel, self._fallback_models)
-
-    def _validate_prompt(self, prompt: str) -> None:
-        _ImageBase._validate_prompt(prompt)
-
-    async def generate(self, prompt: str, **kw: Any) -> bytes:
-        """Generate image with automatic retry on 520 errors."""
-        self._validate_prompt(prompt)
-        params = ImageParamsV2(
-            model=self._validate_model(kw.pop("model", DEFAULTS.IMAGE_MODEL)),
-            **kw
-        )
-        url = self._make_url(self.base_url, prompt, params)
-
-        # Try with retry logic for 520 errors
-        max_attempts = 3
-        last_error = None
-
-        for attempt in range(max_attempts):
-            try:
-                data = await self._make_request("GET", url)
-                return cast(bytes, data)
-            except Exception as e:
-                last_error = e
-                # Check if it's a 520 error (aiohttp)
-                if hasattr(e, 'status') and e.status == 520 and attempt < max_attempts - 1:
-                    print_warning(f"520 error on attempt {attempt + 1}, retrying...")
-                    import asyncio
-                    await asyncio.sleep(2 ** attempt)
-                    continue
-                raise
-
-        raise last_error
-
-    async def generate_url(self, prompt: str, **kw: Any) -> str:
-        self._validate_prompt(prompt)
-        params = ImageParamsV2(
-            model=self._validate_model(kw.pop("model", DEFAULTS.IMAGE_MODEL)),
-            **kw
-        )
-        return self._make_url(self.base_url, prompt, params)
-
-    async def save(self, prompt: str, filename: str, **kw: Any) -> str:
-        data = await self.generate(prompt, **kw)
-        with open(filename, "wb") as fh:
-            fh.write(data)
-        return filename
-
-    async def models(self) -> List[str]:
-        if self._models_cache:
-            return self._models_cache
+    async def _amodels(self) -> List[str]:
         try:
-            data = await self._make_request("GET", ENDPOINTS.IMAGE_MODELS)
-            self._models_cache = self._extract_models(json.loads(data.decode()))
-            self._update_known_models(self._models_cache)
+            async with await self.gen._amake_request("GET", ENDPOINTS.IMAGE_MODELS) as resp:
+                payload = await resp.json()
+                models = self._extract_models(payload)
+                ImageModel.update_known_values(models)
+                return models
         except Exception as exc:
             print_warning(f"Failed to fetch image models: {exc}")
-            self._models_cache = self._fallback_models
-        return self._models_cache
+            return self.fallback_models
 
 # --------------------------------------------------------------------------- #
-# Text – internal helpers
+# Text – generic sync/async
 # --------------------------------------------------------------------------- #
-class _TextBase:
-    """Shared text-logic for sync & async paths."""
 
-    _fallback_models = DEFAULT_TEXT_MODELS
-
-    @staticmethod
-    def _validate_prompt(prompt: str) -> None:
-        ParameterValidator.prompt_length(
-            prompt, LIMITS.MAX_TEXT_PROMPT_LENGTH, "prompt"
-        )
+class _TextBase(Generic[T]):
+    fallback_models = DEFAULT_TEXT_MODELS
 
     @staticmethod
-    def _normalize_messages(
+    def validate_prompt(prompt: str) -> None:
+        ParameterValidator.prompt_length(prompt, LIMITS.MAX_TEXT_PROMPT_LENGTH, "prompt")
+
+    @staticmethod
+    def normalize_messages(
         prompt: str, system: Optional[str], messages: Optional[List[Dict[str, Any]]]
     ) -> List[Dict[str, Any]]:
-        """Return OpenAI-style messages list."""
         if messages:
             return messages
         msgs = []
@@ -237,39 +155,13 @@ class _TextBase:
         stream: bool,
         **kw: Any,
     ) -> ChatParamsV2:
-        """Build ChatParamsV2 with REMOVED audio/modalities (unsupported by API)."""
-
-        # CRITICAL FIX: Remove unsupported parameters
-        removed_audio = kw.pop("audio", None)
-        removed_modalities = kw.pop("modalities", None)
-
-        if removed_audio or removed_modalities:
-            print_warning(
-                "⚠️  WARNING: 'audio' and 'modalities' parameters are NOT supported by Pollinations API!\n"
-                "   For audio generation, use the separate audio endpoint:\n"
-                "   ai.audio.generate(text, voice='alloy')\n"
-                "   These parameters have been removed from your request."
-            )
-
-        # Validate model is set
-        if not model:
-            model = DEFAULTS.TEXT_MODEL
-
-        # Validate model
-        validated_model = self._validate_model(model)
-
-        # Build params - ALWAYS include model
-        params = ChatParamsV2(
-            model=validated_model,
-            messages=messages,
-            stream=stream,
-            **kw,
-        )
-
-        return params
+        # strip unsupported audio keys
+        kw.pop("audio", None)
+        kw.pop("modalities", None)
+        model = TextModel.from_string(model or DEFAULTS.TEXT_MODEL)
+        return ChatParamsV2(model=model, messages=messages, stream=stream, **kw)
 
     def _extract_text(self, payload: Dict[str, Any]) -> str:
-        """Grab text from server JSON."""
         return payload["choices"][0]["message"]["content"]
 
     def _extract_models(self, payload: Any) -> List[str]:
@@ -283,26 +175,13 @@ class _TextBase:
                     models.append(name)
                     for alias in item.get("aliases", []):
                         models.append(alias)
-        return models or self._fallback_models
+        return models or self.fallback_models
 
-# --------------------------------------------------------------------------- #
-# Sync Text
-# --------------------------------------------------------------------------- #
-class TextGenerator(
-    SyncGenerator, SyncStreamingMixin, ModelAwareGenerator, _TextBase
-):
-    """Synchronous text generator with vision support (NO AUDIO IN CHAT)."""
+class TextGen(Generic[T], _TextBase[T], StreamingMixin):
+    def __init__(self, gen: T) -> None:
+        self.gen = gen
 
-    def __init__(
-        self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None
-    ) -> None:
-        SyncGenerator.__init__(self, ENDPOINTS.BASE, timeout, api_token)
-        ModelAwareGenerator.__init__(self, TextModel, self._fallback_models)
-        self._sse = SSEParser()
-
-    def _validate_prompt(self, prompt: str) -> None:
-        _TextBase._validate_prompt(prompt)
-
+    # ---------- generate ----------
     def generate(
         self,
         prompt: str,
@@ -311,9 +190,9 @@ class TextGenerator(
         messages: Optional[List[Dict[str, Any]]] = None,
         stream: bool = False,
         **kw: Any,
-    ) -> Union[str, Iterator[str]]:
-        self._validate_prompt(prompt)
-        msgs = self._normalize_messages(prompt, system, messages)
+    ) -> Union[str, Iterator[str], AsyncIterator[str]]:
+        self.validate_prompt(prompt)
+        msgs = self.normalize_messages(prompt, system, messages)
         return self.chat(messages=msgs, stream=stream, **kw)
 
     def chat(
@@ -322,282 +201,154 @@ class TextGenerator(
         *,
         stream: bool = False,
         **kw: Any,
-    ) -> Union[str, Iterator[str]]:
-        params = self._make_params(
-            messages,
-            model=kw.pop("model", DEFAULTS.TEXT_MODEL),
-            stream=stream,
-            **kw
-        )
-
+    ) -> Union[str, Iterator[str], AsyncIterator[str]]:
+        params = self._make_params(messages, model=kw.pop("model", DEFAULTS.TEXT_MODEL), stream=stream, **kw)
         body = params.to_body()
-
-
-
-        # 🔍 DEBUG OUTPUT ( не включать кроме как для дебага / ONLY DEBUG)
-        #print(f"\n🔍 DEBUG REQUEST BODY:")
-        #print(json.dumps(body, indent=2, ensure_ascii=False))
-        #print(f"🔍 Body keys: {list(body.keys())}\n")
-
         headers = {"Content-Type": "application/json"}
-        resp = self._make_request(
-            "POST",
-            ENDPOINTS.TEXT,
-            json=body,
-            headers=headers,
-            stream=stream,
-        )
 
+        if isinstance(self.gen, AsyncGenerator):
+            return self._achat(body, headers, stream)
+        return self._schat(body, headers, stream)
+
+    def _schat(self, body: Dict[str, Any], headers: Dict[str, str], stream: bool) -> Union[str, Iterator[str]]:
+        resp = self.gen._make_request("POST", ENDPOINTS.TEXT, json=body, headers=headers, stream=stream)
         if stream:
-            return self._stream_sse_chunked(resp, self._sse)
+            return self.stream_sse(resp.iter_lines(decode_unicode=True))
         return self._extract_text(resp.json())
 
-    def models(self) -> List[str]:
-        if self._models_cache:
-            return self._models_cache
-        try:
-            resp = self._make_request("GET", ENDPOINTS.TEXT_MODELS)
-            self._models_cache = self._extract_models(resp.json())
-            self._update_known_models(self._models_cache)
-        except Exception as exc:
-            print_warning(f"Failed to fetch text models: {exc}")
-            self._models_cache = self._fallback_models
-        return self._models_cache
-
-# --------------------------------------------------------------------------- #
-# Async Text
-# --------------------------------------------------------------------------- #
-class AsyncTextGenerator(
-    AsyncGenerator, AsyncStreamingMixin, ModelAwareGenerator, _TextBase
-):
-    """Asynchronous text generator with vision support (NO AUDIO IN CHAT)."""
-
-    def __init__(
-        self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None
-    ) -> None:
-        AsyncGenerator.__init__(self, ENDPOINTS.BASE, timeout, api_token)
-        ModelAwareGenerator.__init__(self, TextModel, self._fallback_models)
-        self._sse = SSEParser()
-
-    def _validate_prompt(self, prompt: str) -> None:
-        _TextBase._validate_prompt(prompt)
-
-    async def generate(
-        self,
-        prompt: str,
-        *,
-        system: Optional[str] = None,
-        messages: Optional[List[Dict[str, Any]]] = None,
-        stream: bool = False,
-        **kw: Any,
-    ) -> Union[str, AsyncIterator[str]]:
-        self._validate_prompt(prompt)
-        msgs = self._normalize_messages(prompt, system, messages)
+    async def _achat(self, body: Dict[str, Any], headers: Dict[str, str], stream: bool) -> Union[str, AsyncIterator[str]]:
         if stream:
-            async def _stream_wrapper():
-                async for chunk in self.chat(messages=msgs, stream=True, **kw):
-                    yield chunk
-            return _stream_wrapper()
-        return await self.chat_text(messages=msgs, stream=False, **kw)
+            async def _inner():
+                async with await self.gen._amake_request("POST", ENDPOINTS.TEXT, json=body, headers=headers) as resp:
+                    async for chunk in self.astream_sse(resp.content):
+                        yield chunk
+            return _inner()
+        async with await self.gen._amake_request("POST", ENDPOINTS.TEXT, json=body, headers=headers) as resp:
+            payload = await resp.json()
+            return self._extract_text(payload)
 
-    async def chat_text(
-        self,
-        messages: List[Dict[str, Any]],
-        *,
-        stream: bool = False,
-        **kw: Any,
-    ) -> str:
-        params = self._make_params(
-            messages,
-            model=kw.pop("model", DEFAULTS.TEXT_MODEL),
-            stream=False,
-            **kw
-        )
+    # ---------- models ----------
+    def models(self) -> Union[List[str], Any]:
+        if isinstance(self.gen, AsyncGenerator):
+            return self._amodels()
+        return self._smodels()
 
-        body = params.to_body()
-
-        # 🔍 DEBUG OUTPUT async ( не включать кроме как для дебага/ ONLY DEBUG)
-        #print(f"\n🔍 ASYNC DEBUG REQUEST BODY:")
-        #print(json.dumps(body, indent=2, ensure_ascii=False))
-        #print(f"🔍 Body keys: {list(body.keys())}\n")
-
-        data = await self._make_request(
-            "POST",
-            ENDPOINTS.TEXT,
-            json=body,
-            headers={"Content-Type": "application/json"},
-        )
-        return self._extract_text(json.loads(data.decode()))
-
-    async def chat(
-        self,
-        messages: List[Dict[str, Any]],
-        *,
-        stream: bool = False,
-        **kw: Any,
-    ) -> AsyncIterator[str]:
-        params = self._make_params(
-            messages,
-            model=kw.pop("model", DEFAULTS.TEXT_MODEL),
-            stream=True,
-            **kw
-        )
-
-        body = params.to_body()
-
-        # 🔍 DEBUG OUTPUT для streaming
-        print(f"\n🔍 ASYNC STREAM DEBUG REQUEST BODY:")
-        print(json.dumps(body, indent=2, ensure_ascii=False))
-        print(f"🔍 Body keys: {list(body.keys())}\n")
-
-        resp = await self._make_request(
-            "POST",
-            ENDPOINTS.TEXT,
-            json=body,
-            headers={"Content-Type": "application/json"},
-            stream=True,
-        )
-        async for chunk in self._stream_sse_chunked(resp, self._sse):
-            yield chunk
-
-    async def models(self) -> List[str]:
-        if self._models_cache:
-            return self._models_cache
+    def _smodels(self) -> List[str]:
         try:
-            data = await self._make_request("GET", ENDPOINTS.TEXT_MODELS)
-            self._models_cache = self._extract_models(json.loads(data.decode()))
-            self._update_known_models(self._models_cache)
+            resp = self.gen._make_request("GET", ENDPOINTS.TEXT_MODELS)
+            payload = resp.json()
+            models = self._extract_models(payload)
+            TextModel.update_known_values(models)
+            return models
         except Exception as exc:
             print_warning(f"Failed to fetch text models: {exc}")
-            self._models_cache = self._fallback_models
-        return self._models_cache
+            return self.fallback_models
 
+    async def _amodels(self) -> List[str]:
+        try:
+            async with await self.gen._amake_request("GET", ENDPOINTS.TEXT_MODELS) as resp:
+                payload = await resp.json()
+                models = self._extract_models(payload)
+                TextModel.update_known_values(models)
+                return models
+        except Exception as exc:
+            print_warning(f"Failed to fetch text models: {exc}")
+            return self.fallback_models
 
 # --------------------------------------------------------------------------- #
-# NEW: Audio Generator (Separate TTS endpoint) - NO AUTH REQUIRED
+# Audio – generic sync/async (no auth)
 # --------------------------------------------------------------------------- #
-class AudioGenerator(SyncGenerator):
-    """
-    Synchronous audio (TTS) generator using Pollinations text.pollinations.ai endpoint.
-    Note: This endpoint does NOT require authentication (works without API key).
-    """
 
-    AUDIO_BASE_URL = "https://text.pollinations.ai"
-    VALID_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+class _AudioBase(Generic[T]):
+    AUDIO_BASE_URL: Final = "https://text.pollinations.ai"
+    VALID_VOICES: Final = ("alloy", "echo", "fable", "onyx", "nova", "shimmer")
 
-    def __init__(
-        self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None
-    ) -> None:
-        # Audio endpoint doesn't need auth, but we keep the parameter for consistency
-        super().__init__(self.AUDIO_BASE_URL, timeout, api_token=None)  # Force None
+    @staticmethod
+    def validate_prompt(prompt: str) -> None:
+        ParameterValidator.prompt_length(prompt, LIMITS.MAX_TEXT_PROMPT_LENGTH, "audio prompt")
 
-    def _validate_prompt(self, prompt: str) -> None:
-        """Audio prompts use same limits as text."""
-        ParameterValidator.prompt_length(
-            prompt, LIMITS.MAX_TEXT_PROMPT_LENGTH, "audio prompt"
-        )
-
-    def _validate_voice(self, voice: str) -> None:
-        """Validate voice parameter."""
+    def validate_voice(self, voice: str) -> None:
         if voice not in self.VALID_VOICES:
             raise BlossomError(
                 message=f"Invalid voice: {voice}",
                 error_type=ErrorType.INVALID_PARAM,
-                suggestion=f"Use one of: {', '.join(self.VALID_VOICES)}"
+                suggestion=f"Use one of: {', '.join(self.VALID_VOICES)}",
             )
 
-    def generate(self, text: str, voice: str = "alloy") -> bytes:
-        """
-        Generate MP3 audio from text using Pollinations TTS.
-        Note: This endpoint does NOT require authentication.
+    def _make_url(self, text: str, voice: str) -> str:
+        encoded = quote(text)
+        url = f"{self.AUDIO_BASE_URL}/{encoded}"
+        return url
 
-        Args:
-            text: Text to convert to speech
-            voice: Voice to use (alloy, echo, fable, onyx, nova, shimmer)
+    def _params(self, voice: str) -> Dict[str, Any]:
+        return {"model": "openai-audio", "voice": voice}
 
-        Returns:
-            MP3 audio data as bytes
-        """
-        self._validate_prompt(text)
-        self._validate_voice(voice)
+class AudioGen(Generic[T], _AudioBase[T]):
+    def __init__(self, gen: T) -> None:
+        self.gen = gen
 
-        # Build URL: https://text.pollinations.ai/{text}?model=openai-audio&voice={voice}
-        url = f"{self.base_url}/{quote(text)}"
-        params = {
-            "model": "openai-audio",
-            "voice": voice
-        }
+    # ---------- generate ----------
+    def generate(self, text: str, voice: str = "alloy") -> Union[bytes, Any]:
+        self.validate_prompt(text)
+        self.validate_voice(voice)
+        url = self._make_url(text, voice)
+        params = self._params(voice)
 
-        print_debug(f"Generating audio: voice={voice}, text_len={len(text)}")
-        resp = self._make_request("GET", url, params=params)
+        if isinstance(self.gen, AsyncGenerator):
+            return self._agenerate(url, params)
+        return self._sgenerate(url, params)
+
+    def _sgenerate(self, url: str, params: Dict[str, Any]) -> bytes:
+        resp = self.gen._make_request("GET", url, params=params)
         return resp.content
 
-    def save(self, text: str, filename: str, voice: str = "alloy") -> str:
-        """
-        Generate and save audio to file.
+    async def _agenerate(self, url: str, params: Dict[str, Any]) -> bytes:
+        async with await self.gen._amake_request("GET", url, params=params) as resp:
+            return await resp.read()
 
-        Args:
-            text: Text to convert to speech
-            filename: Output filename (will be MP3)
-            voice: Voice to use
-
-        Returns:
-            Path to saved file
-        """
-        audio_data = self.generate(text, voice)
-        with open(filename, "wb") as f:
-            f.write(audio_data)
-        print_debug(f"Saved audio to {filename} ({len(audio_data)} bytes)")
+    # ---------- save ----------
+    def save(self, text: str, filename: str, voice: str = "alloy") -> Union[str, Any]:
+        data = self.generate(text, voice)
+        if asyncio.iscoroutine(data):
+            return asyncio.run_coroutine_threadsafe(self._asave(data, filename), asyncio.get_event_loop()).result()  # type: ignore
+        with open(filename, "wb") as fh:
+            fh.write(data)  # type: ignore
         return filename
 
-
-class AsyncAudioGenerator(AsyncGenerator):
-    """
-    Asynchronous audio (TTS) generator using Pollinations text.pollinations.ai endpoint.
-    Note: This endpoint does NOT require authentication.
-    """
-
-    AUDIO_BASE_URL = "https://text.pollinations.ai"
-    VALID_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
-
-    def __init__(
-        self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None
-    ) -> None:
-        # Audio endpoint doesn't need auth
-        super().__init__(self.AUDIO_BASE_URL, timeout, api_token=None)  # Force None
-
-    def _validate_prompt(self, prompt: str) -> None:
-        ParameterValidator.prompt_length(
-            prompt, LIMITS.MAX_TEXT_PROMPT_LENGTH, "audio prompt"
-        )
-
-    def _validate_voice(self, voice: str) -> None:
-        if voice not in self.VALID_VOICES:
-            raise BlossomError(
-                message=f"Invalid voice: {voice}",
-                error_type=ErrorType.INVALID_PARAM,
-                suggestion=f"Use one of: {', '.join(self.VALID_VOICES)}"
-            )
-
-    async def generate(self, text: str, voice: str = "alloy") -> bytes:
-        """Generate MP3 audio from text (async). No authentication required."""
-        self._validate_prompt(text)
-        self._validate_voice(voice)
-
-        url = f"{self.base_url}/{quote(text)}"
-        params = {
-            "model": "openai-audio",
-            "voice": voice
-        }
-
-        print_debug(f"Generating audio (async): voice={voice}, text_len={len(text)}")
-        data = await self._make_request("GET", url, params=params)
-        return cast(bytes, data)
-
-    async def save(self, text: str, filename: str, voice: str = "alloy") -> str:
-        """Generate and save audio to file (async)."""
-        audio_data = await self.generate(text, voice)
-        with open(filename, "wb") as f:
-            f.write(audio_data)
-        print_debug(f"Saved audio to {filename} ({len(audio_data)} bytes)")
+    async def _asave(self, coro: Any, filename: str) -> str:
+        data = await coro
+        with open(filename, "wb") as fh:
+            fh.write(data)
         return filename
+
+# --------------------------------------------------------------------------- #
+# Ready-made sync instances
+# --------------------------------------------------------------------------- #
+
+class ImageGenerator(ImageGen[SyncGenerator]):
+    def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
+        super().__init__(SyncGenerator(ENDPOINTS.IMAGE, timeout, api_token))
+
+class TextGenerator(TextGen[SyncGenerator]):
+    def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
+        super().__init__(SyncGenerator(ENDPOINTS.BASE, timeout, api_token))
+
+class AudioGenerator(AudioGen[SyncGenerator]):
+    def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
+        super().__init__(SyncGenerator(_AudioBase.AUDIO_BASE_URL, timeout, api_token=None))
+
+# --------------------------------------------------------------------------- #
+# Ready-made async instances
+# --------------------------------------------------------------------------- #
+
+class AsyncImageGenerator(ImageGen[AsyncGenerator]):
+    def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
+        super().__init__(AsyncGenerator(ENDPOINTS.IMAGE, timeout, api_token))
+
+class AsyncTextGenerator(TextGen[AsyncGenerator]):
+    def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
+        super().__init__(AsyncGenerator(ENDPOINTS.BASE, timeout, api_token))
+
+class AsyncAudioGenerator(AudioGen[AsyncGenerator]):
+    def __init__(self, timeout: int = LIMITS.DEFAULT_TIMEOUT, api_token: Optional[str] = None):
+        super().__init__(AsyncGenerator(_AudioBase.AUDIO_BASE_URL, timeout, api_token=None))

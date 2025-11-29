@@ -1,69 +1,70 @@
 """
-Blossom AI – Session Manager (v0.5.0)
+Blossom AI – Session Manager (v0.5.4)
 """
 
 from __future__ import annotations
 
 import asyncio
 import threading
+import weakref
 from contextlib import asynccontextmanager, contextmanager
-from types import SimpleNamespace
-from typing import Optional, Dict, Final, Protocol,TypedDict,cast
+from dataclasses import dataclass, field
+from typing import Dict, Optional, ClassVar, Final
+
 import aiohttp
 import requests
 
-# ==============================================================================
-# CONFIGURATION
-# ==============================================================================
+# --------------------------------------------------------------------------- #
+# Immutable configuration
+# --------------------------------------------------------------------------- #
 
-class _SessionConfig(TypedDict):
-    SYNC_POOL_MAXSIZE: int
-    SYNC_POOL_CONNECTIONS: int
-    SYNC_POOL_BLOCK: bool
-    ASYNC_LIMIT_TOTAL: int
-    ASYNC_LIMIT_PER_HOST: int
-    ASYNC_TTL_DNS_CACHE: int
-    ASYNC_TIMEOUT_CONNECT: int
-    ASYNC_TIMEOUT_SOCK_READ: int
-    USER_AGENT: str
-    SSL: bool
+@dataclass(frozen=True, slots=True)
+class SessionConfig:
+    SYNC_POOL_MAXSIZE: int = 50
+    SYNC_POOL_CONNECTIONS: int = 20
+    SYNC_POOL_BLOCK: bool = False
+    ASYNC_LIMIT_TOTAL: int = 100
+    ASYNC_LIMIT_PER_HOST: int = 30
+    ASYNC_TTL_DNS_CACHE: int = 300
+    ASYNC_TIMEOUT_CONNECT: int = 30
+    ASYNC_TIMEOUT_SOCK_READ: int = 30
+    USER_AGENT: str = "blossom-ai/0.6.0"
+    SSL: bool = True
 
+    def __post_init__(self) -> None:
+        for name in ("SYNC_POOL_MAXSIZE", "ASYNC_LIMIT_TOTAL", "ASYNC_TIMEOUT_CONNECT"):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be positive")
 
+# singleton instance
+DEFAULT_CONFIG: Final = SessionConfig()
 
-SessionConfig = SimpleNamespace(
-    SYNC_POOL_MAXSIZE=50,
-    SYNC_POOL_CONNECTIONS=20,
-    SYNC_POOL_BLOCK=False,
-    ASYNC_LIMIT_TOTAL=100,
-    ASYNC_LIMIT_PER_HOST=30,
-    ASYNC_TTL_DNS_CACHE=300,
-    ASYNC_TIMEOUT_CONNECT=30,
-    ASYNC_TIMEOUT_SOCK_READ=30,
-    USER_AGENT="blossom-ai/0.5.0",
-    SSL=True,
-)
-
-def validate_session_config() -> None:
-    """Validate session configuration values."""
-    if SessionConfig.SYNC_POOL_MAXSIZE <= 0:
-        raise ValueError("SYNC_POOL_MAXSIZE must be positive")
-    if SessionConfig.ASYNC_TIMEOUT_CONNECT <= 0:
-        raise ValueError("ASYNC_TIMEOUT_CONNECT must be positive")
-    if SessionConfig.ASYNC_LIMIT_TOTAL <= 0:
-        raise ValueError("ASYNC_LIMIT_TOTAL must be positive")
-
-# ==============================================================================
-# SYNC SESSION MANAGER
-# ==============================================================================
+# --------------------------------------------------------------------------- #
+# Sync manager – thread-local singleton
+# --------------------------------------------------------------------------- #
 
 class SyncSessionManager:
-    __slots__ = ("_session", "_lock", "_closed")
+    __slots__ = ("_session", "_lock", "_config", "_closed")
 
-    def __init__(self) -> None:
-        validate_session_config()
+    _INSTANCES: ClassVar[threading.local] = threading.local()
+
+    def __new__(cls, config: SessionConfig = DEFAULT_CONFIG) -> SyncSessionManager:
+        if not hasattr(cls._INSTANCES, "data"):
+            cls._INSTANCES.data = {}  # type: ignore
+        key = id(config)
+        if key not in cls._INSTANCES.data:  # type: ignore
+            cls._INSTANCES.data[key] = super().__new__(cls)  # type: ignore
+        return cls._INSTANCES.data[key]  # type: ignore
+
+    def __init__(self, config: SessionConfig = DEFAULT_CONFIG) -> None:
+        # вызывается всегда, но инициализируем только 1 раз
+        if hasattr(self, "_initialized"):
+            return
+        self._config = config
         self._session: Optional[requests.Session] = None
         self._lock = threading.Lock()
         self._closed = False
+        self._initialized = True  # type: ignore
 
     def get_session(self) -> requests.Session:
         if self._closed:
@@ -75,20 +76,20 @@ class SyncSessionManager:
                 self._session = self._create_session()
             return self._session
 
-    @staticmethod
-    def _create_session() -> requests.Session:
+    def _create_session(self) -> requests.Session:
+        cfg = self._config
         adapter = requests.adapters.HTTPAdapter(
-            pool_connections=SessionConfig.SYNC_POOL_CONNECTIONS,
-            pool_maxsize=SessionConfig.SYNC_POOL_MAXSIZE,
+            pool_connections=cfg.SYNC_POOL_CONNECTIONS,
+            pool_maxsize=cfg.SYNC_POOL_MAXSIZE,
             max_retries=0,
-            pool_block=SessionConfig.SYNC_POOL_BLOCK,
+            pool_block=cfg.SYNC_POOL_BLOCK,
         )
         sess = requests.Session()
         sess.mount("http://", adapter)
         sess.mount("https://", adapter)
-        sess.headers["User-Agent"] = SessionConfig.USER_AGENT
+        sess.headers["User-Agent"] = cfg.USER_AGENT
         sess.headers["Connection"] = "keep-alive"
-        sess.verify = SessionConfig.SSL
+        sess.verify = cfg.SSL
         return sess
 
     def close(self) -> None:
@@ -109,62 +110,64 @@ class SyncSessionManager:
     def __exit__(self, *_: object) -> None:
         self.close()
 
-# ==============================================================================
-# ASYNC SESSION MANAGER
-# ==============================================================================
+# --------------------------------------------------------------------------- #
+# Async manager – per-loop singleton via WeakKeyDictionary
+# --------------------------------------------------------------------------- #
 
 class AsyncSessionManager:
-    __slots__ = ("_sessions", "_lock", "_closed")
+    __slots__ = ("_sessions", "_lock", "_config", "_closed")
 
-    def __init__(self) -> None:
-        validate_session_config()
-        self._sessions: Dict[int, aiohttp.ClientSession] = {}
-        self._lock: Optional[asyncio.Lock] = None
+    _INSTANCES: ClassVar[weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, AsyncSessionManager]] = weakref.WeakKeyDictionary()  # type: ignore
+
+    def __new__(cls, config: SessionConfig = DEFAULT_CONFIG) -> AsyncSessionManager:
+        loop = asyncio.get_running_loop()
+        if loop not in cls._INSTANCES:
+            cls._INSTANCES[loop] = super().__new__(cls)
+        return cls._INSTANCES[loop]
+
+    def __init__(self, config: SessionConfig = DEFAULT_CONFIG) -> None:
+        if hasattr(self, "_initialized"):
+            return
+        self._config = config
+        self._sessions: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, aiohttp.ClientSession] = weakref.WeakKeyDictionary()
+        self._lock = asyncio.Lock()
         self._closed = False
+        self._initialized = True  # type: ignore
 
     async def get_session(self) -> aiohttp.ClientSession:
         if self._closed:
             raise RuntimeError("AsyncSessionManager closed")
-
         loop = asyncio.get_running_loop()
-        loop_id = id(loop)
-
-        session = self._sessions.get(loop_id)
+        session = self._sessions.get(loop)
         if session and self._is_alive(session):
             return session
-
-        if self._lock is None:
-            self._lock = asyncio.Lock()
         async with self._lock:
-            session = self._sessions.get(loop_id)
+            session = self._sessions.get(loop)
             if session and self._is_alive(session):
                 return session
-            if session:
-                await self._close_one(loop_id)
-
             new_sess = self._create_session()
-            self._sessions[loop_id] = new_sess
+            self._sessions[loop] = new_sess
             return new_sess
 
-    @staticmethod
-    def _create_session() -> aiohttp.ClientSession:
+    def _create_session(self) -> aiohttp.ClientSession:
+        cfg = self._config
         connector = aiohttp.TCPConnector(
-            limit=SessionConfig.ASYNC_LIMIT_TOTAL,
-            limit_per_host=SessionConfig.ASYNC_LIMIT_PER_HOST,
-            ttl_dns_cache=SessionConfig.ASYNC_TTL_DNS_CACHE,
-            ssl=SessionConfig.SSL,
+            limit=cfg.ASYNC_LIMIT_TOTAL,
+            limit_per_host=cfg.ASYNC_LIMIT_PER_HOST,
+            ttl_dns_cache=cfg.ASYNC_TTL_DNS_CACHE,
+            ssl=cfg.SSL,
             enable_cleanup_closed=True,
             force_close=False,
         )
         timeout = aiohttp.ClientTimeout(
             total=None,
-            connect=SessionConfig.ASYNC_TIMEOUT_CONNECT,
-            sock_read=SessionConfig.ASYNC_TIMEOUT_SOCK_READ,
+            connect=cfg.ASYNC_TIMEOUT_CONNECT,
+            sock_read=cfg.ASYNC_TIMEOUT_SOCK_READ,
         )
         return aiohttp.ClientSession(
             connector=connector,
             timeout=timeout,
-            headers={"User-Agent": SessionConfig.USER_AGENT},
+            headers={"User-Agent": cfg.USER_AGENT},
             raise_for_status=False,
         )
 
@@ -172,19 +175,12 @@ class AsyncSessionManager:
     def _is_alive(session: aiohttp.ClientSession) -> bool:
         return not session.closed and bool(session.connector and not session.connector.closed)
 
-    async def _close_one(self, loop_id: int) -> None:
-        session = self._sessions.pop(loop_id, None)
-        if session and not session.closed:
-            await session.close()
-
     async def close(self) -> None:
         if self._closed:
             return
-        if self._lock is None:
-            self._lock = asyncio.Lock()
         async with self._lock:
             await asyncio.gather(
-                *(self._close_one(lid) for lid in list(self._sessions.keys())),
+                *(sess.close() for sess in self._sessions.values() if not sess.closed),
                 return_exceptions=True,
             )
             self._closed = True
@@ -198,22 +194,24 @@ class AsyncSessionManager:
     async def __aexit__(self, *_: object) -> None:
         await self.close()
 
-# ==============================================================================
-# CONVENIENCE FUNCTIONS
-# ==============================================================================
+# --------------------------------------------------------------------------- #
+# Convenience-shared singleton managers
+# --------------------------------------------------------------------------- #
 
 @contextmanager
-def get_sync_session():
-    mgr = SyncSessionManager()
+def get_sync_session(config: SessionConfig = DEFAULT_CONFIG):
+    mgr = SyncSessionManager(config)
     try:
         yield mgr.get_session()
     finally:
-        mgr.close()
+        # не закрываем менеджер – он живёт всё время процесса
+        pass
 
 @asynccontextmanager
-async def get_async_session():
-    mgr = AsyncSessionManager()
+async def get_async_session(config: SessionConfig = DEFAULT_CONFIG):
+    mgr = AsyncSessionManager(config)
     try:
         yield await mgr.get_session()
     finally:
-        await mgr.close()
+        # не закрываем – живёт до закрытия цикла
+        pass
