@@ -44,7 +44,7 @@ DEFAULT_CONFIG: Final = SessionConfig()
 # --------------------------------------------------------------------------- #
 
 class SyncSessionManager:
-    __slots__ = ("_session", "_lock", "_config", "_closed")
+    __slots__ = ("_session", "_lock", "_config", "_closed", "_initialized")
 
     _INSTANCES: ClassVar[threading.local] = threading.local()
 
@@ -57,14 +57,13 @@ class SyncSessionManager:
         return cls._INSTANCES.data[key]  # type: ignore
 
     def __init__(self, config: SessionConfig = DEFAULT_CONFIG) -> None:
-        # вызывается всегда, но инициализируем только 1 раз
         if hasattr(self, "_initialized"):
             return
         self._config = config
         self._session: Optional[requests.Session] = None
         self._lock = threading.Lock()
         self._closed = False
-        self._initialized = True  # type: ignore
+        self._initialized = True
 
     def get_session(self) -> requests.Session:
         if self._closed:
@@ -115,7 +114,7 @@ class SyncSessionManager:
 # --------------------------------------------------------------------------- #
 
 class AsyncSessionManager:
-    __slots__ = ("_sessions", "_lock", "_config", "_closed")
+    __slots__ = ("_sessions", "_lock", "_config", "_closed", "_initialized")
 
     _INSTANCES: ClassVar[weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, AsyncSessionManager]] = weakref.WeakKeyDictionary()  # type: ignore
 
@@ -132,7 +131,7 @@ class AsyncSessionManager:
         self._sessions: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, aiohttp.ClientSession] = weakref.WeakKeyDictionary()
         self._lock = asyncio.Lock()
         self._closed = False
-        self._initialized = True  # type: ignore
+        self._initialized = True
 
     async def get_session(self) -> aiohttp.ClientSession:
         if self._closed:
@@ -204,7 +203,6 @@ def get_sync_session(config: SessionConfig = DEFAULT_CONFIG):
     try:
         yield mgr.get_session()
     finally:
-        # не закрываем менеджер – он живёт всё время процесса
         pass
 
 @asynccontextmanager
@@ -213,5 +211,4 @@ async def get_async_session(config: SessionConfig = DEFAULT_CONFIG):
     try:
         yield await mgr.get_session()
     finally:
-        # не закрываем – живёт до закрытия цикла
         pass

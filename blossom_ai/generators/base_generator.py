@@ -158,8 +158,8 @@ class BaseGenerator(ABC):
 
         hdrs = (headers or {}).copy()
         hdrs.update(self._get_auth_headers())
-        session = await get_async_session()
-        resp = await session.request(
+        async with get_async_session() as session:
+            resp = await session.request(
             method,
             url,
             params=params,

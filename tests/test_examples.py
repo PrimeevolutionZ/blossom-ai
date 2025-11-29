@@ -1,5 +1,5 @@
 """
-Blossom AI - Test Suite (v0.5.3)
+Blossom AI - Test Suite (v0.5.4)
 """
 
 import os

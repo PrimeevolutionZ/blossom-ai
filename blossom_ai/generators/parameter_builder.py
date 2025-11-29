@@ -1,5 +1,5 @@
 """
-Blossom AI – Parameter Builders (v0.5.4)
+Blossom AI – Parameter Builders (v0.5.4+thinking)
 Frozen + __slots__, single source of validators.
 """
 
@@ -197,6 +197,7 @@ class ChatParamsV2(BaseParams):
     n: int = 1
     reasoning_effort: Optional[str] = None
     thinking_budget: Optional[int] = None
+    thinking: Optional[Dict[str, Any]] = None
     extra_params: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -220,9 +221,13 @@ class ChatParamsV2(BaseParams):
         if self.stream:
             body["stream_options"] = {"include_usage": True}
 
+        if self.thinking is not None:
+            body["thinking"] = self.thinking
+
         # drop internal keys
         body.pop("json_mode", None)
         body.pop("extra_params", None)
+        body.pop("thinking", None)
 
         # merge extra_params last
         for k, v in self.extra_params.items():
@@ -303,3 +308,21 @@ class MessageBuilder:
             "Audio input in chat messages is not supported by Pollinations API. "
             "Use ai.audio.generate(text, voice='alloy') for TTS."
         )
+
+# --------------------------------------------------------------------------- #
+# Public alias for backward compatibility
+# --------------------------------------------------------------------------- #
+ParameterValidator = _Validators
+
+# --------------------------------------------------------------------------- #
+# Public API
+# --------------------------------------------------------------------------- #
+
+__all__ = [
+    "BaseParams",
+    "ImageParamsV2",
+    "AudioParamsV2",
+    "ChatParamsV2",
+    "MessageBuilder",
+    "ParameterValidator",
+]

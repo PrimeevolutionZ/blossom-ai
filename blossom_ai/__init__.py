@@ -14,8 +14,13 @@ from blossom_ai.generators import (
     AudioParamsV2,
     ImageParamsV2,
     ChatParamsV2,
-    ParameterValidator,
+    AudioGenerator,
+    AsyncAudioGenerator,
 )
+try:
+    from blossom_ai.generators import ParameterValidator
+except ImportError:
+    ParameterValidator = None
 
 from blossom_ai.core import (
     BlossomError,
@@ -29,10 +34,13 @@ from blossom_ai.core import (
     StreamError,
     FileTooLargeError,
     TimeoutError,
+    Blossom520Error,
     ImageModel,
     TextModel,
     DEFAULT_IMAGE_MODELS,
     DEFAULT_TEXT_MODELS,
+    SessionConfig,
+    DEFAULT_CONFIG,
 )
 
 from blossom_ai.utils import (
@@ -64,7 +72,7 @@ from blossom_ai.utils import (
     BlossomCLI,
 )
 
-__version__ = "0.5.3"
+__version__ = "0.5.4"
 __author__ = "Blossom AI Team"
 __license__ = "MIT"
 
@@ -78,6 +86,9 @@ __all__ = [
     "AsyncImageGenerator",
     "TextGenerator",
     "AsyncTextGenerator",
+    # NEW
+    "AudioGenerator",
+    "AsyncAudioGenerator",
 
     # Vision & Audio Helpers
     "MessageBuilder",
@@ -98,18 +109,22 @@ __all__ = [
     "StreamError",
     "FileTooLargeError",
     "TimeoutError",
+    # NEW
+    "Blossom520Error",
 
     # Models
     "ImageModel",
     "TextModel",
     "DEFAULT_IMAGE_MODELS",
     "DEFAULT_TEXT_MODELS",
+    # NEW immutable config
+    "SessionConfig",
+    "DEFAULT_CONFIG",
 
     # Utils - File handling
     "FileContentReader",
     "FileContent",
     "read_file_for_prompt",
-    "get_file_info",
     "DEFAULT_MAX_FILE_LENGTH",
     "DEFAULT_PROMPT_SPACE",
     "API_MAX_TOTAL_LENGTH",
@@ -139,5 +154,5 @@ __all__ = [
     "__version__",
 ]
 
-# Convenience alias for backward compatibility
+# Backward-compatibility alias
 BlossomClient = Blossom
