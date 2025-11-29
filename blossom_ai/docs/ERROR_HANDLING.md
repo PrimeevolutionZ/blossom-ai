@@ -28,7 +28,8 @@ from blossom_ai.core.errors import (
     ValidationError,
     FileTooLargeError,
     StreamError,
-    RateLimitError
+    RateLimitError,
+    Blossom520Error  # NEW in v0.5.4
 )
 ```
 
@@ -44,6 +45,7 @@ class ErrorType:
     SERVER_ERROR = "server_error"
     STREAM_ERROR = "stream_error"
     FILE_ERROR = "file_error"
+    HTTP_520 = "HTTP_520_ERROR"  # NEW in v0.5.4
     # ... other types
 ```
 
@@ -166,7 +168,7 @@ def retry_on_server_error(max_attempts=3, initial_wait=1.0):
                 try:
                     return func(*args, **kwargs)
                 except requests.exceptions.HTTPError as e:
-                    if e.response.status_code in [502, 503, 504]:
+                    if e.response.status_code in [502, 503, 504, 520]:  # Added 520
                         if attempt < max_attempts - 1:
                             wait = initial_wait * (2 ** attempt)
                             print(f"⏳ Server error {e.response.status_code}, retrying in {wait}s...")
@@ -183,7 +185,67 @@ def generate_with_retry(prompt):
         return client.text.generate(prompt)
 ```
 
-### 4. File Handling Errors
+### 4. Cloudflare 520 Errors (NEW in v0.5.4)
+
+**Handling Cloudflare 520 (Unknown Error):**
+
+```python
+from blossom_ai import Blossom, Blossom520Error
+import time
+
+try:
+    with Blossom(api_token=API_TOKEN) as client:
+        response = client.text.generate("Your prompt")
+except Blossom520Error as e:
+    print(f"Cloudflare 520 Error: {e.message}")
+    print(f"Context: {e.context}")
+    print(f"Suggestion: {e.suggestion}")
+    
+    # The library automatically retries 520 errors
+    # but you can add custom handling here
+    time.sleep(5)
+    # Retry manually if needed
+```
+
+**Automatic Retry for 520:**
+
+```python
+# v0.5.4+ automatically retries 520 errors with exponential backoff
+with Blossom(api_token=API_TOKEN) as client:
+    # Will retry up to 3 times on 520 errors
+    # Delays: 2s, 4s, 8s
+    response = client.text.generate("Your prompt")
+    # If all retries fail, raises Blossom520Error
+```
+
+**Custom 520 Handling:**
+
+```python
+from blossom_ai import Blossom, Blossom520Error
+import time
+
+def generate_with_520_fallback(prompt: str, max_retries: int = 5):
+    """Handle 520 errors with extended retry"""
+    for attempt in range(max_retries):
+        try:
+            with Blossom(api_token=API_TOKEN) as client:
+                return client.text.generate(prompt)
+        
+        except Blossom520Error as e:
+            if attempt < max_retries - 1:
+                wait = (2 ** attempt) * 2  # Double the usual wait
+                print(f"Cloudflare 520, attempt {attempt + 1}/{max_retries}")
+                print(f"Waiting {wait}s before retry...")
+                time.sleep(wait)
+            else:
+                print(f"Failed after {max_retries} attempts")
+                raise
+
+# Usage
+response = generate_with_520_fallback("Generate text", max_retries=5)
+```
+
+### 5. File Handling Errors
 
 **From test_file_reader.py:**
 
@@ -247,7 +309,7 @@ print(response)  # Either real response or fallback
 ### Pattern 2: Error Classification
 
 ```python
-from blossom_ai import BlossomError, ErrorType
+from blossom_ai import BlossomError, ErrorType, Blossom520Error
 
 def handle_error(error: BlossomError) -> str:
     """Classify and handle different error types"""
@@ -259,6 +321,9 @@ def handle_error(error: BlossomError) -> str:
     
     elif error.error_type == ErrorType.INVALID_PARAM:
         return f"Invalid request: {error.message}"
+    
+    elif error.error_type == ErrorType.HTTP_520:
+        return "Cloudflare error. The service will retry automatically."
     
     elif error.error_type == ErrorType.SERVER_ERROR:
         return "Server error. Please retry later."
@@ -293,6 +358,9 @@ def safe_generate(prompt: str, context: str = "general"):
     except RateLimitError:
         raise RuntimeError(f"[{context}] Rate limit exceeded - slow down requests")
     
+    except Blossom520Error:
+        raise RuntimeError(f"[{context}] Cloudflare error - retrying automatically")
+    
     except BlossomError as e:
         raise RuntimeError(f"[{context}] Generation failed: {e.message}")
 
@@ -309,11 +377,11 @@ except RuntimeError as e:
 
 ### Strategy 1: Exponential Backoff (Production-Ready)
 
-**From test_reasoning_cache.py:**
+**From test_reasoning_cache.py with 520 support:**
 
 ```python
 import time
-from blossom_ai import Blossom, BlossomError, RateLimitError
+from blossom_ai import Blossom, BlossomError, RateLimitError, Blossom520Error
 
 def generate_with_exponential_backoff(
     prompt: str,
@@ -336,9 +404,9 @@ def generate_with_exponential_backoff(
             else:
                 raise
         
-        except BlossomError as e:
-            # Server errors (502, 503, 504) - retry
-            if e.status_code in [502, 503, 504]:
+        except (Blossom520Error, BlossomError) as e:
+            # Server errors (502, 503, 504, 520) - retry
+            if hasattr(e, 'status_code') and e.status_code in [502, 503, 504, 520]:
                 if attempt < max_retries - 1:
                     delay = initial_delay * (backoff_factor ** attempt)
                     print(f"Server error {e.status_code}, retrying in {delay}s...")
@@ -367,7 +435,7 @@ def generate_with_jitter(prompt: str, max_retries: int = 3):
             with Blossom(api_token=API_TOKEN) as client:
                 return client.text.generate(prompt)
         
-        except RateLimitError:
+        except (RateLimitError, Blossom520Error):
             if attempt < max_retries - 1:
                 # Base delay with random jitter
                 base_delay = 2 ** attempt
@@ -769,7 +837,7 @@ response = client.text.generate("Hello")
 ### 2. Handle Specific Exceptions First
 
 ```python
-from blossom_ai import Blossom, AuthenticationError, ValidationError, BlossomError
+from blossom_ai import Blossom, AuthenticationError, ValidationError, Blossom520Error, BlossomError
 
 try:
     with Blossom(api_token=API_TOKEN) as client:
@@ -780,6 +848,9 @@ except AuthenticationError:
 
 except ValidationError as e:
     print(f"Invalid input: {e.message}")
+
+except Blossom520Error:
+    print("Cloudflare error - retry in progress")
 
 except BlossomError as e:
     print(f"Other error: {e.message}")
@@ -807,7 +878,7 @@ def generate_with_logging(prompt: str, user_id: str):
             extra={
                 "error_type": e.error_type,
                 "message": e.message,
-                "status_code": e.status_code,
+                "status_code": getattr(e, 'status_code', None),
                 "prompt_length": len(prompt)
             }
         )
@@ -817,7 +888,7 @@ def generate_with_logging(prompt: str, user_id: str):
 ### 4. Provide User-Friendly Messages
 
 ```python
-from blossom_ai import BlossomError, ErrorType
+from blossom_ai import BlossomError, ErrorType, Blossom520Error
 
 def get_user_message(error: BlossomError) -> str:
     """Convert technical error to user-friendly message"""
@@ -825,6 +896,7 @@ def get_user_message(error: BlossomError) -> str:
         ErrorType.AUTH_ERROR: "Authentication failed. Please check your API key in settings.",
         ErrorType.RATE_LIMIT: "Too many requests. Please wait a moment and try again.",
         ErrorType.INVALID_PARAM: "Invalid input. Please check your request and try again.",
+        ErrorType.HTTP_520: "Service temporarily experiencing issues. We're retrying automatically.",
         ErrorType.SERVER_ERROR: "Service temporarily unavailable. Please try again in a few minutes.",
     }
     
@@ -950,77 +1022,3 @@ def process_file_safe(file_path: str) -> str:
         print("File too large, truncating...")
         content = reader.read_file_truncated(file_path, max_chars=5000)
         return content.content
-
-# Usage
-content = process_file_safe("large_file.txt")
-```
-
-### Example 3: Streaming with Resume
-
-```python
-from blossom_ai import Blossom, StreamError
-
-def stream_with_resume(prompt: str, checkpoint_file: str = None):
-    """Stream with ability to resume from checkpoint"""
-    accumulated = []
-    checkpoint = ""
-    
-    # Load checkpoint if exists
-    if checkpoint_file and os.path.exists(checkpoint_file):
-        with open(checkpoint_file) as f:
-            checkpoint = f.read()
-            accumulated.append(checkpoint)
-    
-    try:
-        with Blossom(api_token=API_TOKEN) as client:
-            for chunk in client.text.generate(prompt, stream=True):
-                accumulated.append(chunk)
-                
-                # Save checkpoint periodically
-                if len(accumulated) % 10 == 0 and checkpoint_file:
-                    with open(checkpoint_file, 'w') as f:
-                        f.write(''.join(accumulated))
-    
-    except StreamError as e:
-        print(f"Stream interrupted: {e.message}")
-        # Save partial result
-        if checkpoint_file:
-            with open(checkpoint_file, 'w') as f:
-                f.write(''.join(accumulated))
-        raise
-    
-    finally:
-        # Cleanup checkpoint on success
-        if checkpoint_file and os.path.exists(checkpoint_file):
-            os.remove(checkpoint_file)
-    
-    return ''.join(accumulated)
-
-# Usage
-try:
-    result = stream_with_resume("Long generation", "checkpoint.txt")
-except StreamError:
-    print("Can resume later from checkpoint.txt")
-```
-
----
-
-## Summary
-
-### Key Takeaways
-
-1. **Always use context managers** (`with` or `async with`)
-2. **Handle specific exceptions** before general ones
-3. **Implement retry logic** for transient errors (502, 503, 504, rate limits)
-4. **Use exponential backoff** with jitter for retries
-5. **Provide user-friendly messages** while logging technical details
-6. **Test error paths** as thoroughly as success paths
-7. **Implement timeouts** and health checks
-8. **Clean up resources** properly, even on errors
-
-### Related Documentation
-
-- [API Reference](API_REFERENCE.md) - Complete API documentation
-- [Async Guide](ASYNC_GUIDE.md) - Async programming patterns
-- [Configuration](CONFIGURATION.md) - Client configuration options
-- [File Handling](FILE_HANDLING.md) - File processing and errors

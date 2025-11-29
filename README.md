@@ -5,7 +5,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.5.3-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
+[![Version](https://img.shields.io/badge/version-0.5.4-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/PrimeevolutionZ/blossom-ai)
 
 [![Downloads](https://img.shields.io/pypi/dm/eclips-blossom-ai.svg)](https://pypi.org/project/eclips-blossom-ai/)
@@ -689,7 +689,7 @@ If you find this project helpful, please consider:
 
 [![Made with Python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/)
 [![Powered by Pollinations.AI](https://img.shields.io/badge/Powered%20by-Pollinations.AI-blueviolet.svg)](https://pollinations.ai/)
-[![Version 0.5.0](https://img.shields.io/badge/version-0.5.0-success.svg)](https://pypi.org/project/eclips-blossom-ai/)
+[![Version 0.5.4](https://img.shields.io/badge/version-0.5.4-success.svg)](https://pypi.org/project/eclips-blossom-ai/)
 
 [⬆️ Back to top](#-blossom-ai)
 

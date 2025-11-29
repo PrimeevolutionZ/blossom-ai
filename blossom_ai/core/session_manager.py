@@ -28,7 +28,7 @@ class SessionConfig:
     ASYNC_TTL_DNS_CACHE: int = 300
     ASYNC_TIMEOUT_CONNECT: int = 30
     ASYNC_TIMEOUT_SOCK_READ: int = 30
-    USER_AGENT: str = "blossom-ai/0.6.0"
+    USER_AGENT: str = "blossom-ai/0.5.4"
     SSL: bool = True
 
     def __post_init__(self) -> None:

@@ -34,7 +34,7 @@ from blossom_ai.core import (
     StreamError,
     FileTooLargeError,
     TimeoutError,
-    Blossom520Error,
+    Blossom520Error,  # NEW in v0.5.4
     ImageModel,
     TextModel,
     DEFAULT_IMAGE_MODELS,
@@ -86,7 +86,7 @@ __all__ = [
     "AsyncImageGenerator",
     "TextGenerator",
     "AsyncTextGenerator",
-    # NEW
+    # Audio generators
     "AudioGenerator",
     "AsyncAudioGenerator",
 
@@ -109,7 +109,6 @@ __all__ = [
     "StreamError",
     "FileTooLargeError",
     "TimeoutError",
-    # NEW
     "Blossom520Error",
 
     # Models
@@ -117,7 +116,7 @@ __all__ = [
     "TextModel",
     "DEFAULT_IMAGE_MODELS",
     "DEFAULT_TEXT_MODELS",
-    # NEW immutable config
+    # Immutable config
     "SessionConfig",
     "DEFAULT_CONFIG",
 
@@ -125,6 +124,7 @@ __all__ = [
     "FileContentReader",
     "FileContent",
     "read_file_for_prompt",
+    "get_file_info",
     "DEFAULT_MAX_FILE_LENGTH",
     "DEFAULT_PROMPT_SPACE",
     "API_MAX_TOTAL_LENGTH",

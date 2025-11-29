@@ -2,21 +2,147 @@
 
 > **Beautiful Python SDK for Pollinations.AI**  
 > Track the evolution of Blossom AI across versions
-## 🌸 v0.5.3 — Sync with Pollinations API 2025
-Internal update — zero breaking changes
+
+---
+
+## 🌸 v0.5.4 – *Enhanced Error Handling*
+
+> **Released:** January 2025  
+> **Focus:** Improved error handling for Cloudflare 520 errors and better retry logic
+
+### 🎯 What's New
+
+**⚡ Enhanced Error Handling**
+- NEW: `Blossom520Error` - Special handling for Cloudflare 520 (Unknown Error) responses
+- Dedicated error class for better diagnostics and recovery
+- Improved error messages with actionable suggestions
+- Better context tracking for server-side failures
+
+**🔄 Improved Retry Logic**
+- Enhanced retry mechanism for HTTP 520 errors
+- Smart detection of transient server failures (502, 503, 504, 520)
+- Exponential backoff for all retryable server errors
+- Better error recovery in production environments
+
+**🛠️ Internal Improvements**
+- Updated session manager User-Agent to 0.5.4
+- Enhanced error context in `_handle_aiohttp_error` and `_handle_requests_error`
+- Dynamic model cache updates with `update_known_values()` method
+- Code cleanup and minor refactoring in error handlers
+
+---
+
+### 📊 Error Handling Changes
+
+**New Error Type:**
+```python
+from blossom_ai import Blossom520Error
+
+try:
+    with Blossom(api_token="token") as client:
+        response = client.text.generate("Hello")
+except Blossom520Error as e:
+    print(f"Cloudflare 520 Error: {e.message}")
+    print(f"Suggestion: {e.suggestion}")
+    # Retry logic is handled automatically
+```
+
+**Automatic Retry for 520 Errors:**
+```python
+# The library now automatically retries on 520 errors
+# with exponential backoff (up to 3 attempts)
+
+with Blossom(api_token="token") as client:
+    # Will automatically retry on 520 errors
+    response = client.text.generate("Your prompt")
+```
+
+---
+
+### 🔧 Technical Details
+
+**Error Detection:**
+- HTTP 520 errors are now properly detected and classified
+- Added to retryable error codes: `{502, 503, 504, 520}`
+- Special handling in both sync and async error handlers
+
+**Retry Strategy:**
+- Max retries: 3 attempts
+- Exponential backoff: 2s, 4s, 8s
+- Applies to all transient server errors
+- Preserves error context across retries
+
+**Error Context:**
+- Enhanced error context with request details
+- Better logging for debugging
+- Preserved original error information
+
+---
+
+### 📦 Changes Summary
+
+| Category | Change | Status |
+|----------|--------|--------|
+| Error Types | `Blossom520Error` class | ✅ NEW |
+| Error Handling | Enhanced 520 detection | ✅ IMPROVED |
+| Retry Logic | Better backoff strategy | ✅ IMPROVED |
+| Error Messages | More actionable suggestions | ✅ IMPROVED |
+| Internal | Model cache updates | ✅ IMPROVED |
+| Internal | User-Agent updated | ✅ UPDATED |
+
+---
+
+### 🔄 Backward Compatibility
+
+**100% Backward Compatible** ✅
+- No breaking changes
+- Existing code continues to work
+- New error type is additive only
+- All previous error handling still works
+
+**Migration:** Not required - this is a drop-in replacement
+
+---
+
+### 📚 Updated Documentation
+
+- [Error Handling Guide](ERROR_HANDLING.md) - Added Blossom520Error section
+- [API Reference](API_REFERENCE.md) - Updated error types list
+
+---
+
+### 🐛 Bug Fixes
+
+- Fixed proper detection of Cloudflare 520 errors
+- Improved error context for server-side failures
+- Better handling of edge cases in error responses
+
+---
+
+### 🔗 Links
+
+- [PyPI Package](https://pypi.org/project/eclips-blossom-ai/)
+- [GitHub Repository](https://github.com/PrimeevolutionZ/blossom-ai)
+- [Documentation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md)
+- [Report Issue](https://github.com/PrimeevolutionZ/blossom-ai/issues)
+
+---
+
+## 🌸 v0.5.3 – Sync with Pollinations API 2025
+Internal update – zero breaking changes
 Aligns every endpoint, model and parameter with the latest upstream docs.
->🔒 Public API
+>📢 Public API
 >No signatures changed; existing code runs without modification.
 ---
 
-## 🌸 v0.5.2 — *Audio & Stability*
+## 🌸 v0.5.2 – *Audio & Stability*
 
 > **New TTS Support & Critical Fixes**  
 > This release adds proper text-to-speech generation and resolves major audio/modalities parameter issues.
 
 ### 🎯 What's New
 
-**🔊 Text-to-Speech (TTS) Support**
+**📊 Text-to-Speech (TTS) Support**
 - NEW: Dedicated `AudioGenerator` and `AsyncAudioGenerator` classes
 - Generate MP3 audio from text using Pollinations TTS endpoint
 - 6 premium voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`
@@ -45,7 +171,7 @@ with Blossom() as client:
 
 ---
 
-### 🐛 Critical Fixes
+### 🛠 Critical Fixes
 
 **Audio/Modalities Parameters Removed from Chat**
 - ⚠️ **BREAKING FIX**: Removed unsupported `audio` and `modalities` parameters from text chat
@@ -174,7 +300,7 @@ response = client.text.chat(
 
 ---
 
-## 🌸 v0.5.0 — *The Grand Rewrite* (December 2024)
+## 🌸 v0.5.0 – *The Grand Rewrite* (December 2024)
 
 > **A Complete Transformation**  
 > No words are enough to describe all the changes that happened between v0.4.7 and v0.5.0.  
