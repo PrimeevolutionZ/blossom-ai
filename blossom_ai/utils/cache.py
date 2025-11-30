@@ -1,489 +1,688 @@
+# blossom_ai/utils/cache.py
+
 """
-Blossom AI - Caching Module
-Intelligent caching for API requests to reduce costs and improve performance
+Blossom AI – Caching Module
+Security-hardened version: fixes race conditions, TTL handling, and resource leaks.
+Now uses JSON instead of pickle for disk storage.
 """
 
 import hashlib
 import json
-import os
-import pickle
+import re
+import threading
 import time
 import asyncio
-from pathlib import Path
-from typing import Optional, Any, Dict, Callable, Union
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
-import threading
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Union
+from collections import OrderedDict
+
+from blossom_ai.core.interfaces import LoggerProtocol, ConfigProtocol
+from blossom_ai.utils.security import sanitize_filename
+
+__all__ = [
+    "CacheBackend",
+    "CacheConfig",
+    "CacheEntry",
+    "CacheStats",
+    "CacheManager",
+    "get_default_cache",
+]
 
 
-class CacheBackend(str, Enum):
-    """Cache storage backends"""
+class CacheBackend(Enum):
+    """Cache storage backends."""
     MEMORY = "memory"
     DISK = "disk"
-    HYBRID = "hybrid"  # Memory + Disk
+    HYBRID = "hybrid"
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class CacheConfig:
-    """Configuration for caching"""
+    """Immutable cache configuration."""
     enabled: bool = True
     backend: CacheBackend = CacheBackend.HYBRID
-    ttl: int = 3600  # Time to live in seconds (default: 1 hour)
-    max_memory_size: int = 100  # Max items in memory
-    max_disk_size: int = 1000  # Max items on disk
-    cache_dir: Optional[Path] = None  # Auto-set to ~/.blossom_cache
-
-    # What to cache
+    ttl: int = 3600  # 1 hour
+    max_memory_size: int = 100  # Max entries in memory
+    max_disk_size: int = 1000  # Max entries on disk
+    compress: bool = True
     cache_text: bool = True
-    cache_images: bool = False  # Images can be large
-    cache_audio: bool = False
-
-    # Advanced
-    compress: bool = True  # Compress disk cache
-    serialize_format: str = "pickle"  # pickle or json
+    cache_images: bool = False  # Images are large, disabled by default
+    sanitize_secrets: bool = True  # Sanitize API keys and secrets from cache keys
 
 
-@dataclass
+@dataclass(slots=True)
 class CacheEntry:
-    """Single cache entry"""
+    """Single cache entry with LRU tracking."""
     key: str
     value: Any
     timestamp: float
     size: int = 0
     hits: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def is_expired(self, ttl: int) -> bool:
-        """Check if entry is expired"""
-        return (time.time() - self.timestamp) > ttl
+        """Check if entry is expired using monotonic time."""
+        return (time.monotonic() - self.timestamp) > ttl
 
-    def touch(self):
-        """Update access time and hit count"""
+    def touch(self) -> None:
+        """Update timestamp and hit count."""
         self.hits += 1
-        self.timestamp = time.time()
+        self.timestamp = time.monotonic()
 
 
+@dataclass
 class CacheStats:
-    """Cache statistics"""
-
-    def __init__(self):
-        self.hits = 0
-        self.misses = 0
-        self.evictions = 0
-        self.memory_usage = 0
-        self.disk_usage = 0
+    """Thread-safe cache statistics."""
+    hits: int = 0
+    misses: int = 0
+    evictions: int = 0
+    _lock: threading.Lock = field(default_factory=threading.Lock)
 
     @property
     def hit_rate(self) -> float:
-        total = self.hits + self.misses
-        return (self.hits / total * 100) if total > 0 else 0.0
+        """Calculate hit rate percentage."""
+        with self._lock:
+            total = self.hits + self.misses
+            return (self.hits / total * 100) if total > 0 else 0.0
 
-    def __repr__(self) -> str:
-        return (
-            f"CacheStats(hits={self.hits}, misses={self.misses}, "
-            f"hit_rate={self.hit_rate:.1f}%, evictions={self.evictions})"
-        )
+    def increment_hits(self) -> None:
+        """Thread-safe increment hits."""
+        with self._lock:
+            self.hits += 1
+
+    def increment_misses(self) -> None:
+        """Thread-safe increment misses."""
+        with self._lock:
+            self.misses += 1
+
+    def increment_evictions(self) -> None:
+        """Thread-safe increment evictions."""
+        with self._lock:
+            self.evictions += 1
 
 
 class CacheManager:
-    """
-    Intelligent cache manager for Blossom AI
 
-    Features:
-    - Memory + Disk hybrid caching
-    - TTL-based expiration
-    - LRU eviction policy
-    - Thread-safe operations
-    - Compression for disk storage
-    - Statistics tracking
 
-    Example:
-        >>> cache = CacheManager()
-        >>>
-        >>> # Manual caching
-        >>> cache.set("key", "value", ttl=3600)
-        >>> value = cache.get("key")
-        >>>
-        >>> # Decorator usage
-        >>> @cache.cached(ttl=1800)
-        ... def expensive_function(arg):
-        ...     return generate_text(arg)
-    """
+    def __init__(
+            self,
+            config: CacheConfig,
+            logger: Optional[LoggerProtocol] = None,
+            config_obj: Optional[ConfigProtocol] = None
+    ) -> None:
+        self.config = config
+        self.logger = logger
+        self.config_obj = config_obj
 
-    def __init__(self, config: Optional[CacheConfig] = None):
-        self.config = config or CacheConfig()
+        # Memory cache: {sanitized_key: CacheEntry}
+        self._memory: OrderedDict[str, CacheEntry] = OrderedDict()
+
+        self._memory_lock = threading.RLock()  # RLock allows reentrant calls
+        self._disk_lock = threading.RLock()
+        self._stats_lock = threading.Lock()
+
+        # Statistics
         self.stats = CacheStats()
 
-        # Memory cache: {key: CacheEntry}
-        self._memory: Dict[str, CacheEntry] = {}
-        self._lock = threading.RLock()  # Thread-safe
-        self._async_lock = asyncio.Lock()  # Async-safe
+        self._async_locks: Dict[int, asyncio.Lock] = {}
+        self._locks_lock = threading.Lock()
 
-        # Setup disk cache
-        if self.config.backend in [CacheBackend.DISK, CacheBackend.HYBRID]:
+        # Background cleanup task
+        self._cleanup_task: Optional[asyncio.Task] = None
+        self._cleanup_running = False
+
+        # Disk cache setup
+        if self.config.backend in (CacheBackend.DISK, CacheBackend.HYBRID):
             self._setup_disk_cache()
 
-    def _setup_disk_cache(self):
-        """Setup disk cache directory"""
-        if self.config.cache_dir is None:
-            self.config.cache_dir = Path.home() / ".blossom_cache"
+    def _setup_disk_cache(self) -> None:
+        """Initialize disk cache directory with security checks."""
+        cache_base = Path.home() / ".blossom_cache"
 
-        self.config.cache_dir.mkdir(parents=True, exist_ok=True)
+        # Create unique cache dir per API key for isolation
+        if self.config_obj and hasattr(self.config_obj, 'api_key') and self.config_obj.api_key:
+            key_fragment = hashlib.sha256(
+                self.config_obj.api_key.encode()
+            ).hexdigest()[:8]
+            cache_base = cache_base / key_fragment
 
-        # Create subdirectories for organization
-        (self.config.cache_dir / "text").mkdir(exist_ok=True)
-        (self.config.cache_dir / "images").mkdir(exist_ok=True)
-        (self.config.cache_dir / "audio").mkdir(exist_ok=True)
-        (self.config.cache_dir / "metadata").mkdir(exist_ok=True)
+        cache_base.mkdir(parents=True, exist_ok=True)
 
-    def _generate_key(
-            self,
-            prefix: str,
-            *args,
-            **kwargs
-    ) -> str:
-        """Generate cache key from arguments"""
-        # Create deterministic hash from arguments
-        key_data = {
-            "prefix": prefix,
-            "args": args,
-            "kwargs": sorted(kwargs.items())
-        }
+        # Create subdirectories
+        for subdir in ["text", "images", "metadata"]:
+            (cache_base / subdir).mkdir(parents=True, exist_ok=True)
 
-        key_str = json.dumps(key_data, sort_keys=True, default=str)
-        key_hash = hashlib.sha256(key_str.encode()).hexdigest()[:16]
+        self._cache_dir = cache_base
+        self._log("info", "Disk cache initialized", path=str(cache_base))
 
-        return f"{prefix}_{key_hash}"
+    def _get_async_lock(self) -> asyncio.Lock:
+        try:
+            loop = asyncio.get_running_loop()
+            loop_id = id(loop)
+        except RuntimeError:
+            # No event loop - return dummy lock for sync operations
+            class DummyAsyncLock:
+                async def __aenter__(self): return self
+                async def __aexit__(self, *args): pass
+            return DummyAsyncLock()
+
+        # Check if lock exists for this loop
+        if loop_id not in self._async_locks:
+            with self._locks_lock:
+                # Double-check after acquiring thread lock
+                if loop_id not in self._async_locks:
+                    self._async_locks[loop_id] = asyncio.Lock()
+
+        return self._async_locks[loop_id]
+
+    def _sanitize_key(self, key: str) -> str:
+        """Sanitize cache key to prevent injection attacks."""
+        sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', key)
+        return sanitized[:100]
+
+    def _get_cache_path(self, key: str, prefix: str) -> Path:
+        """Get safe file path for disk cache entry."""
+        sanitized = self._sanitize_key(key)
+        subdir = "text" if prefix.startswith("text") else "images"
+        hash_prefix = hashlib.sha256(sanitized.encode()).hexdigest()[:2]
+        subdir_path = self._cache_dir / subdir / hash_prefix
+        subdir_path.mkdir(parents=True, exist_ok=True)
+        filename = sanitize_filename(f"{sanitized}.cache")
+        return subdir_path / filename
 
     def _should_cache(self, prefix: str) -> bool:
-        """Check if this type of request should be cached"""
+        """Check if this request type should be cached."""
         if not self.config.enabled:
             return False
-
         if prefix.startswith("text") and not self.config.cache_text:
             return False
         if prefix.startswith("image") and not self.config.cache_images:
             return False
-        if prefix.startswith("audio") and not self.config.cache_audio:
-            return False
-
         return True
 
-    def get(self, key: str, default: Any = None) -> Optional[Any]:
-        """
-        Get value from cache
-
-        Args:
-            key: Cache key
-            default: Default value if not found
-
-        Returns:
-            Cached value or default
-        """
-        if not self.config.enabled:
-            return default
-
-        with self._lock:
-            # Try memory first
-            if self.config.backend in [CacheBackend.MEMORY, CacheBackend.HYBRID]:
-                if key in self._memory:
-                    entry = self._memory[key]
-
-                    if entry.is_expired(self.config.ttl):
-                        del self._memory[key]
-                        self.stats.evictions += 1
-                    else:
-                        entry.touch()
-                        self.stats.hits += 1
-                        return entry.value
-
-            # Try disk
-            if self.config.backend in [CacheBackend.DISK, CacheBackend.HYBRID]:
-                disk_value = self._read_from_disk(key)
-                if disk_value is not None:
-                    self.stats.hits += 1
-
-                    # Promote to memory cache if hybrid
-                    if self.config.backend == CacheBackend.HYBRID:
-                        self._memory[key] = CacheEntry(
-                            key=key,
-                            value=disk_value,
-                            timestamp=time.time(),
-                            size=self._estimate_size(disk_value)
-                        )
-
-                    return disk_value
-
-            self.stats.misses += 1
-            return default
-
-    def set(
-            self,
-            key: str,
-            value: Any,
-            ttl: Optional[int] = None,
-            metadata: Optional[Dict] = None
-    ) -> bool:
-        """
-        Set value in cache
-
-        Args:
-            key: Cache key
-            value: Value to cache
-            ttl: Custom TTL (overrides config)
-            metadata: Additional metadata
-
-        Returns:
-            True if cached successfully
-        """
-        if not self.config.enabled:
-            return False
-
-        ttl = ttl or self.config.ttl
-
-        with self._lock:
-            entry = CacheEntry(
-                key=key,
-                value=value,
-                timestamp=time.time(),
-                size=self._estimate_size(value),
-                metadata=metadata or {}
-            )
-
-            # Memory cache
-            if self.config.backend in [CacheBackend.MEMORY, CacheBackend.HYBRID]:
-                self._memory[key] = entry
-                self._evict_if_needed()
-
-            # Disk cache
-            if self.config.backend in [CacheBackend.DISK, CacheBackend.HYBRID]:
-                self._write_to_disk(key, value, entry)
-
-            return True
-
     def _estimate_size(self, value: Any) -> int:
-        """Estimate size of value in bytes"""
+        """Estimate byte size of cached value."""
         try:
             if isinstance(value, (str, bytes)):
                 return len(value)
-            elif isinstance(value, dict):
-                return len(json.dumps(value))
-            else:
-                return len(pickle.dumps(value))
-        except:
+            return len(json.dumps(value, default=str).encode())
+        except Exception:
             return 0
 
-    def _evict_if_needed(self):
-        """Evict old entries using LRU"""
+    def _log(self, level: str, msg: str, **kwargs: Any) -> None:
+        """
+        Internal logging with sanitization of sensitive data.
+
+        Filters out 'key' and 'api_key' from logs to prevent sensitive data leakage.
+        """
+        if self.logger:
+            sanitized = {k: v for k, v in kwargs.items() if k not in ("key", "api_key")}
+            getattr(self.logger, level)(msg, **sanitized)
+
+    def _evict_if_needed(self) -> None:
+        # Must be called with _memory_lock held
         if len(self._memory) <= self.config.max_memory_size:
             return
 
-        # Sort by timestamp (LRU)
-        sorted_entries = sorted(
-            self._memory.items(),
-            key=lambda x: x[1].timestamp
-        )
+        try:
+            num_to_remove = len(self._memory) - self.config.max_memory_size
+            oldest_keys = list(self._memory.keys())[:num_to_remove]
 
-        # Remove oldest 20%
-        num_to_remove = len(self._memory) - self.config.max_memory_size
-        for key, _ in sorted_entries[:num_to_remove]:
-            del self._memory[key]
-            self.stats.evictions += 1
+            for key in oldest_keys:
+                del self._memory[key]
+                self.stats.increment_evictions()
+                self._log("debug", "Evicted from memory cache", key=key[:20])
+        except Exception as e:
+            self._log("error", "Error during cache eviction", error=str(e))
 
-    def _read_from_disk(self, key: str) -> Optional[Any]:
-        """Read value from disk cache"""
-        if not self.config.cache_dir:
+    def _get_and_validate_entry(self, key: str) -> Optional[CacheEntry]:
+        # Must be called with _memory_lock held
+        entry = self._memory.get(key)
+        if entry is None:
             return None
 
-        # Try to find in subdirectories
-        for subdir in ["text", "images", "audio", "metadata"]:
-            cache_file = self.config.cache_dir / subdir / f"{key}.cache"
+        if entry.is_expired(self.config.ttl):
+            del self._memory[key]
+            self.stats.increment_evictions()
+            self._log("debug", "Expired entry removed", key=key[:20])
+            return None
 
+        return entry
+
+    # === Sync Methods (JSON-based) ===
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Thread-safe get from cache."""
+        if not self.config.enabled:
+            return default
+
+        key = self._sanitize_key(key)
+
+        # Try memory first
+        with self._memory_lock:
+            entry = self._get_and_validate_entry(key)
+            if entry is not None:
+                entry.touch()
+                self.stats.increment_hits()
+                self._log("debug", "Cache hit (memory)", key=key[:20])
+                return entry.value
+
+        # Try disk
+        if self.config.backend in (CacheBackend.DISK, CacheBackend.HYBRID):
+            with self._disk_lock:
+                disk_value = self._read_from_disk_sync(key)
+                if disk_value is not None:
+                    self.stats.increment_hits()
+                    self._log("debug", "Cache hit (disk)", key=key[:20])
+
+                    # Promote to memory
+                    if self.config.backend == CacheBackend.HYBRID:
+                        entry = CacheEntry(
+                            key=key,
+                            value=disk_value,
+                            timestamp=time.monotonic(),
+                            size=self._estimate_size(disk_value)
+                        )
+                        with self._memory_lock:
+                            self._memory[key] = entry
+                            self._memory.move_to_end(key)  # MRU
+                            self._evict_if_needed()
+
+                    return disk_value
+
+        self.stats.increment_misses()
+        self._log("debug", "Cache miss", key=key[:20])
+        return default
+
+    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+        """Thread-safe set to cache."""
+        if not self.config.enabled:
+            return False
+
+        key = self._sanitize_key(key)
+        ttl = ttl or self.config.ttl
+
+        entry = CacheEntry(
+            key=key,
+            value=value,
+            timestamp=time.monotonic(),
+            size=self._estimate_size(value)
+        )
+
+        # Memory
+        if self.config.backend in (CacheBackend.MEMORY, CacheBackend.HYBRID):
+            with self._memory_lock:
+                self._memory[key] = entry
+                self._memory.move_to_end(key)  # MRU
+                self._evict_if_needed()
+
+        # Disk
+        if self.config.backend in (CacheBackend.DISK, CacheBackend.HYBRID):
+            with self._disk_lock:
+                self._write_to_disk_sync(key, value, entry)
+
+        self._log("debug", "Cache set", key=key[:20], size=entry.size)
+        return True
+
+    def clear(self, prefix: Optional[str] = None) -> None:
+        """Clear cache entries."""
+        if prefix is None:
+            # Clear everything
+            with self._memory_lock:
+                self._memory.clear()
+
+            if hasattr(self, "_cache_dir"):
+                with self._disk_lock:
+                    for subdir in ["text", "images"]:
+                        for f in (self._cache_dir / subdir).glob("**/*.cache"):
+                            f.unlink(missing_ok=True)
+
+            self._log("info", "Cache cleared completely")
+        else:
+            # Clear by prefix
+            sanitized_prefix = self._sanitize_key(prefix)
+
+            with self._memory_lock:
+                keys_to_delete = [k for k in self._memory.keys()
+                                  if k.startswith(sanitized_prefix)]
+                for k in keys_to_delete:
+                    del self._memory[k]
+
+            if hasattr(self, "_cache_dir"):
+                with self._disk_lock:
+                    for subdir in ["text", "images"]:
+                        pattern = f"{sanitized_prefix}*.cache"
+                        for cache_file in (self._cache_dir / subdir).glob(f"**/{pattern}"):
+                            cache_file.unlink(missing_ok=True)
+
+            self._log("info", "Cache cleared by prefix", prefix=prefix[:20])
+
+    def get_stats(self) -> CacheStats:
+        """Get thread-safe stats copy."""
+        with self._stats_lock:
+            return CacheStats(
+                hits=self.stats.hits,
+                misses=self.stats.misses,
+                evictions=self.stats.evictions
+            )
+
+    # === Async Methods ===
+
+    async def aget(self, key: str, default: Any = None) -> Any:
+        """Async get from cache."""
+        if not self.config.enabled:
+            return default
+
+        key = self._sanitize_key(key)
+        async_lock = self._get_async_lock()
+
+        # Memory path
+        if self.config.backend in (CacheBackend.MEMORY, CacheBackend.HYBRID):
+            async with async_lock:
+                with self._memory_lock:
+                    entry = self._get_and_validate_entry(key)
+                    if entry is not None:
+                        entry.touch()
+                        self.stats.increment_hits()
+                        self._log("debug", "Cache hit (memory)", key=key[:20])
+                        return entry.value
+
+        # Disk path
+        if self.config.backend in (CacheBackend.DISK, CacheBackend.HYBRID):
+            disk_value = await self._read_from_disk_async(key)
+            if disk_value is not None:
+                self.stats.increment_hits()
+                self._log("debug", "Cache hit (disk)", key=key[:20])
+
+                # Promote to memory
+                if self.config.backend == CacheBackend.HYBRID:
+                    entry = CacheEntry(
+                        key=key,
+                        value=disk_value,
+                        timestamp=time.monotonic(),
+                        size=self._estimate_size(disk_value)
+                    )
+                    async with async_lock:
+                        with self._memory_lock:
+                            self._memory[key] = entry
+                            self._memory.move_to_end(key)
+                            self._evict_if_needed()
+
+                return disk_value
+
+        self.stats.increment_misses()
+        self._log("debug", "Cache miss", key=key[:20])
+        return default
+
+    async def aset(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+        """Async set to cache."""
+        if not self.config.enabled:
+            return False
+
+        key = self._sanitize_key(key)
+        ttl = ttl or self.config.ttl
+        async_lock = self._get_async_lock()
+
+        entry = CacheEntry(
+            key=key,
+            value=value,
+            timestamp=time.monotonic(),
+            size=self._estimate_size(value)
+        )
+
+        # Memory path
+        if self.config.backend in (CacheBackend.MEMORY, CacheBackend.HYBRID):
+            async with async_lock:
+                with self._memory_lock:
+                    self._memory[key] = entry
+                    self._memory.move_to_end(key)
+                    self._evict_if_needed()
+
+        # Disk path
+        if self.config.backend in (CacheBackend.DISK, CacheBackend.HYBRID):
+            await self._write_to_disk_async(key, value, entry)
+
+        self._log("debug", "Cache set", key=key[:20], size=entry.size)
+        return True
+
+    async def aclear(self, prefix: Optional[str] = None) -> None:
+        """Async clear cache."""
+        async_lock = self._get_async_lock()
+
+        if prefix is None:
+            async with async_lock:
+                with self._memory_lock:
+                    self._memory.clear()
+
+            if hasattr(self, "_cache_dir"):
+                with self._disk_lock:
+                    for subdir in ["text", "images"]:
+                        for f in (self._cache_dir / subdir).glob("**/*.cache"):
+                            f.unlink(missing_ok=True)
+
+            self._log("info", "Cache cleared completely")
+        else:
+            sanitized_prefix = self._sanitize_key(prefix)
+
+            async with async_lock:
+                with self._memory_lock:
+                    keys_to_delete = [k for k in self._memory.keys()
+                                      if k.startswith(sanitized_prefix)]
+                    for k in keys_to_delete:
+                        del self._memory[k]
+
+            if hasattr(self, "_cache_dir"):
+                with self._disk_lock:
+                    for subdir in ["text", "images"]:
+                        pattern = f"{sanitized_prefix}*.cache"
+                        for cache_file in (self._cache_dir / subdir).glob(f"**/{pattern}"):
+                            cache_file.unlink(missing_ok=True)
+
+            self._log("info", "Cache cleared by prefix", prefix=prefix[:20])
+
+    # === Disk Operations (JSON-based, secure) ===
+
+    def _read_from_disk_sync(self, key: str) -> Any:
+        if not hasattr(self, "_cache_dir"):
+            return None
+
+        for subdir in ["text", "images"]:
+            cache_file = self._cache_dir / subdir / f"{key}.cache"
             if cache_file.exists():
                 try:
-                    with open(cache_file, 'rb') as f:
-                        data = pickle.load(f)
+                    with open(cache_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
 
-                        # Check expiration
-                        if time.time() - data['timestamp'] > self.config.ttl:
-                            cache_file.unlink()
-                            return None
+                    # Check TTL
+                    if time.monotonic() - data["timestamp"] > self.config.ttl:
+                        cache_file.unlink()
+                        return None
 
-                        return data['value']
-                except Exception:
-                    return None
+                    return data["value"]
+                except (json.JSONDecodeError, KeyError, UnicodeDecodeError) as e:
+                    self._log("warning", f"Failed to read cache file: {e}", key=key[:20])
+                    cache_file.unlink(missing_ok=True)
 
         return None
 
-    def _write_to_disk(self, key: str, value: Any, entry: CacheEntry):
-        """Write value to disk cache"""
-        if not self.config.cache_dir:
+    def _write_to_disk_sync(self, key: str, value: Any, entry: CacheEntry) -> None:
+        if not hasattr(self, "_cache_dir"):
             return
 
-        # Determine subdirectory based on key prefix
-        if key.startswith("text"):
-            subdir = "text"
-        elif key.startswith("image"):
-            subdir = "images"
-        elif key.startswith("audio"):
-            subdir = "audio"
-        else:
-            subdir = "metadata"
+        # Only cache JSON-serializable types (security)
+        if not self._is_json_serializable(value):
+            self._log("warning", "Cannot cache non-JSON-serializable value to disk",
+                     type=type(value).__name__)
+            return
 
-        cache_file = self.config.cache_dir / subdir / f"{key}.cache"
+        subdir = "text"  # Default subdir
+        cache_file = self._cache_dir / subdir / f"{key}.cache"
 
         try:
-            data = {
-                'value': value,
-                'timestamp': entry.timestamp,
-                'metadata': entry.metadata
-            }
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            data = {"value": value, "timestamp": entry.timestamp}
 
-            with open(cache_file, 'wb') as f:
-                pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f)
         except Exception as e:
-            # Silently fail disk writes
-            pass
+            self._log("error", f"Failed to write cache file: {e}", key=key[:20])
+            cache_file.unlink(missing_ok=True)
 
-    def clear(self, prefix: Optional[str] = None):
-        """
-        Clear cache
+    def _is_json_serializable(self, value: Any) -> bool:
+        if isinstance(value, (str, int, float, bool, type(None))):
+            return True
 
-        Args:
-            prefix: Clear only keys with this prefix (None = clear all)
-        """
-        with self._lock:
-            if prefix is None:
-                self._memory.clear()
+        if isinstance(value, (list, tuple)):
+            return all(self._is_json_serializable(item) for item in value)
 
-                # Clear disk
-                if self.config.cache_dir:
-                    for subdir in ["text", "images", "audio", "metadata"]:
-                        for cache_file in (self.config.cache_dir / subdir).glob("*.cache"):
-                            cache_file.unlink()
-            else:
-                # Clear specific prefix
-                keys_to_delete = [k for k in self._memory if k.startswith(prefix)]
-                for key in keys_to_delete:
-                    del self._memory[key]
+        if isinstance(value, dict):
+            return all(
+                isinstance(k, str) and self._is_json_serializable(v)
+                for k, v in value.items()
+            )
 
-                # Clear from disk
-                if self.config.cache_dir:
-                    for subdir in ["text", "images", "audio", "metadata"]:
-                        for cache_file in (self.config.cache_dir / subdir).glob(f"{prefix}*.cache"):
-                            cache_file.unlink()
+        # Bytes can be base64 encoded, but we'll skip for now
+        if isinstance(value, bytes):
+            return False
 
-    def cached(
-            self,
-            ttl: Optional[int] = None,
-            key_prefix: Optional[str] = None
-    ) -> Callable:
-        """
-        Decorator for caching function results
+        return False
 
-        Args:
-            ttl: Custom TTL for this function
-            key_prefix: Custom key prefix
+    async def _read_from_disk_async(self, key: str) -> Any:
+        """Read from disk asynchronously."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._read_from_disk_sync, key)
 
-        Example:
-            >>> cache = CacheManager()
-            >>> @cache.cached(ttl=1800)
-            ... def generate_text(prompt):
-            ...     return client.text.generate(prompt)
-        """
+    async def _write_to_disk_async(self, key: str, value: Any, entry: CacheEntry) -> None:
+        """Write to disk asynchronously."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._write_to_disk_sync, key, value, entry)
+
+    # === Cleanup Method ===
+
+    async def aclose(self) -> None:
+        # Stop cleanup task
+        if self._cleanup_task and not self._cleanup_task.done():
+            self._cleanup_running = False
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+
+        # Clear memory
+        with self._memory_lock:
+            self._memory.clear()
+
+        # Clear async locks
+        with self._locks_lock:
+            self._async_locks.clear()
+
+        if hasattr(self, "_cache_dir"):
+            self._log("info", "Cache resources released")
+
+    def _generate_key(self, prefix: str, *args, **kwargs) -> str:
+        """Generate cache key from function arguments."""
+        # Prepare key data for hashing
+        key_data = {"args": args, "kwargs": sorted(kwargs.items())}
+
+        if self.config.sanitize_secrets:
+            # Sanitize sensitive information from kwargs
+            sanitized_kwargs = {}
+            sensitive_keys = {'api_key', 'api_secret', 'token', 'auth', 'key', 'secret'}
+
+            for k, v in key_data["kwargs"]:
+                if isinstance(k, str) and k.lower() in sensitive_keys:
+                    # Hash the sensitive value to avoid storing it in plain text
+                    sanitized_kwargs[k] = f"HASHED_{hashlib.sha256(str(v).encode()).hexdigest()[:8]}"
+                else:
+                    sanitized_kwargs[k] = v
+
+            key_data["kwargs"] = list(sanitized_kwargs.items())
+
+        try:
+            key_str = json.dumps(key_data, sort_keys=True, default=str)
+        except (TypeError, ValueError):
+            key_str = f"{prefix}:{str(args)}:{str(kwargs)}"
+
+        return hashlib.sha256(key_str.encode()).hexdigest()[:16]
+
+    # === Decorator Support ===
+
+    def cached(self, prefix: str, ttl: Optional[int] = None) -> Callable:
+        """Decorator for caching function results."""
 
         def decorator(func: Callable) -> Callable:
-            prefix = key_prefix or f"func_{func.__name__}"
+            import inspect
 
-            @wraps(func)
-            def sync_wrapper(*args, **kwargs):
-                if not self.config.enabled:
-                    return func(*args, **kwargs)
+            if inspect.iscoroutinefunction(func):
+                @wraps(func)
+                async def async_wrapper(*args, **kwargs):
+                    if not self.config.enabled:
+                        return await func(*args, **kwargs)
 
-                # Generate cache key
-                cache_key = self._generate_key(prefix, *args, **kwargs)
+                    cache_key = f"{prefix}:{self._generate_key(prefix, *args, **kwargs)}"
+                    cached = await self.aget(cache_key)
 
-                # Try to get from cache
-                cached_value = self.get(cache_key)
-                if cached_value is not None:
-                    return cached_value
+                    if cached is not None:
+                        return cached
 
-                # Execute function
-                result = func(*args, **kwargs)
+                    result = await func(*args, **kwargs)
+                    await self.aset(cache_key, result, ttl=ttl)
+                    return result
 
-                # Cache result
-                self.set(cache_key, result, ttl=ttl)
-
-                return result
-
-            @wraps(func)
-            async def async_wrapper(*args, **kwargs):
-                if not self.config.enabled:
-                    return await func(*args, **kwargs)
-
-                cache_key = self._generate_key(prefix, *args, **kwargs)
-
-                async with self._async_lock:
-                    cached_value = self.get(cache_key)
-                    if cached_value is not None:
-                        return cached_value
-
-                result = await func(*args, **kwargs)
-
-                async with self._async_lock:
-                    self.set(cache_key, result, ttl=ttl)
-
-                return result
-
-            # Return appropriate wrapper
-            if asyncio.iscoroutinefunction(func):
                 return async_wrapper
-            return sync_wrapper
+            else:
+                @wraps(func)
+                def sync_wrapper(*args, **kwargs):
+                    if not self.config.enabled:
+                        return func(*args, **kwargs)
+
+                    cache_key = f"{prefix}:{self._generate_key(prefix, *args, **kwargs)}"
+                    cached = self.get(cache_key)
+
+                    if cached is not None:
+                        return cached
+
+                    result = func(*args, **kwargs)
+                    self.set(cache_key, result, ttl=ttl)
+                    return result
+
+                return sync_wrapper
 
         return decorator
 
-    def get_stats(self) -> CacheStats:
-        """Get cache statistics"""
-        with self._lock:
-            self.stats.memory_usage = len(self._memory)
 
-            if self.config.cache_dir:
-                disk_count = 0
-                for subdir in ["text", "images", "audio", "metadata"]:
-                    disk_count += len(list((self.config.cache_dir / subdir).glob("*.cache")))
-                self.stats.disk_usage = disk_count
+# === Convenience Functions ===
 
-            return self.stats
+def get_default_cache(config: ConfigProtocol, logger: LoggerProtocol) -> CacheManager:
+    """
+    Factory for default cache instance with configuration validation.
 
-    def __repr__(self) -> str:
-        stats = self.get_stats()
-        return (
-            f"CacheManager(backend={self.config.backend}, "
-            f"memory={stats.memory_usage}/{self.config.max_memory_size}, "
-            f"disk={stats.disk_usage}, {stats})"
+    Args:
+        config: Configuration object with cache settings
+        logger: Logger instance for cache operations
+
+    Returns:
+        CacheManager: Configured cache instance
+
+    Raises:
+        ValueError: If cache configuration is invalid
+        Exception: If cache initialization fails
+    """
+    try:
+        cache_cfg = CacheConfig(
+            enabled=getattr(config, "cache_enabled", True),
+            backend=CacheBackend(getattr(config, "cache_backend", "hybrid")),
+            ttl=int(getattr(config, "cache_ttl", 3600)),
+            max_memory_size=int(getattr(config, "cache_max_memory", 100)),
+            max_disk_size=int(getattr(config, "cache_max_disk", 1000)),
+            cache_text=getattr(config, "cache_text", True),
+            cache_images=getattr(config, "cache_images", False),
+            sanitize_secrets=getattr(config, "cache_sanitize_secrets", True),
         )
-
-
-# Global cache instance
-_global_cache: Optional[CacheManager] = None
-
-
-def get_cache() -> CacheManager:
-    """Get or create global cache instance"""
-    global _global_cache
-    if _global_cache is None:
-        _global_cache = CacheManager()
-    return _global_cache
-
-
-def configure_cache(config: CacheConfig):
-    """Configure global cache"""
-    global _global_cache
-    _global_cache = CacheManager(config)
-
-
-# Convenience decorators
-def cached(ttl: int = 3600):
-    """Quick decorator using global cache"""
-    return get_cache().cached(ttl=ttl)
+        return CacheManager(cache_cfg, logger, config)
+    except (ValueError, TypeError) as e:
+        logger.error("Invalid cache configuration", error=str(e), exc_info=True)
+        raise ValueError(f"Invalid cache configuration: {e}") from e

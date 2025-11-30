@@ -1,158 +1,147 @@
+# blossom_ai/__init__.py
 """
-🌸 Blossom AI - Beautiful Python SDK for Pollinations.AI
-Generate images, text, and multimodal content with AI
+Blossom AI — Unified AI Generation Library
 """
 
-from blossom_ai.generators import (
-    Blossom,
-    create_client,
-    ImageGenerator,
-    AsyncImageGenerator,
-    TextGenerator,
-    AsyncTextGenerator,
-    MessageBuilder,
-    AudioParamsV2,
-    ImageParamsV2,
-    ChatParamsV2,
-    AudioGenerator,
-    AsyncAudioGenerator,
-)
-try:
-    from blossom_ai.generators import ParameterValidator
-except ImportError:
-    ParameterValidator = None
+# Core components
+from blossom_ai._version import __version__
+from blossom_ai.client import BlossomClient
+from blossom_ai.core.config import SessionConfig
 
-from blossom_ai.core import (
+# Error types for exception handling
+from blossom_ai.core.errors import (
     BlossomError,
-    ErrorType,
-    ErrorContext,
-    NetworkError,
-    APIError,
+    RateLimitError,
     AuthenticationError,
     ValidationError,
-    RateLimitError,
+    ConfigurationError,
     StreamError,
-    FileTooLargeError,
+    EmptyResponseError,
+    Blossom520Error,
+    PaymentError,
     TimeoutError,
-    Blossom520Error,  # NEW in v0.5.4
-    ImageModel,
-    TextModel,
-    DEFAULT_IMAGE_MODELS,
-    DEFAULT_TEXT_MODELS,
-    SessionConfig,
-    DEFAULT_CONFIG,
+    NetworkError,
+    APIError,
 )
 
-from blossom_ai.utils import (
-    # File handling
-    FileContentReader,
-    FileContent,
-    read_file_for_prompt,
-    get_file_info,
-    DEFAULT_MAX_FILE_LENGTH,
-    DEFAULT_PROMPT_SPACE,
-    API_MAX_TOTAL_LENGTH,
-    SUPPORTED_TEXT_EXTENSIONS,
-    # Reasoning
-    ReasoningLevel,
-    ReasoningConfig,
+# Caching system
+from blossom_ai.utils.cache import (
+    CacheManager,
+    CacheConfig,
+    CacheBackend,
+    CacheStats,
+)
+
+# Logging infrastructure
+from blossom_ai.utils.logging import (
+    StructuredLogger,
+    set_correlation_id,
+    get_correlation_id,
+    get_cached_logger,
+)
+
+# Security and validation utilities
+from blossom_ai.utils.security import (
+    validate_file_path,
+    validate_image_file,
+    sanitize_filename,
+    ensure_safe_directory,
+    generate_safe_filename,
+)
+
+# Reasoning system for prompt enhancement
+from blossom_ai.utils.reasoning import (
     ReasoningEnhancer,
     ReasoningChain,
+    ReasoningLevel,
+    ReasoningConfig,
     create_reasoning_enhancer,
-    get_native_reasoning_models,
-    ReasoningMode,
-    # Caching
-    CacheBackend,
-    CacheConfig,
-    CacheManager,
-    get_cache,
-    configure_cache,
-    cached,
-    # CLI
-    BlossomCLI,
+    quick_enhance,
 )
 
-__version__ = "0.5.4"
-__author__ = "Blossom AI Team"
-__license__ = "MIT"
+# Advanced reasoning (optional dependencies)
+try:
+    from blossom_ai.utils.reasoning import (
+        SelfCorrectingEnhancer,
+        CorrectionConfig,
+        ConsensusReasoning,
+        ConsensusStrategy,
+        ConsensusConfig,
+        create_self_correcting_enhancer,
+        create_consensus_reasoning,
+    )
+    _ADVANCED_REASONING_AVAILABLE = True
+except ImportError:
+    _ADVANCED_REASONING_AVAILABLE = False
+
+# Sugar Layer - ИМПОРТ В КОНЦЕ ФАЙЛА
+try:
+    from blossom_ai.utils.sugar_layer.simple import ai
+except ImportError:
+    ai = None  # Для избежания ошибки импорта
 
 __all__ = [
-    # Main client
-    "Blossom",
-    "create_client",
-
-    # Generators (V2 API with Vision & Audio)
-    "ImageGenerator",
-    "AsyncImageGenerator",
-    "TextGenerator",
-    "AsyncTextGenerator",
-    # Audio generators
-    "AudioGenerator",
-    "AsyncAudioGenerator",
-
-    # Vision & Audio Helpers
-    "MessageBuilder",
-    "AudioParamsV2",
-    "ImageParamsV2",
-    "ChatParamsV2",
-    "ParameterValidator",
+    # Core
+    "BlossomClient",
+    "SessionConfig",
+    "__version__",
 
     # Errors
     "BlossomError",
-    "ErrorType",
-    "ErrorContext",
-    "NetworkError",
-    "APIError",
-    "AuthenticationError",
     "ValidationError",
+    "ConfigurationError",
+    "AuthenticationError",
     "RateLimitError",
     "StreamError",
-    "FileTooLargeError",
-    "TimeoutError",
+    "EmptyResponseError",
     "Blossom520Error",
+    "PaymentError",
+    "TimeoutError",
+    "NetworkError",
+    "APIError",
 
-    # Models
-    "ImageModel",
-    "TextModel",
-    "DEFAULT_IMAGE_MODELS",
-    "DEFAULT_TEXT_MODELS",
-    # Immutable config
-    "SessionConfig",
-    "DEFAULT_CONFIG",
+    # Cache
+    "CacheManager",
+    "CacheConfig",
+    "CacheBackend",
+    "CacheStats",
 
-    # Utils - File handling
-    "FileContentReader",
-    "FileContent",
-    "read_file_for_prompt",
-    "get_file_info",
-    "DEFAULT_MAX_FILE_LENGTH",
-    "DEFAULT_PROMPT_SPACE",
-    "API_MAX_TOTAL_LENGTH",
-    "SUPPORTED_TEXT_EXTENSIONS",
+    # Logging
+    "StructuredLogger",
+    "set_correlation_id",
+    "get_correlation_id",
+    "get_cached_logger",
 
-    # Utils - Reasoning
-    "ReasoningLevel",
-    "ReasoningConfig",
+    # Security
+    "validate_file_path",
+    "validate_image_file",
+    "sanitize_filename",
+    "ensure_safe_directory",
+    "generate_safe_filename",
+
+    # Reasoning (base)
     "ReasoningEnhancer",
     "ReasoningChain",
+    "ReasoningLevel",
+    "ReasoningConfig",
     "create_reasoning_enhancer",
-    "get_native_reasoning_models",
-    "ReasoningMode",
+    "quick_enhance",
 
-    # Utils - Caching
-    "CacheBackend",
-    "CacheConfig",
-    "CacheManager",
-    "get_cache",
-    "configure_cache",
-    "cached",
-
-    # Utils - CLI
-    "BlossomCLI",
-
-    # Version
-    "__version__",
+    # Sugar Layer API
+    "ai",
 ]
 
-# Backward-compatibility alias
-BlossomClient = Blossom
+# Conditionally add advanced reasoning to public API
+if _ADVANCED_REASONING_AVAILABLE:
+    __all__.extend([
+        "SelfCorrectingEnhancer",
+        "CorrectionConfig",
+        "ConsensusReasoning",
+        "ConsensusStrategy",
+        "ConsensusConfig",
+        "create_self_correcting_enhancer",
+        "create_consensus_reasoning",
+    ])
+
+# Version string for compatibility
+__version__: str = __version__

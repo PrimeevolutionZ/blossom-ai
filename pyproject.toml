@@ -13,7 +13,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "eclips-blossom-ai"
-version = "0.5.4"
+version = "0.7.0"
 description = "🌸 Beautiful and simple AI generation library for images, text, and audio"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -87,10 +87,16 @@ classifiers = [
 # ============================================================================
 
 dependencies = [
-    "requests>=2.28.0,<3.0.0",
-    "tenacity>=8.2.0,<9.0.0",
-    "aiohttp>=3.8.0,<4.0.0",
+    "httpx>=0.25.0,<1.0.0",
+    "python-dotenv>=1.0.0",
+    "tenacity>=9.0.0,<9.1.3",
+    "pydantic>=2.5.0,<3.0.0",
+    "typing-extensions>=4.5.0; python_version<'3.11'"
 ]
+
+# ============================================================================
+# OPTIONAL DEPENDENCIES
+# ============================================================================
 
 [project.optional-dependencies]
 # Development dependencies
@@ -99,11 +105,14 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
+    "pytest-timeout>=2.1.0",
     "black>=23.7.0",
     "ruff>=0.0.287",
     "mypy>=1.5.0",
     "types-requests>=2.31.0",
     "pre-commit>=3.3.0",
+    "bandit>=1.7.0",
+    "safety>=2.3.0",
 ]
 
 # Documentation dependencies
@@ -111,6 +120,20 @@ docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.2.0",
     "mkdocstrings[python]>=0.22.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-literate-nav>=0.6.0",
+    "mkdocs-section-index>=0.3.0",
+]
+
+# Structured logging support
+structlog = [
+    "structlog>=23.1.0",
+]
+
+# File type detection (improves security validation)
+magic = [
+    "python-magic>=0.4.27; sys_platform != 'win32'",
+    "python-magic-bin>=0.4.14; sys_platform == 'win32'",
 ]
 
 # Testing dependencies (subset of dev)
@@ -119,13 +142,13 @@ test = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
+    "pytest-timeout>=2.1.0",
 ]
 
-# All dependencies
+# All optional dependencies
 all = [
-    "blossom-ai[dev,docs]",
+    "eclips-blossom-ai[dev,docs,structlog,magic]",
 ]
-
 
 # ============================================================================
 # PROJECT URLS
@@ -159,6 +182,7 @@ include = [
     "/README.md",
     "/LICENSE",
     "/pyproject.toml",
+    "/blossom_ai/py.typed",
 ]
 exclude = [
     "/.github",
@@ -172,6 +196,13 @@ exclude = [
     "*.egg-info",
     "/dist",
     "/build",
+    "/docs/site",
+    "/htmlcov",
+    "/.coverage",
+    "/coverage.xml",
+    "/.mypy_cache",
+    "/.ruff_cache",
+    "/.pre-commit-config.yaml",
 ]
 
 
@@ -184,24 +215,28 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+asyncio_mode = "auto"
+timeout = 10
+timeout_method = "thread"
 addopts = [
     "-v",
     "--strict-markers",
-    "--strict-config",
     "--tb=short",
     "--disable-warnings",
+    "--maxfail=5",
+    "--cov=blossom_ai",
+    "--cov-report=term-missing",
 ]
 markers = [
-    "api: API integration tests requiring internet connection",
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (may require API)",
     "slow: Slow running tests",
-    "unit: Unit tests (fast)",
+    "asyncio: Async tests using pytest-asyncio",
+    "timeout: Test timeout in seconds",
+    "api: API integration tests requiring internet connection",
+    "e2e: End-to-end tests (real API calls, may cost quota)",
+    "benchmark: Performance benchmark tests",
 ]
-filterwarnings = [
-    "error",
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning",
-]
-asyncio_mode = "auto"
 
 
 # ============================================================================
@@ -216,6 +251,10 @@ omit = [
     "*/__pycache__/*",
     "*/.venv/*",
     "*/venv/*",
+    "**/interfaces.py",
+    "**/__init__.py",
+    "**/docs/*",
+    "**/examples/*",
 ]
 
 [tool.coverage.report]
@@ -231,6 +270,7 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@abstractmethod",
     "@abc.abstractmethod",
+    "def __del__",
 ]
 
 [tool.coverage.html]
@@ -243,7 +283,7 @@ directory = "htmlcov"
 
 [tool.black]
 line-length = 100
-target-version = ["py38", "py39", "py310", "py311", "py312"]
+target-version = ["py310", "py311", "py312", "py313"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -253,6 +293,9 @@ extend-exclude = '''
   | __pycache__
   | build
   | dist
+  | docs\/site
+  | \.mypy_cache
+  | \.ruff_cache
 )/
 '''
 
@@ -263,7 +306,7 @@ extend-exclude = '''
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 select = [
     "E",    # pycodestyle errors
     "W",    # pycodestyle warnings
@@ -275,12 +318,20 @@ select = [
     "N",    # pep8-naming
     "SIM",  # flake8-simplify
     "RUF",  # Ruff-specific rules
+    "S",    # flake8-bandit (security)
+    "TCH",  # flake8-type-checking
 ]
 ignore = [
     "E501",   # Line too long (handled by black)
     "B008",   # Do not perform function calls in argument defaults
     "C901",   # Too complex
     "W191",   # Indentation contains tabs
+    "S101",   # Use of assert (allowed in tests)
+    "S102",   # Use of exec (not used)
+    "S103",   # Setting os.chmod (not used)
+    "S104",   # Hardcoded bind address (not used)
+    "S105",   # Hardcoded password (allowed for test configs)
+    "S106",   # Hardcoded password in function (allowed for test configs)
 ]
 exclude = [
     ".git",
@@ -290,11 +341,15 @@ exclude = [
     "build",
     "dist",
     "*.egg-info",
+    "docs/site",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
 ]
 
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401", "F403"]
-"tests/*" = ["S101", "PLR2004"]
+"tests/*" = ["S101", "PLR2004", "TCH001", "TCH002", "TCH003"]
 
 [tool.ruff.isort]
 known-first-party = ["blossom_ai"]
@@ -308,7 +363,7 @@ no-lines-before = ["future", "standard-library"]
 # ============================================================================
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true
@@ -325,6 +380,8 @@ disallow_incomplete_defs = true
 disallow_untyped_decorators = false
 no_implicit_optional = true
 warn_incomplete_stub = true
+namespace_packages = true
+explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
@@ -332,26 +389,24 @@ disallow_untyped_defs = false
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
+module = "magic.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "structlog.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "aiohttp.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "requests.*"
 ignore_missing_imports = true
 
-
-# ============================================================================
-# ISORT CONFIGURATION (Import Sorting)
-# ============================================================================
-
-[tool.isort]
-profile = "black"
-line_length = 100
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-split_on_trailing_comma = true
-skip_gitignore = true
-known_first_party = ["blossom_ai"]
-sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+[[tool.mypy.overrides]]
+module = "httpx.*"
+ignore_missing_imports = true
 
 
 # ============================================================================
@@ -359,8 +414,8 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 # ============================================================================
 
 [tool.bandit]
-exclude_dirs = ["tests", ".venv", "venv"]
-skips = ["B101", "B601"]
+exclude_dirs = ["tests", ".venv", "venv", "docs", "examples"]
+skips = ["B101", "B601", "B603", "B607"]  # Skip assert and pickle warnings
 
 
 # ============================================================================
@@ -376,13 +431,14 @@ disable = [
     "R0903",  # Too few public methods
     "R0913",  # Too many arguments
     "W0212",  # Access to protected member
+    "W1203",  # Use of lazy % formatting in logging
 ]
 
 [tool.pylint.format]
 max-line-length = 100
 
 [tool.pylint.basic]
-good-names = ["i", "j", "k", "e", "ex", "ai", "id", "ok"]
+good-names = ["i", "j", "k", "e", "ex", "ai", "id", "ok", "rv", "T"]
 
 
 # ============================================================================
@@ -396,7 +452,13 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["blossom_ai*"]
-exclude = ["tests*", "docs*", "examples*"]
+exclude = [
+    "tests*",
+    "docs*",
+    "examples*",
+    "build*",
+    "dist*",
+]
 
 
 # ============================================================================
@@ -404,7 +466,7 @@ exclude = ["tests*", "docs*", "examples*"]
 # ============================================================================
 
 [project.entry-points."blossom_ai.plugins"]
-# Future plugin system support
+# Будущая поддержка плагинов/ 100% будэт
 
 # ============================================================================
 # END OF CONFIGURATION

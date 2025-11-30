@@ -1,60 +1,25 @@
 """
-Blossom AI - Generators Module (v0.5.4)
-V2 API Only (enter.pollinations.ai)
+Blossom AI Generators.
+Public API for text, image, and audio generation.
 """
 
-# Main generators (V2 API)
-from .generators import (
+from blossom_ai.generators.image_generator import (
     ImageGenerator,
     AsyncImageGenerator,
+)
+from blossom_ai.generators.text_generator import (
     TextGenerator,
     AsyncTextGenerator,
-    AudioGenerator,
-    AsyncAudioGenerator,
-    ImageGen,
-    TextGen,
-    AudioGen,
 )
 
-# Main client
-from .blossom import Blossom, create_client
-
-# Helper modules (for advanced users)
-from .parameter_builder import (
-    ImageParamsV2,
-    ChatParamsV2,
-    AudioParamsV2,
-    ParameterValidator,
-    MessageBuilder
-)
-HELPERS_AVAILABLE = True
-
+# Public API: only the generators that developers need
 __all__ = [
-    # Main generators
+    # Image generators
     "ImageGenerator",
     "AsyncImageGenerator",
+
+    # Text generators
     "TextGenerator",
     "AsyncTextGenerator",
-    "AudioGenerator",
-    "AsyncAudioGenerator",
-    "ImageGen",
-    "TextGen",
-    "AudioGen",
 
-    # Main client
-    "Blossom",
-    "create_client",
 ]
-
-# Conditionally add helpers to __all__
-if HELPERS_AVAILABLE:
-    __all__.extend([
-        "SSEParser",
-        "SyncStreamingMixin",
-        "AsyncStreamingMixin",
-        "ImageParamsV2",
-        "ChatParamsV2",
-        "AudioParamsV2",
-        "ParameterValidator",
-        "MessageBuilder",
-    ])

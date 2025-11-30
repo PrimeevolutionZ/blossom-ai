@@ -1,76 +1,56 @@
+# blossom_ai/utils/__init__.py
 """
-Blossom AI - Utilities Module
-Enhanced with Reasoning capabilities and CLI
+Blossom AI Utilities
 """
 
-from .file_uploader import (
-    FileContentReader,
-    FileContent,
-    read_file_for_prompt,
-    get_file_info,
-    DEFAULT_MAX_FILE_LENGTH,
-    DEFAULT_PROMPT_SPACE,
-    API_MAX_TOTAL_LENGTH,
-    SUPPORTED_TEXT_EXTENSIONS,
+from blossom_ai.utils.logging import (
+    StructuredLogger,
+    set_correlation_id,
+    get_correlation_id
+)
+from blossom_ai.utils.http_client import HttpxClient
+from blossom_ai.utils.rate_limiter import TokenBucketRateLimiter
+from blossom_ai.utils.security import (
+    validate_file_path,
+    validate_image_file,
+    sanitize_filename,
+    ensure_safe_directory
 )
 
-from .reasoning import (
-    ReasoningLevel,
-    ReasoningMode,
-    ReasoningConfig,
+# Reasoning modules
+from blossom_ai.utils.reasoning import (
     ReasoningEnhancer,
     ReasoningChain,
+    ReasoningLevel,
+    ReasoningConfig,
     create_reasoning_enhancer,
-    REASONING_PROMPTS,
-    get_native_reasoning_models,
+    quick_enhance,
 )
 
-from .cache import (
-    CacheBackend,
-    CacheConfig,
-    CacheEntry,
-    CacheStats,
-    CacheManager,
-    get_cache,
-    configure_cache,
-    cached,
-)
-
-from .cli import (
-    BlossomCLI,
-)
+# Sugar layer - ДОБАВЛЕНО
+from blossom_ai.utils.sugar_layer.simple import ai
 
 __all__ = [
-    # File handling
-    "FileContentReader",
-    "FileContent",
-    "read_file_for_prompt",
-    "get_file_info",
-    "DEFAULT_MAX_FILE_LENGTH",
-    "DEFAULT_PROMPT_SPACE",
-    "API_MAX_TOTAL_LENGTH",
-    "SUPPORTED_TEXT_EXTENSIONS",
-
-    # Reasoning capabilities
-    "ReasoningLevel",
-    "ReasoningMode",
-    "ReasoningConfig",
+    # Logging utilities
+    "StructuredLogger",
+    "set_correlation_id",
+    "get_correlation_id",
+    # HTTP client
+    "HttpxClient",
+    # Rate limiting
+    "TokenBucketRateLimiter",
+    # Security utilities
+    "validate_file_path",
+    "validate_image_file",
+    "sanitize_filename",
+    "ensure_safe_directory",
+    # Base reasoning
     "ReasoningEnhancer",
     "ReasoningChain",
+    "ReasoningLevel",
+    "ReasoningConfig",
     "create_reasoning_enhancer",
-    "REASONING_PROMPTS",
-    "get_native_reasoning_models",
-
-    # Caching
-    "CacheBackend",
-    "CacheConfig",
-    "CacheEntry",
-    "CacheStats",
-    "CacheManager",
-    "get_cache",
-    "configure_cache",
-    "cached",
-
-    # CLI
-    "BlossomCLI",
+    "quick_enhance",
+    # Sugar layer - ДОБАВЛЕНО
+    "ai",
 ]

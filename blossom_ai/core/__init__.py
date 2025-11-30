@@ -1,151 +1,35 @@
 """
-Blossom AI - Core Module (v0.5.0)  →  v0.6.0-refactor
-V2 API Only
+Blossom AI Core.
+Internal core modules (not part of public API).
 """
 
-# ==============================================================================
-# ERROR HANDLING
-# ==============================================================================
-
-from .errors import (
-    # Base error
+from blossom_ai.core.config import SessionConfig
+from blossom_ai.core.interfaces import (
+    ConfigProtocol,
+    HttpClientProtocol,
+    LoggerProtocol,
+    RateLimiterInterface,
+    ImageGeneratorInterface,
+    TextGeneratorInterface,
+    CacheBackendProtocol,
+)
+from blossom_ai.core.errors import (
     BlossomError,
-    ErrorType,
-    ErrorContext,
-
-    # Specific errors
-    NetworkError,
-    APIError,
     AuthenticationError,
-    ValidationError,
     RateLimitError,
-    StreamError,
-    FileTooLargeError,
-    TimeoutError,
-    Blossom520Error,
-
-    # Error handlers
-    handle_request_error,
-    handle_validation_error,
-
-    # Logging utilities
-    print_info,
-    print_warning,
-    print_error,
-    print_debug,
-    print_success,
+    ValidationError,
+    ConfigurationError,
 )
 
-
-# ==============================================================================
-# MODELS
-# ==============================================================================
-
-from .models import (
-    # Base classes
-    DynamicModel,
-    ModelInfo,
-
-    # Model enums
-    ImageModel,
-    TextModel,
-
-    # Default model lists
-    DEFAULT_IMAGE_MODELS,
-    DEFAULT_TEXT_MODELS,
-)
-
-
-# ==============================================================================
-# CONFIGURATION
-# ==============================================================================
-
-from .config import (
-    # Configuration classes
-    Config,
-    SessionConfig,
-    DEFAULT_CONFIG,
-
-    # Singletons
-    ENDPOINTS,
-    LIMITS,
-    DEFAULTS,
-
-    # Global config management
-    get_config,
-    set_config,
-    reset_config,
-)
-
-
-# ==============================================================================
-# SESSION MANAGEMENT
-# ==============================================================================
-
-from .session_manager import (
-    # Managers
-    SyncSessionManager,
-    AsyncSessionManager,
-    SessionConfig,
-
-    # Convenience functions
-    get_sync_session,
-    get_async_session,
-)
-
-
-# ==============================================================================
-# PUBLIC API
-# ==============================================================================
-
+# Public API: only SessionConfig and core errors that developers might catch
 __all__ = [
-    # Errors
-    "BlossomError",
-    "ErrorType",
-    "ErrorContext",
-    "NetworkError",
-    "APIError",
-    "AuthenticationError",
-    "ValidationError",
-    "RateLimitError",
-    "StreamError",
-    "FileTooLargeError",
-    "TimeoutError",
-    # NEW
-    "Blossom520Error",
-
-    # Error handlers
-    "handle_request_error",
-    "handle_validation_error",
-    "print_info",
-    "print_warning",
-    "print_error",
-    "print_debug",
-    "print_success",
-
-    # Models
-    "DynamicModel",
-    "ModelInfo",
-    "ImageModel",
-    "TextModel",
-    "DEFAULT_IMAGE_MODELS",
-    "DEFAULT_TEXT_MODELS",
-
     # Configuration
-    "Config",
-    "SessionConfig",      # NEW
-    "DEFAULT_CONFIG",     # NEW
-    "ENDPOINTS",
-    "LIMITS",
-    "DEFAULTS",
-    "get_config",
-    "set_config",
-    "reset_config",
-
-    # Session Management
-    "SyncSessionManager",
-    "AsyncSessionManager",
     "SessionConfig",
-    "get_sync_session",
-    "get_async_session",
+
+    # Core exceptions (for error handling)
+    "BlossomError",
+    "ValidationError",
+    "ConfigurationError",
+    "AuthenticationError",
+    "RateLimitError",
 ]

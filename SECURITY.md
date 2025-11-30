@@ -432,15 +432,17 @@ LOG_LEVEL=INFO
 ```python
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     pollinations_api_key: str
     api_keys: str
     allowed_origins: str = "https://yourdomain.com"
     log_level: str = "INFO"
-    
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+
 
 settings = Settings()
 
