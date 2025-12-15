@@ -1,754 +1,975 @@
-# Security Policy
+# 🔒 Security Guide
 
-## Supported Versions
-
-We actively support and provide security updates for the following versions of Blossom AI:
-
-| Version | Supported          |
-|---------|-------------------|
-| 0.5.0   | ✅ Actively supported |
-| < 0.5.0 | ❌ Not supported  |
-
-**Note:** Only v0.5.0 is currently supported. Previous versions have been deprecated due to significant API changes and security improvements.
-
-## Reporting a Vulnerability
-
-**Please do not report security vulnerabilities through public GitHub issues.**
-
-If you discover a security vulnerability in Blossom AI, please report it responsibly:
-
-### How to Report
-
-1. **Email the maintainers** directly at the repository contact (check repository profile)
-2. **Include in your report:**
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if any)
-   - Your contact information
-
-### What to Expect
-
-- **Initial Response**: Within 48 hours
-- **Status Update**: Within 7 days with initial assessment
-- **Fix Timeline**: Varies by severity (critical issues prioritized)
-- **Credit**: We'll credit you in security advisories (unless you prefer to remain anonymous)
-
-### Disclosure Policy
-
-- We'll work with you to understand and fix the issue
-- We'll keep you updated on progress
-- We'll coordinate public disclosure after a fix is available
-- Security advisories will be published on GitHub
+> Comprehensive security practices for Blossom AI applications
 
 ---
 
-## Security Considerations
+## 🎯 Overview
 
-### API Token Handling
+This guide covers security best practices for:
+- **API key management** and protection
+- **Input validation** and sanitization
+- **Secure configuration** handling
+- **Data protection** and privacy
+- **Deployment security**
 
-🔒 **Your API token is sensitive information**
+---
 
-**v0.5.0 Security Features:**
-- ✅ Tokens are **never** included in URLs (only in Authorization headers)
-- ✅ SSL certificate verification is enforced by default
-- ✅ No token exposure in nginx/CDN logs or browser history
-- ✅ Safe URL sharing - generated URLs don't contain credentials
-- ✅ OAuth2 compliant authentication flow
+## 🔐 API Key Security
 
-**Best Practices:**
+### Environment Variables (Recommended)
 
 ```python
-# ✅ Good - Use environment variables
 import os
-from blossom_ai import Blossom
+from blossom_ai import SessionConfig
 
-api_token = os.getenv('POLLINATIONS_API_KEY')
-client = Blossom(api_token=api_token)
+# Good ✅ - Load from environment
+config = SessionConfig(
+    api_key=os.getenv("BLOSSOM_API_KEY"),
+    # ... other settings
+)
+
+# Bad ❌ - Hardcoded API key
+config = SessionConfig(
+    api_key="sk-1234567890abcdef",  # Never do this!
+)
 ```
 
-```python
-# ❌ Bad - Hardcoded token
-client = Blossom(api_token="pk_your-token-here")
-```
+### .env File Management
 
-**Security Checklist:**
-- ✅ Never commit tokens to version control
-- ✅ Use environment variables for token storage
-- ✅ Don't share tokens publicly (logs, screenshots, error messages)
-- ✅ Rotate tokens if compromised
-- ✅ Use different tokens for development and production
-
-### Token Security (v0.5.0)
-
-**Secure by Design:**
-```python
-# ✅ Tokens only in headers
-client = Blossom(api_token="token")
-url = client.image.generate_url("cat")
-# URL: https://image.pollinations.ai/cat
-# Token in Authorization header only - safe to share!
-```
-
-**Security Benefits:**
-- 🔒 Tokens never appear in URLs
-- 📝 No token leakage in server logs
-- 🌐 Safe to share URLs publicly
-- 🔐 OAuth2 compliant
-- 🛡️ No exposure in browser history
-
-### SSL/TLS Verification
-
-**v0.5.0 enforces SSL certificate verification:**
-
-```python
-# ✅ Default: SSL verification enabled
-client = Blossom(api_token="token")
-# All requests verify SSL certificates
-
-# ❌ No option to disable - security by design
-```
-
-**What this means:**
-- All API communication uses verified HTTPS
-- Man-in-the-middle attacks prevented
-- Certificate validation automatic
-- No insecure connections allowed
-
----
-
-## Input Validation & Prompt Safety
-
-### Prompt Injection
-
-⚠️ **Be cautious with user-provided prompts**
-
-When using Blossom AI in applications that accept user input:
-
-```python
-from blossom_ai import Blossom, ValidationError
-
-def safe_generate(user_prompt: str):
-    """Safely generate content from user input"""
-    # Sanitize input
-    prompt = user_prompt.strip()[:250]  # Max 250 chars
-    
-    # Validate
-    if not prompt or len(prompt) < 3:
-        raise ValueError("Prompt too short")
-    
-    # Remove potentially harmful characters
-    prompt = ''.join(c for c in prompt if c.isprintable())
-    
-    # Generate
-    try:
-        with Blossom(api_token=api_token) as client:
-            return client.text.generate(prompt)
-    except ValidationError as e:
-        # Handle validation errors appropriately
-        return f"Invalid prompt: {e.message}"
-```
-
-**Best Practices:**
-- ✅ Sanitize user input before passing to generators
-- ✅ Validate prompt length (max 250 characters for images)
-- ✅ Implement rate limiting to prevent abuse
-- ✅ Monitor usage for unusual patterns
-- ✅ Filter special characters and control sequences
-- ✅ Log suspicious requests for review
-
-### Vision Input Validation
-
-**When accepting image uploads:**
-
-```python
-from blossom_ai import Blossom, MessageBuilder
-import magic  # python-magic library
-
-def safe_analyze_image(image_path: str, user_prompt: str):
-    """Safely analyze user-uploaded images"""
-    # Validate file type
-    mime = magic.from_file(image_path, mime=True)
-    if mime not in ['image/jpeg', 'image/png', 'image/webp']:
-        raise ValueError("Invalid image format")
-    
-    # Check file size (max 10MB)
-    import os
-    if os.path.getsize(image_path) > 10 * 1024 * 1024:
-        raise ValueError("File too large")
-    
-    # Sanitize prompt
-    prompt = user_prompt.strip()[:500]
-    
-    with Blossom(api_token=api_token) as client:
-        messages = [
-            MessageBuilder.image(
-                role="user",
-                text=prompt,
-                image_path=image_path,
-                detail="low"  # Start with low detail for safety
-            )
-        ]
-        return client.text.chat(messages, model="openai")
-```
-
----
-
-## Generated Content Safety
-
-### Content Filtering
-
-⚠️ **AI-generated content carries risks**
-
-**Pollinations API Safety:**
-- Built-in content filters for harmful content
-- NSFW detection (when `safe=True` parameter used)
-- Automatic rejection of violating requests
-
-**Your Responsibility:**
-- ✅ Review generated content before display
-- ✅ Implement additional filtering if needed
-- ✅ Add content warnings for sensitive topics
-- ✅ Comply with local laws and regulations
-- ✅ Add disclaimers that content is AI-generated
-
-```python
-# Enable safe mode for image generation
-with Blossom(api_token="token") as client:
-    url = client.image.generate_url(
-        user_prompt,
-        safe=True,  # Enable NSFW filter
-        private=True  # Private generation
-    )
-```
-
-### Attribution & Compliance
-
-**Legal Considerations:**
-- 📋 Consider adding disclaimers that content is AI-generated
-- ⚖️ Ensure compliance with your local laws
-- 📝 Review content policies for your platform
-- 👥 Respect user privacy and data protection laws
-
----
-
-## Network Security
-
-### HTTPS Enforcement
-
-🌐 **All API communication uses HTTPS**
-
-- Blossom AI communicates with `pollinations.ai` API over secure HTTPS
-- **v0.5.0**: SSL certificate verification enforced (cannot be disabled)
-- No sensitive data is logged by default
-- Secure by design - no configuration needed
-
-```python
-# Production settings (secure by default)
-with Blossom(
-    api_token=api_token,
-    timeout=30  # Connection timeout
-) as client:
-    # All requests automatically use HTTPS with SSL verification
-    result = client.text.generate("prompt")
-```
-
-### Connection Security
-
-**Built-in Protection:**
-- ✅ SSL/TLS 1.2+ required
-- ✅ Certificate validation enforced
-- ✅ Secure cipher suites only
-- ✅ No downgrade attacks possible
-- ✅ Connection pooling with security
-
----
-
-## Dependency Security
-
-### Core Dependencies
-
-🔦 **We use minimal, well-maintained dependencies**
-
-Core dependencies:
-- `requests` - HTTP library for synchronous requests
-- `aiohttp` - HTTP library for async requests
-- `pydantic` - Data validation
-
-**Keep dependencies updated:**
 ```bash
-pip install --upgrade eclips-blossom-ai
+# .env (add to .gitignore!)
+BLOSSOM_API_KEY=sk-your-secret-key-here
+BLOSSOM_CACHE_ENABLED=true
 ```
 
-**Check for vulnerabilities:**
-```bash
-pip install safety
-safety check --json
+```python
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Now safe to use
+api_key = os.getenv("BLOSSOM_API_KEY")
 ```
 
-**Audit dependencies:**
-```bash
-pip install pip-audit
-pip-audit
+### Key Rotation
+
+```python
+import os
+from datetime import datetime, timedelta
+
+class APIKeyManager:
+    def __init__(self):
+        self.primary_key = os.getenv("BLOSSOM_API_KEY")
+        self.secondary_key = os.getenv("BLOSSOM_API_KEY_BACKUP")
+        self.key_last_rotated = datetime.now()
+    
+    def get_current_key(self):
+        """Get current API key."""
+        return self.primary_key
+    
+    def should_rotate(self, days=30):
+        """Check if keys should be rotated."""
+        return datetime.now() - self.key_last_rotated > timedelta(days=days)
+    
+    def rotate_keys(self):
+        """Rotate API keys."""
+        # Implementation depends on your key management system
+        self.key_last_rotated = datetime.now()
+        logger.info("API keys rotated")
 ```
 
 ---
 
-## Resource Management
+## 🛡️ Input Validation and Sanitization
 
-### Memory Safety
-
-♻️ **Proper cleanup prevents resource leaks**
-
-**v0.5.0 improvements:**
-- ✅ Automatic memory cleanup (WeakRef-based)
-- ✅ No memory leaks in long-running apps
-- ✅ Clean shutdown (no stderr errors)
-- ✅ Connection pooling with limits
-
-**Best practices:**
+### Prompt Validation
 
 ```python
-# ✅ Good - Automatic cleanup
-with Blossom(api_token=api_token) as client:
-    result = client.text.generate("hello")
+import re
+from blossom_ai import ValidationError
 
-# ✅ Good - Async cleanup
-async with Blossom(api_token=api_token) as client:
-    result = await client.text.generate("hello")
-```
-
-```python
-# ❌ Bad - Manual cleanup required (easy to forget!)
-client = Blossom(api_token=api_token)
-result = client.text.generate("hello")
-client.close_sync()  # Must remember to call!
-```
-
-### Rate Limiting
-
-⏱️ **Respect API rate limits**
-
-**v0.5.0 improvements:**
-- ✅ Smart retry with API-specified delays
-- ✅ Uses `retry_after` from rate limit responses
-- ✅ Exponential backoff for retries
-- ✅ Automatic handling of 429 responses
-
-```python
-from blossom_ai import Blossom, RateLimitError
-import time
-
-with Blossom(api_token=api_token) as client:
-    try:
-        result = client.text.generate("prompt")
-    except RateLimitError as e:
-        # v0.5.0: Uses retry_after from API
-        if e.retry_after:
-            print(f"Rate limited. Waiting {e.retry_after}s")
-            time.sleep(e.retry_after)
-            # Retry request
-            result = client.text.generate("prompt")
-```
-
----
-
-## Vision Security (NEW in v0.5.0)
-
-### Image Upload Safety
-
-**When handling user-uploaded images:**
-
-```python
-import hashlib
-from pathlib import Path
-
-def safe_image_upload(file_content: bytes, user_id: str):
-    """Securely handle image uploads"""
-    # Verify file type by magic bytes
-    if not file_content.startswith(b'\xff\xd8\xff'):  # JPEG
-        if not file_content.startswith(b'\x89PNG'):     # PNG
-            raise ValueError("Invalid image format")
+class PromptValidator:
+    """Validate and sanitize user prompts."""
     
-    # Limit file size (10MB)
-    if len(file_content) > 10 * 1024 * 1024:
-        raise ValueError("File too large")
-    
-    # Generate safe filename
-    file_hash = hashlib.sha256(file_content).hexdigest()
-    safe_name = f"{user_id}_{file_hash[:16]}.jpg"
-    
-    # Save to secure location
-    upload_dir = Path("/secure/uploads")
-    upload_dir.mkdir(exist_ok=True, mode=0o700)
-    
-    file_path = upload_dir / safe_name
-    file_path.write_bytes(file_content)
-    
-    return str(file_path)
-```
-
-### Privacy Considerations
-
-**Vision API Privacy:**
-- 🔒 Images sent to API are processed server-side
-- ⏰ Consider data retention policies
-- 🚫 Don't send sensitive personal data
-- 🔐 Use `private=True` for sensitive images
-
-```python
-# Private image analysis (requires token)
-with Blossom(api_token="token") as client:
-    messages = [
-        MessageBuilder.image(
-            role="user",
-            text="Analyze this medical image",
-            image_path=secure_path,
-            detail="high"
-        )
+    # Forbidden patterns (injection attempts)
+    FORBIDDEN_PATTERNS = [
+        r'<script.*?>.*?</script>',
+        r'javascript:',
+        r'vbscript:',
+        r'on\w+\s*=',
+        r'eval\s*\(',
+        r'exec\s*\(',
+        r'import\s+',
+        r'__import__\s*\(',
     ]
     
-    # Private request - not cached on server
-    result = client.text.chat(
-        messages,
-        model="openai"
-    )
+    def __init__(self, max_length: int = 1000):
+        self.max_length = max_length
+    
+    def validate(self, prompt: str) -> str:
+        """Validate and sanitize prompt."""
+        
+        # Check length
+        if len(prompt) > self.max_length:
+            raise ValidationError(
+                f"Prompt too long: {len(prompt)} characters. "
+                f"Maximum: {self.max_length}"
+            )
+        
+        if len(prompt) < 10:
+            raise ValidationError(
+                f"Prompt too short: {len(prompt)} characters. "
+                f"Minimum: 10"
+            )
+        
+        # Check for forbidden patterns
+        for pattern in self.FORBIDDEN_PATTERNS:
+            if re.search(pattern, prompt, re.IGNORECASE):
+                raise ValidationError(
+                    f"Prompt contains forbidden pattern: {pattern}"
+                )
+        
+        # Basic sanitization
+        sanitized = self.sanitize(prompt)
+        
+        return sanitized
+    
+    def sanitize(self, prompt: str) -> str:
+        """Basic sanitization of prompt."""
+        # Remove potential script tags
+        prompt = re.sub(r'<script.*?>.*?</script>', '', prompt, flags=re.IGNORECASE | re.DOTALL)
+        
+        # Remove potential event handlers
+        prompt = re.sub(r'on\w+\s*=\s*["\']?[^>]*["\']?', '', prompt, flags=re.IGNORECASE)
+        
+        # Normalize whitespace
+        prompt = re.sub(r'\s+', ' ', prompt).strip()
+        
+        return prompt
+
+# Usage
+validator = PromptValidator(max_length=500)
+
+try:
+    safe_prompt = validator.validate(user_input)
+    response = ai.text.generate(safe_prompt)
+except ValidationError as e:
+    logger.warning(f"Invalid prompt from user: {e}")
+    return error_response(str(e))
+```
+
+### File Path Validation
+
+```python
+from pathlib import Path
+import os
+
+def validate_file_path(file_path: str, allowed_extensions: list = None) -> Path:
+    """Validate and sanitize file path."""
+    
+    # Convert to Path object
+    path = Path(file_path)
+    
+    # Check for directory traversal attempts
+    if ".." in str(path) or path.is_absolute():
+        raise ValidationError("Invalid file path: directory traversal detected")
+    
+    # Check file extension
+    if allowed_extensions:
+        if path.suffix.lower() not in allowed_extensions:
+            raise ValidationError(
+                f"Invalid file type: {path.suffix}. "
+                f"Allowed: {allowed_extensions}"
+            )
+    
+    # Check if file exists
+    if not path.exists():
+        raise ValidationError(f"File not found: {path}")
+    
+    # Check file size (prevent DoS)
+    max_size = 10 * 1024 * 1024  # 10MB
+    if path.stat().st_size > max_size:
+        raise ValidationError(f"File too large: {path.stat().st_size / (1024*1024):.1f}MB")
+    
+    return path.resolve()
+
+# Usage
+allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif']
+try:
+    safe_path = validate_file_path("user_uploads/photo.jpg", allowed_extensions)
+    analysis = ai.vision.analyze(image_path=str(safe_path))
+except ValidationError as e:
+    logger.warning(f"Invalid file path: {e}")
 ```
 
 ---
 
-## Production Deployment Security
+## 🔒 Secure Configuration
 
-### Environment Configuration
-
-```bash
-# .env file (never commit!)
-POLLINATIONS_API_KEY=your_secret_token_here
-API_KEYS=key1,key2,key3
-ALLOWED_ORIGINS=https://yourdomain.com
-LOG_LEVEL=INFO
-```
+### Configuration Validation
 
 ```python
-from pydantic_settings import BaseSettings
+from pydantic import BaseModel, validator
+import os
 
+class SecureConfig(BaseModel):
+    """Secure configuration with validation."""
+    
+    api_key: str
+    allowed_origins: List[str]
+    max_file_size_mb: int = 10
+    rate_limit_per_minute: int = 60
+    
+    @validator('api_key')
+    def validate_api_key(cls, v):
+        if not v or len(v) < 20:
+            raise ValueError("Invalid API key length")
+        if not v.startswith("sk-"):
+            raise ValueError("API key must start with 'sk-'")
+        return v
+    
+    @validator('allowed_origins')
+    def validate_origins(cls, v):
+        for origin in v:
+            if not origin.startswith(('http://', 'https://')):
+                raise ValueError(f"Invalid origin: {origin}")
+        return v
+    
+    @validator('max_file_size_mb')
+    def validate_file_size(cls, v):
+        if v < 1 or v > 100:
+            raise ValueError("File size must be between 1 and 100 MB")
+        return v
 
-class Settings(BaseSettings):
-    pollinations_api_key: str
-    api_keys: str
-    allowed_origins: str = "https://yourdomain.com"
-    log_level: str = "INFO"
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-
-
-settings = Settings()
-
-# Use in application
-client = Blossom(api_token=settings.pollinations_api_key)
+# Usage
+try:
+    config = SecureConfig(
+        api_key=os.getenv("BLOSSOM_API_KEY"),
+        allowed_origins=["https://app.example.com"],
+        max_file_size_mb=10
+    )
+except ValueError as e:
+    logger.error(f"Invalid configuration: {e}")
+    raise
 ```
+
+### Environment-Specific Security
+
+```python
+import os
+from blossom_ai import SessionConfig
+
+class SecurityConfig:
+    @staticmethod
+    def create_secure_config():
+        """Create security-aware configuration."""
+        
+        environment = os.getenv("ENVIRONMENT", "development")
+        
+        if environment == "production":
+            return SessionConfig(
+                api_key=os.getenv("BLOSSOM_API_KEY"),  # Never hardcode
+                cache_enabled=True,
+                cache_backend="redis",  # Distributed cache
+                rate_limit_per_minute=60,
+                timeout=30.0,
+                max_file_size_mb=5,  # Conservative limit
+                log_level="WARNING"  # Less verbose
+            )
+        elif environment == "staging":
+            return SessionConfig(
+                api_key=os.getenv("STAGING_API_KEY"),
+                cache_enabled=True,
+                cache_backend="file",
+                rate_limit_per_minute=100,
+                timeout=45.0,
+                max_file_size_mb=10,
+                log_level="INFO"
+            )
+        else:  # development
+            return SessionConfig(
+                api_key=os.getenv("DEV_API_KEY", "dev-key"),
+                cache_enabled=True,
+                cache_backend="memory",
+                rate_limit_per_minute=30,
+                timeout=10.0,
+                max_file_size_mb=10,
+                log_level="DEBUG"
+            )
+```
+
+---
+
+## 📝 Logging Security
+
+### Sanitizing Logs
+
+```python
+import re
+from blossom_ai.utils.logging import StructuredLogger
+
+logger = StructuredLogger("security")
+
+def sanitize_for_logging(data: str) -> str:
+    """Remove sensitive information from logs."""
+    
+    # API keys
+    data = re.sub(r'sk-[a-zA-Z0-9]+', 'sk-***', data)
+    
+    # Passwords
+    data = re.sub(r'password[=:]\s*\S+', 'password=***', data, flags=re.IGNORECASE)
+    
+    # Tokens
+    data = re.sub(r'token[=:]\s*\S+', 'token=***', data, flags=re.IGNORECASE)
+    
+    # Credit cards (basic pattern)
+    data = re.sub(r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b', '****-****-****-****', data)
+    
+    # Email addresses
+    data = re.sub(r'\S+@\S+', '***@***.com', data)
+    
+    return data
+
+# Usage
+user_prompt = "My email is user@example.com and api key is sk-1234567890abcdef"
+safe_prompt = sanitize_for_logging(user_prompt)
+
+logger.info("User request processed", prompt=safe_prompt)
+```
+
+### Security Events Logging
+
+```python
+from datetime import datetime
+from enum import Enum
+
+class SecurityEventType(Enum):
+    LOGIN_ATTEMPT = "login_attempt"
+    LOGIN_SUCCESS = "login_success"
+    LOGIN_FAILURE = "login_failure"
+    SUSPICIOUS_ACTIVITY = "suspicious_activity"
+    RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+    INVALID_INPUT = "invalid_input"
+
+class SecurityLogger:
+    def __init__(self):
+        self.logger = StructuredLogger("security")
+    
+    def log_security_event(
+        self,
+        event_type: SecurityEventType,
+        user_id: Optional[int] = None,
+        ip_address: Optional[str] = None,
+        details: Optional[dict] = None
+    ):
+        """Log security events for monitoring."""
+        
+        event_data = {
+            "event_type": event_type.value,
+            "timestamp": datetime.utcnow().isoformat(),
+            "user_id": user_id,
+            "ip_address": ip_address,
+            "details": details or {}
+        }
+        
+        if event_type in [SecurityEventType.LOGIN_FAILURE, SecurityEventType.SUSPICIOUS_ACTIVITY]:
+            self.logger.warning("Security event", **event_data)
+        elif event_type == SecurityEventType.RATE_LIMIT_EXCEEDED:
+            self.logger.info("Rate limit exceeded", **event_data)
+        else:
+            self.logger.info("Security event", **event_data)
+
+# Usage
+security_logger = SecurityLogger()
+
+# Log failed login attempt
+security_logger.log_security_event(
+    SecurityEventType.LOGIN_FAILURE,
+    user_id=12345,
+    ip_address="192.168.1.100",
+    details={"reason": "invalid_password", "attempt_count": 3}
+)
+```
+
+---
+
+## 🌐 Web Application Security
+
+### CORS Configuration
+
+```python
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# Good ✅ - Restrictive CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://app.example.com"],  # Specific origins only
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],  # Only necessary methods
+    allow_headers=["Authorization", "Content-Type"],  # Only necessary headers
+)
+
+# Bad ❌ - Permissive CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Too permissive
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+### Input Validation in Web Apps
+
+```python
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from pydantic import BaseModel, validator
+
+app = FastAPI()
+
+class GenerationRequest(BaseModel):
+    prompt: str
+    max_tokens: int = 1000
+    
+    @validator('prompt')
+    def validate_prompt(cls, v):
+        if len(v) < 10:
+            raise ValueError('Prompt too short')
+        if len(v) > 1000:
+            raise ValueError('Prompt too long')
+        
+        # Check for potential injection
+        if '<script>' in v.lower():
+            raise ValueError('Invalid characters in prompt')
+        
+        return v
+    
+    @validator('max_tokens')
+    def validate_max_tokens(cls, v):
+        if v < 1 or v > 4000:
+            raise ValueError('max_tokens must be between 1 and 4000')
+        return v
+
+@app.post("/generate/text")
+async def generate_text(request: GenerationRequest):
+    try:
+        response = ai.text.generate(
+            request.prompt,
+            max_tokens=request.max_tokens
+        )
+        return {"text": response.text}
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+```
+
+### File Upload Security
+
+```python
+import os
+from pathlib import Path
+
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+def validate_upload_file(file: UploadFile) -> Path:
+    """Validate uploaded file for security."""
+    
+    # Check file extension
+    file_extension = Path(file.filename).suffix.lower()
+    if file_extension not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type not allowed. Allowed: {ALLOWED_EXTENSIONS}"
+        )
+    
+    # Check content type
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(
+            status_code=400,
+            detail="File must be an image"
+        )
+    
+    # Read file content and check size
+    content = file.file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum: {MAX_FILE_SIZE / (1024*1024):.1f}MB"
+        )
+    
+    # Generate safe filename
+    safe_filename = f"{uuid.uuid4()}{file_extension}"
+    
+    # Save to secure location
+    upload_path = Path("secure_uploads") / safe_filename
+    upload_path.parent.mkdir(exist_ok=True)
+    
+    with open(upload_path, 'wb') as f:
+        f.write(content)
+    
+    return upload_path
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        file_path = validate_upload_file(file)
+        analysis = ai.vision.analyze(image_path=str(file_path))
+        
+        # Clean up file after analysis
+        file_path.unlink()
+        
+        return {"analysis": analysis.description}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upload error: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed")
+```
+
+---
+
+## 🔐 Authentication and Authorization
+
+### JWT Token Management
+
+```python
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+from fastapi import HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+security = HTTPBearer()
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    """Create secure JWT token."""
+    to_encode = data.copy()
+    
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    to_encode.update({"exp": expire})
+    
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Verify JWT token."""
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: int = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid authentication credentials"
+            )
+        return {"user_id": user_id}
+    except JWTError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication credentials"
+        )
+
+@app.get("/protected")
+async def protected_endpoint(current_user: dict = Depends(verify_token)):
+    return {"message": "Access granted", "user_id": current_user["user_id"]}
+```
+
+### Rate Limiting by User
+
+```python
+from fastapi import Depends
+from redis import asyncio as aioredis
+
+class UserRateLimiter:
+    def __init__(self, redis_client):
+        self.redis = redis_client
+        self.default_limit = 60  # requests per minute
+    
+    async def check_rate_limit(self, user_id: int) -> bool:
+        """Check if user has exceeded rate limit."""
+        key = f"rate_limit:{user_id}"
+        current_count = await self.redis.get(key)
+        
+        if current_count is None:
+            await self.redis.setex(key, 60, 1)  # 1 minute expiry
+            return True
+        
+        if int(current_count) >= self.default_limit:
+            return False
+        
+        await self.redis.incr(key)
+        return True
+
+# Usage
+redis_client = aioredis.from_url("redis://localhost")
+rate_limiter = UserRateLimiter(redis_client)
+
+@app.post("/generate")
+async def generate(
+    request: GenerationRequest,
+    current_user: dict = Depends(verify_token)
+):
+    if not await rate_limiter.check_rate_limit(current_user["user_id"]):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded"
+        )
+    
+    # Process request
+    response = ai.text.generate(request.prompt)
+    return {"text": response.text}
+```
+
+---
+
+## 🛡️ Deployment Security
 
 ### Docker Security
 
-**Secure Dockerfile:**
-
 ```dockerfile
+# Good ✅ - Secure Dockerfile
 FROM python:3.11-slim
 
 # Create non-root user
-RUN useradd -m -u 1000 appuser
+RUN groupadd -r blossom && useradd -r -g blossom blossom
 
+# Set working directory
 WORKDIR /app
 
-# Install dependencies as root
+# Copy requirements first (for layer caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application
-COPY --chown=appuser:appuser . .
+COPY --chown=blossom:blossom blossom_ai/docs .
+
+# Create necessary directories
+RUN mkdir -p uploads logs && \
+    chown -R blossom:blossom uploads logs
 
 # Switch to non-root user
-USER appuser
+USER blossom
 
 # Expose port
 EXPOSE 8000
 
 # Run application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Bad ❌ - Insecure Dockerfile
+FROM python:3.11
+
+# Missing user creation - runs as root
+COPY blossom_ai/docs .
+RUN pip install -r requirements.txt
+
+EXPOSE 8000
+CMD ["python", "app.py"]
 ```
 
-### Nginx Security Headers
+### Environment Variables Security
 
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name yourdomain.com;
+```yaml
+# docker-compose.yml
+version: '3.8'
 
-    # SSL configuration
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
+services:
+  app:
+    build: .
+    environment:
+      - BLOSSOM_API_KEY=${BLOSSOM_API_KEY}  # From .env file
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+    secrets:
+      - api_key
+    networks:
+      - app_network
+    restart: unless-stopped
 
-    # Security headers
-    add_header X-Frame-Options "DENY" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "default-src 'self'" always;
+secrets:
+  api_key:
+    file: ./secrets/api_key.txt
 
-    location / {
-        proxy_pass http://app:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # For streaming
-        proxy_buffering off;
-        proxy_cache off;
-    }
-}
+networks:
+  app_network:
+    driver: bridge
+```
+
+### Network Security
+
+```yaml
+# Restrict network access
+services:
+  app:
+    ports:
+      - "80:8000"  # Only expose necessary ports
+    networks:
+      - frontend
+      - backend
+  
+  redis:
+    networks:
+      - backend  # Not accessible from outside
+  
+  database:
+    networks:
+      - backend  # Not accessible from outside
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true  # No external access
 ```
 
 ---
 
-## Security Best Practices
+## 🔍 Security Monitoring
 
-### Development
-
-✅ **Do:**
-- Use environment variables for secrets
-- Enable SSL verification (default)
-- Implement input validation
-- Set appropriate timeouts
-- Use context managers (`with` statements)
-- Monitor API usage
-- Keep library updated
-- Implement rate limiting
-- Review generated content
-- Test security regularly
-
-❌ **Don't:**
-- Commit API tokens to Git
-- Disable SSL verification
-- Trust user input blindly
-- Ignore validation errors
-- Skip resource cleanup
-- Use deprecated features
-- Expose API tokens in logs
-- Store sensitive data insecurely
-
-### Production Checklist
-
-**Before Deploying:**
-
-- [ ] API tokens in environment variables (not code)
-- [ ] SSL/TLS enabled and enforced
-- [ ] Input validation implemented
-- [ ] Rate limiting configured
-- [ ] Error handling comprehensive
-- [ ] Logging properly configured (no sensitive data)
-- [ ] CORS configured restrictively
-- [ ] Security headers added
-- [ ] Dependencies up to date
-- [ ] Security audit completed
-- [ ] Monitoring and alerts set up
-- [ ] Backup and recovery plan
-- [ ] Incident response plan
-
----
-
-## Example Secure Implementation
-
-### Complete Secure Web API
+### Intrusion Detection
 
 ```python
-import os
-from fastapi import FastAPI, HTTPException, Depends, Header
-from fastapi.middleware.cors import CORSMiddleware
-from blossom_ai import Blossom, BlossomError, MessageBuilder
-from pydantic import BaseModel, Field
-import logging
-
-# Configure logging (no sensitive data)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Configuration
-API_TOKEN = os.getenv('POLLINATIONS_API_KEY')
-ALLOWED_API_KEYS = set(os.getenv('API_KEYS', '').split(','))
-
-if not API_TOKEN:
-    raise ValueError("POLLINATIONS_API_KEY required")
-
-app = FastAPI(title="Secure Blossom AI API")
-
-# CORS (restrictive)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://yourdomain.com"],
-    allow_credentials=True,
-    allow_methods=["POST"],
-    allow_headers=["Content-Type", "X-API-Key"],
-)
-
-# Authentication
-async def verify_api_key(x_api_key: str = Header(...)):
-    if x_api_key not in ALLOWED_API_KEYS:
-        logger.warning(f"Invalid API key attempted")
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return x_api_key
-
-# Request models
-class SecureTextRequest(BaseModel):
-    prompt: str = Field(..., min_length=3, max_length=500)
-    max_tokens: int = Field(default=200, ge=1, le=1000)
-
-class SecureImageRequest(BaseModel):
-    prompt: str = Field(..., min_length=3, max_length=250)
-    width: int = Field(default=1024, ge=256, le=2048)
-    height: int = Field(default=1024, ge=256, le=2048)
-
-# Endpoints
-@app.post("/api/text/generate")
-async def generate_text(
-    request: SecureTextRequest,
-    api_key: str = Depends(verify_api_key)
-):
-    """Securely generate text"""
-    try:
-        # Sanitize input
-        prompt = request.prompt.strip()
-        
-        async with Blossom(api_token=API_TOKEN) as client:
-            response = await client.text.generate(
-                prompt,
-                max_tokens=request.max_tokens
-            )
-            
-        logger.info(f"Text generated successfully")
-        return {"response": response}
-        
-    except BlossomError as e:
-        logger.error(f"Generation error: {e.error_type}")
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.post("/api/image/generate")
-async def generate_image(
-    request: SecureImageRequest,
-    api_key: str = Depends(verify_api_key)
-):
-    """Securely generate image"""
-    try:
-        prompt = request.prompt.strip()
-        
-        async with Blossom(api_token=API_TOKEN) as client:
-            url = await client.image.generate_url(
-                prompt,
-                width=request.width,
-                height=request.height,
-                safe=True,  # Enable NSFW filter
-                private=True,
-                nologo=True
-            )
-        
-        logger.info(f"Image generated successfully")
-        return {"url": url}
-        
-    except BlossomError as e:
-        logger.error(f"Generation error: {e.error_type}")
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.get("/health")
-async def health_check():
-    """Public health check"""
-    return {"status": "healthy", "version": "0.5.0"}
-```
-
----
-
-## Security Updates & Monitoring
-
-### Stay Informed
-
-- 📧 Watch the GitHub repository for security advisories
-- 📢 Subscribe to release notifications
-- 🔍 Regularly check for dependency updates
-- 📊 Monitor application logs for suspicious activity
-
-### Update Process
-
-```bash
-# Check current version
-pip show eclips-blossom-ai
-
-# Update to latest
-pip install --upgrade eclips-blossom-ai
-
-# Verify update
-python -c "import blossom_ai; print(blossom_ai.__version__)"
-```
-
-### Security Monitoring
-
-```python
-import logging
-from blossom_ai import Blossom, BlossomError
-
-# Configure security logging
-security_logger = logging.getLogger('security')
-security_logger.setLevel(logging.WARNING)
-
-def monitored_generate(prompt: str):
-    """Generate with security monitoring"""
-    try:
-        with Blossom(api_token=api_token) as client:
-            return client.text.generate(prompt)
-    except BlossomError as e:
-        security_logger.warning(
-            f"Generation error: {e.error_type}",
-            extra={'prompt_length': len(prompt)}
+class SecurityMonitor:
+    def __init__(self):
+        self.suspicious_patterns = [
+            r'\.\./',  # Directory traversal
+            r'<script',  # Script injection
+            r'union\s+select',  # SQL injection
+            r'javascript:',  # JavaScript injection
+        ]
+    
+    def check_request(self, request_data: dict) -> bool:
+        """Check if request is suspicious."""
+        for key, value in request_data.items():
+            if isinstance(value, str):
+                for pattern in self.suspicious_patterns:
+                    if re.search(pattern, value, re.IGNORECASE):
+                        return True
+        return False
+    
+    def log_suspicious_activity(self, request, user_id: int = None):
+        """Log suspicious activity."""
+        security_logger.log_security_event(
+            SecurityEventType.SUSPICIOUS_ACTIVITY,
+            user_id=user_id,
+            ip_address=request.client.host,
+            details={
+                "user_agent": request.headers.get("user-agent"),
+                "path": request.url.path,
+                "query_params": str(request.query_params)
+            }
         )
-        raise
+
+# Usage
+security_monitor = SecurityMonitor()
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    # Check for suspicious patterns
+    request_data = {
+        "path": str(request.url.path),
+        "query": str(request.query_params),
+        "headers": dict(request.headers)
+    }
+    
+    if security_monitor.check_request(request_data):
+        security_monitor.log_suspicious_activity(request)
+    
+    response = await call_next(request)
+    return response
+```
+
+### Performance Monitoring
+
+```python
+import time
+from collections import defaultdict
+
+class PerformanceMonitor:
+    def __init__(self):
+        self.request_counts = defaultdict(int)
+        self.error_counts = defaultdict(int)
+        self.response_times = defaultdict(list)
+    
+    def record_request(self, endpoint: str, response_time: float, status_code: int):
+        """Record request metrics."""
+        self.request_counts[endpoint] += 1
+        self.response_times[endpoint].append(response_time)
+        
+        if status_code >= 400:
+            self.error_counts[endpoint] += 1
+    
+    def get_anomalies(self) -> List[dict]:
+        """Detect performance anomalies."""
+        anomalies = []
+        
+        for endpoint, times in self.response_times.items():
+            if len(times) > 10:  # Need sufficient data
+                avg_time = sum(times) / len(times)
+                recent_avg = sum(times[-10:]) / 10
+                
+                # Check for sudden increase
+                if recent_avg > avg_time * 2:
+                    anomalies.append({
+                        "endpoint": endpoint,
+                        "type": "response_time_increase",
+                        "avg_response_time": avg_time,
+                        "recent_avg": recent_avg
+                    })
+        
+        return anomalies
+
+# Usage
+perf_monitor = PerformanceMonitor()
+
+@app.middleware("http")
+async def performance_middleware(request: Request, call_next):
+    start_time = time.time()
+    
+    response = await call_next(request)
+    
+    duration = time.time() - start_time
+    perf_monitor.record_request(
+        request.url.path,
+        duration,
+        response.status_code
+    )
+    
+    return response
 ```
 
 ---
 
-## Questions & Support
+## 🎓 Security Best Practices
 
-### For Security Issues
+### Do's ✅
 
-- 🔒 **Private vulnerabilities**: Email maintainers directly
-- 📋 **General security questions**: Open a GitHub issue
-- 📚 **Best practices**: Check this document and documentation
-- 💬 **Community**: Discuss in GitHub Discussions
+1. **Use environment variables** for sensitive data
+2. **Validate all inputs** before processing
+3. **Sanitize logs** to remove sensitive information
+4. **Use HTTPS** in production
+5. **Implement rate limiting** to prevent abuse
+6. **Keep dependencies updated** regularly
+7. **Use parameterized queries** for database operations
+8. **Implement proper authentication** and authorization
+9. **Monitor for suspicious activity**
+10. **Have an incident response plan**
 
-### Resources
+### Don'ts ❌
 
-- [Security Policy](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/SECURITY.md)
-- [Contributing Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/CONTRIBUTING.md)
-- [Documentation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md)
-- [Error Handling Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/ERROR_HANDLING.md)
+1. **Don't hardcode secrets** in source code
+2. **Don't trust user input** without validation
+3. **Don't expose debug information** in production
+4. **Don't use default passwords** or weak authentication
+5. **Don't ignore security updates**
+6. **Don't log sensitive data** (passwords, API keys, tokens)
+7. **Don't allow unrestricted file uploads**
+8. **Don't disable security features** without good reason
+9. **Don't ignore error handling**
+10. **Don't assume your application is secure** - test it
 
 ---
 
-**Last Updated**: December 2024  
-**Version**: 0.5.0
+## 🚨 Security Incident Response
 
-This security policy will be reviewed and updated regularly. Check back for the latest information.
+### Incident Response Plan
+
+1. **Detect** - Monitor for security events
+2. **Contain** - Isolate affected systems
+3. **Assess** - Determine scope and impact
+4. **Eradicate** - Remove security threat
+5. **Recover** - Restore normal operations
+6. **Learn** - Document lessons learned
+
+### Emergency Contacts
+
+```python
+# Security incident contacts
+SECURITY_CONTACTS = {
+    "security_team": "security@company.com",
+    "devops_team": "devops@company.com",
+    "legal_team": "legal@company.com",
+    "on_call_phone": "+1-555-0123"
+}
+
+def report_security_incident(incident_type: str, severity: str, details: dict):
+    """Report security incident to appropriate teams."""
+    
+    incident_report = {
+        "type": incident_type,
+        "severity": severity,
+        "timestamp": datetime.utcnow().isoformat(),
+        "details": details
+    }
+    
+    # Send to security team
+    send_email(
+        to=SECURITY_CONTACTS["security_team"],
+        subject=f"Security Incident: {incident_type}",
+        body=json.dumps(incident_report, indent=2)
+    )
+    
+    # Log incident
+    logger.critical("Security incident reported", **incident_report)
+```
 
 ---
 
-<div align="center">
+## 📚 Security Resources
 
-**Made with 🌸 by [Eclips Team](https://github.com/PrimeevolutionZ)**
+### Documentation
+- [OWASP Top 10](https://owasp.org/Top10/)
+- [FastAPI Security](https://fastapi.tiangolo.com/tutorial/security/)
+- [Python Security Best Practices](https://python.readthedocs.io/en/latest/library/security_warnings.html)
 
-[Report Security Issue](mailto:security@example.com) • [GitHub Repository](https://github.com/PrimeevolutionZ/blossom-ai)
+### Tools
+- [Bandit](https://bandit.readthedocs.io/) - Python security linter
+- [Safety](https://pyup.io/safety/) - Dependency vulnerability scanner
+- [Semgrep](https://semgrep.dev/) - Static analysis security tool
 
-</div>
+### Training
+- [OWASP Training](https://owasp.org/www-training/)
+- [SANS Security Training](https://www.sans.org/)
+- [Coursera Cybersecurity](https://www.coursera.org/browse/information-technology/security)
+
+---
+
+## 🔗 Related Documentation
+
+- [🔧 Configuration System](CONFIGURATION.md)
+- [📝 Contributing Guide](CONTRIBUTING.md)
+- [🧪 Testing Guide](TESTING.md)
+- [🚀 Deployment Guide](DEPLOYMENT.md)
+- [📊 Monitoring Guide](MONITORING.md)
+
+---
+
+## 🏆 Security Checklist
+
+Before deploying to production:
+
+- [ ] API keys stored securely (environment variables)
+- [ ] Input validation implemented for all user inputs
+- [ ] File upload restrictions in place
+- [ ] CORS configured properly
+- [ ] Rate limiting enabled
+- [ ] Logging sanitization implemented
+- [ ] HTTPS enforced
+- [ ] Authentication and authorization working
+- [ ] Dependencies scanned for vulnerabilities
+- [ ] Security headers configured
+- [ ] Monitoring and alerting set up
+- [ ] Incident response plan documented
+- [ ] Regular security updates scheduled
+
+---
+
+**Remember**: Security is not a feature, it's a requirement. Always prioritize security in your applications!

@@ -1,685 +1,654 @@
-<div align="center">
-
 # 🌸 Blossom AI
-### <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=600&size=24&pause=1000&color=FF69B4&center=true&vCenter=true&width=700&lines=Beautiful+Python+SDK+for+Pollinations.AI;Generate+Images%2C+Text+%26+Vision+with+AI;CLI+Interface+%2B+Python+Library;Beautifully+Simple+%E2%9C%A8" alt="Typing SVG" />
+
+### Production-Ready Python SDK for Pollinations.AI
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.5.6-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://pypi.org/project/eclips-blossom-ai/)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/PrimeevolutionZ/blossom-ai)
 
-[![Downloads](https://img.shields.io/pypi/dm/eclips-blossom-ai.svg)](https://pypi.org/project/eclips-blossom-ai/)
-[![Stars](https://img.shields.io/github/stars/PrimeevolutionZ/blossom-ai?style=social)](https://github.com/PrimeevolutionZ/blossom-ai)
-
-[🚀 Quick Start](#-quick-start) • [📚 Documentation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md) • [🖥️ CLI Interface](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CLI.md) • [💡 Examples](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/EXAMPLES.md) • [📝 Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md)
+**Professional-grade SDK with enterprise architecture:**
+- 🏗️ **Clean Architecture**: Dependency Injection, Protocol-based interfaces
+- 🔒 **Production Security**: JSON-only storage, API key sanitization, DoS protection
+- ⚡ **High Performance**: Thread-safe caching, connection pooling, LRU eviction
+- 🎯 **Type-Safe**: Full type hints, Pydantic validation, immutable configs
+- 🧪 **Battle-Tested**: 80%+ coverage, integration tests, VCR.py fixtures
 
 ---
 
-</div>
-
-## ✨ Features
-
-<table>
-<tr>
-<td>
-
-🖼️ **HD Image Generation**
-- Create stunning images from text
-- HD quality up to 2048x2048
-- Advanced controls (guidance, quality)
-- Direct URL generation
-
-</td>
-<td>
-
-💬 **Advanced Text Generation**
-- Multiple AI models (OpenAI, Gemini, etc.)
-- Real-time streaming
-- Function calling & tools
-- JSON mode
-
-</td>
-<td>
-
-👁️ **Vision & Multimodal**
-- Analyze images with AI
-- Multiple image support
-- Local & URL images
-- High-quality analysis
-
-</td>
-</tr>
-<tr>
-<td>
-
-🖥️ **CLI Interface**
-- Interactive terminal menu
-- Quick command-line access
-- No code required
-- Shell automation
-
-</td>
-<td>
-
-🚀 **Production Ready**
-- Sync & async support
-- Connection pooling
-- Smart caching
-- Comprehensive tests
-
-</td>
-<td>
-
-⚡ **Fast & Secure**
-- Token in headers only
-- SSL verification enforced
-- Optimized performance
-- No memory leaks
-
-</td>
-</tr>
-</table>
-
-## 🆕 What's New in v0.5.0
-
-<details open>
-<summary><b>👁️ Vision Support (NEW!)</b></summary>
-
-**Analyze images with AI:**
-- 🔍 Image analysis from URLs or local files
-- 🎨 Multiple images in one request
-- 📊 Adjustable detail levels (low/auto/high)
-- 🤖 Works with vision-capable models
-
-```python
-from blossom_ai import Blossom, MessageBuilder
-
-with Blossom(api_token="token") as client:
-    messages = [
-        MessageBuilder.image(
-            role="user",
-            text="What's in this image?",
-            image_url="https://example.com/image.jpg",
-            detail="high"
-        )
-    ]
-    
-    response = client.text.chat(messages, model="openai")
-    print(response)
-```
-
-**[📚 Full Vision Documentation →](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/VISION.md)**
-
-</details>
-
-<details>
-<summary><b>🎨 Enhanced Image Generation</b></summary>
-
-**Advanced image controls:**
-- 🎯 Quality levels: `low`, `medium`, `high`, `hd`
-- 🎨 Guidance scale control (1.0-20.0)
-- 🚫 Negative prompts for better control
-- 🌈 Transparent background support
-- 🖼️ Image-to-image transformation
-- ⚡ Fast URL generation (no download needed)
-
-```python
-with Blossom(api_token="token") as client:
-    # HD quality with advanced controls
-    image = client.image.generate(
-        "majestic dragon",
-        quality="hd",
-        guidance_scale=7.5,
-        negative_prompt="blurry, low quality",
-        width=1920,
-        height=1080
-    )
-```
-
-</details>
-
-<details>
-<summary><b>📝 Advanced Text Features</b></summary>
-
-**Powerful text generation:**
-- 🛠️ Function calling / Tool use
-- 📋 Structured JSON output
-- ⚙️ Advanced parameters: `max_tokens`, `frequency_penalty`, `presence_penalty`, `top_p`
-- 🌊 Improved streaming with SSE
-- 🌡️ Extended temperature range (0-2)
-- 💬 Multi-turn conversations
-
-```python
-with Blossom(api_token="token") as client:
-    response = client.text.generate(
-        "Explain quantum computing",
-        max_tokens=500,
-        temperature=0.8,
-        frequency_penalty=0.5,
-        json_mode=True
-    )
-```
-
-</details>
-
 ## 🚀 Quick Start
 
-### 📦 Installation
+### Installation
 
 ```bash
 pip install eclips-blossom-ai
 ```
 
-### 🖥️ CLI Interface
-
-Perfect for quick testing and learning:
-
-```bash
-# Launch interactive menu
-python -m blossom_ai.utils.cli
-
-# Quick commands
-python -m blossom_ai.utils.cli --image "a beautiful sunset" --output sunset.png
-python -m blossom_ai.utils.cli --text "Explain quantum computing"
-
-# Set API token (optional for some features)
-export POLLINATIONS_API_KEY="your_token"
-python -m blossom_ai.utils.cli
-```
-
-**Interactive Menu:**
-```
-╔════════════════════════════════════════╗
-║        🌸 BLOSSOM AI CLI 🌸            ║
-║  Simple interface for AI generation    ║
-╚════════════════════════════════════════╝
-
-1. 🖼️  Generate Image
-2. 💬 Generate Text
-3. 👁️  Analyze Image (Vision)
-4. ℹ️  Show Available Models
-5. 🚪 Exit
-```
-
-**[📚 Full CLI Documentation →](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CLI.md)**
-
-### ⚡ Python Library
+### Simplest Usage (No API Key Required*)
 
 ```python
-from blossom_ai import Blossom
-import os
-api_token = os.getenv('POLLINATIONS_API_KEY')
-# Simple usage
-with Blossom(api_token=api_token) as ai:
-    # Generate image URL 
-    url = ai.image.generate_url("a beautiful sunset")
-    print(url)
-    
-    # Save image directly
-    ai.image.save("a serene lake at dawn", "lake.jpg")
-    
-    # Generate text
-    response = ai.text.generate("Explain quantum computing")
-    print(response)
-    
-    # Stream text in real-time
-    for chunk in ai.text.generate("Tell me a story", stream=True):
-        print(chunk, end='', flush=True)
+from blossom_ai import ai
+
+# Generate image
+image = ai.image.generate("sunset over mountains")
+
+# Save to file
+ai.image.save("cyberpunk city", "city.png")
+
+# Generate text
+text = ai.text.generate("Explain quantum computing")
+
+# Stream response
+for chunk in ai.text.stream("Tell me a story"):
+    print(chunk, end='', flush=True)
 ```
 
-### 🎯 With API Token (Advanced Features)
+*Some features require API key. Get yours at [pollinations.ai](https://pollinations.ai)
+
+### With API Key (Full Features)
 
 ```python
 import os
-from blossom_ai import Blossom
+from blossom_ai import BlossomClient
 
 # ✅ Best practice: Use environment variables
 api_token = os.getenv('POLLINATIONS_API_KEY')
 
-with Blossom(api_token=api_token) as client:
+with BlossomClient(api_token=api_token) as client:
     # HD image with advanced controls
     image = client.image.generate(
         "majestic dragon",
         quality="hd",
-        guidance_scale=7.5,
-        negative_prompt="blurry, low quality",
         width=1920,
-        height=1080
+        height=1080,
+        guidance_scale=7.5,
+        negative_prompt="blurry, low quality"
     )
     
     # Advanced text generation
     response = client.text.generate(
-        "Explain AI",
-        max_tokens=200,
-        frequency_penalty=0.5,
-        temperature=0.8
+        "Design a microservices architecture",
+        max_tokens=2000,
+        frequency_penalty=0.5
     )
     
-    # Vision analysis (requires token)
+    # Vision analysis
     from blossom_ai import MessageBuilder
     
     messages = [
         MessageBuilder.image(
             role="user",
-            text="Describe this image",
-            image_url="https://example.com/photo.jpg"
-        )
-    ]
-    
-    analysis = client.text.chat(messages, model="openai")
-    print(analysis)
-
-# Automatic cleanup - no resource leaks!
-```
-
-## 📊 Why Blossom AI?
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  ✓ CLI Interface for quick terminal access                 │
-│  ✓ Vision & multimodal support (images + text)             │
-│  ✓ HD image generation with advanced controls              │
-│  ✓ Function calling and structured outputs                 │
-│  ✓ Both sync and async support out of the box              │
-│  ✓ Clean, modern Python with type hints                    │
-│  ✓ Production-ready with comprehensive testing             │
-│  ✓ Smart caching and optimization utilities                │
-│  ✓ Secure: tokens in headers only, SSL enforced            │
-│  ✓ Active development and community support                │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## 🎯 Choose Your Style
-
-<table>
-<tr>
-<td width="50%">
-
-### 🖥️ CLI (Terminal)
-
-Perfect for:
-- ✅ Quick testing
-- ✅ Learning the API
-- ✅ Shell automation
-- ✅ No code required
-
-```bash
-python -m blossom_ai.utils.cli \
-  --image "sunset" \
-  --output sunset.png
-```
-
-</td>
-<td width="50%">
-
-### 📚 Library (Python)
-
-Perfect for:
-- ✅ Production apps
-- ✅ Complex workflows
-- ✅ Integration
-- ✅ Advanced features
-
-```python
-from blossom_ai import Blossom
-
-with Blossom() as ai:
-    ai.image.save("sunset", "sunset.png")
-```
-
-</td>
-</tr>
-</table>
-
-## 📚 Documentation
-
-<div align="center">
-
-| Resource                                                                                                           | Description                           |
-|--------------------------------------------------------------------------------------------------------------------|---------------------------------------|
-| [📖 Getting Started](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md)           | Complete guide to using Blossom AI    |
-| [🖥️ CLI Interface](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CLI.md)              | Terminal interface documentation      |
-| [👁️ Vision Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/VISION.md)            | Vision and multimodal features        |
-| [🎨 Image Generation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/IMAGE_GENERATION.md) | HD images with advanced controls   |
-| [💬 Text Generation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/TEXT_GENERATION.md) | Advanced text generation features     |
-| [⚙️ Installation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INSTALLATION.md)       | Setup and configuration               |
-| [💡 Examples](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/EXAMPLES.md)               | Practical code examples               |
-| [🌐 Web Apps](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/WEB_APP.md)               | Build FastAPI/Flask applications      |
-| [📝 Changelog](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CHANGELOG.md)             | Version history and updates           |
-| [🔒 Security](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/SECURITY.md)                               | Security best practices               |
-
-</div>
-
-## 🌟 Showcase
-
-<details>
-<summary><b>🎨 Image Generation Examples</b></summary>
-
-**CLI:**
-```bash
-# Quick generation
-python -m blossom_ai.utils.cli --image "cyberpunk city" --output city.png
-
-# HD quality with custom size
-python -m blossom_ai.utils.cli \
-  --image "mountain landscape" \
-  --width 1920 \
-  --height 1080 \
-  --quality hd \
-  --output landscape.png
-```
-
-**Python:**
-```python
-# Simple and fast
-with Blossom() as ai:
-    ai.image.save("a cyberpunk city at night", "cyberpunk.jpg")
-    ai.image.save("watercolor painting of mountains", "mountains.jpg")
-
-# HD quality with advanced controls
-with Blossom(api_token="token") as ai:
-    image = ai.image.generate(
-        "majestic dragon breathing fire",
-        quality="hd",
-        guidance_scale=7.5,
-        negative_prompt="blurry, low quality, distorted",
-        width=1920,
-        height=1080,
-        seed=42  # Reproducible results
-    )
-```
-
-</details>
-
-<details>
-<summary><b>💬 Text Generation Examples</b></summary>
-
-**CLI:**
-```bash
-# Quick text generation
-python -m blossom_ai.utils.cli --text "Write a haiku about AI"
-
-# With streaming for real-time output
-python -m blossom_ai.utils.cli --text "Tell me a story" --stream
-```
-
-**Python:**
-```python
-# Creative writing
-story = ai.text.generate("Write a short sci-fi story about time travel")
-
-# Code generation
-code = ai.text.generate("Create a Python function to sort a list")
-
-# Advanced controls
-response = ai.text.generate(
-    "Explain quantum computing for beginners",
-    max_tokens=500,
-    temperature=0.8,
-    frequency_penalty=0.5,
-    stream=True  # Real-time streaming
-)
-
-# Structured JSON output
-json_data = ai.text.generate(
-    "List 5 programming languages with their use cases",
-    json_mode=True
-)
-```
-
-</details>
-
-<details>
-<summary><b>👁️ Vision Analysis Examples (NEW!)</b></summary>
-
-**Python:**
-```python
-from blossom_ai import Blossom, MessageBuilder
-
-with Blossom(api_token="token") as ai:
-    # Analyze image from URL
-    messages = [
-        MessageBuilder.image(
-            role="user",
-            text="What's in this image? Describe in detail.",
+            text="What's in this image?",
             image_url="https://example.com/photo.jpg",
             detail="high"
         )
     ]
     
-    analysis = ai.text.chat(messages, model="openai")
-    print(analysis)
-    
-    # Analyze local image
+    analysis = client.text.chat(messages, model="openai")
+```
+
+---
+
+## 🏗️ Architecture Highlights
+
+### Clean Dependency Injection
+
+```python
+from blossom_ai import BlossomClient
+from blossom_ai.core.config import SessionConfig
+from blossom_ai.utils.cache import CacheManager, CacheConfig
+from blossom_ai.utils.rate_limiter import TokenBucketRateLimiter
+
+# Custom configuration
+config = SessionConfig(
+    api_key="your-key",
+    rate_limit_per_minute=120,  # Auto-detected for sk_/pk_ keys
+    cache_enabled=True,
+    timeout=45.0
+)
+
+# Custom cache
+cache_config = CacheConfig(
+    backend="hybrid",  # memory + disk
+    ttl=7200,
+    max_memory_size=100
+)
+cache = CacheManager(cache_config)
+
+# Custom rate limiter
+rate_limiter = TokenBucketRateLimiter(
+    requests_per_minute=120,
+    burst_capacity=10
+)
+
+# Inject dependencies
+client = BlossomClient(
+    config=config,
+    cache=cache,
+    rate_limiter=rate_limiter
+)
+```
+
+### Protocol-Based Interfaces
+
+```python
+from blossom_ai.core.interfaces import (
+    ConfigProtocol,
+    HttpClientProtocol,
+    LoggerProtocol,
+    RateLimiterInterface,
+    CacheBackendProtocol
+)
+
+# Easy mocking for tests
+class MockHttpClient(HttpClientProtocol):
+    async def get(self, url: str, **kwargs): ...
+    async def post(self, url: str, **kwargs): ...
+    async def close(self): ...
+
+# Inject mock
+client = BlossomClient(http_client=MockHttpClient())
+```
+
+---
+
+## 🎨 Core Features
+
+### 1. Image Generation
+
+**HD Quality with Advanced Controls**
+
+```python
+with BlossomClient(api_token=token) as client:
+    image = client.image.generate(
+        prompt="epic fantasy landscape",
+        model="flux",
+        quality="hd",              # low/medium/high/hd
+        width=1920,
+        height=1080,
+        guidance_scale=7.5,        # 1.0-20.0
+        negative_prompt="blurry, watermark",
+        seed=42,                   # reproducible results
+        enhance=True,
+        transparent=False,
+        style="photorealistic"
+    )
+```
+
+**Quick URL Generation (No Download)**
+
+```python
+url = client.image.generate_url(
+    "minimalist logo",
+    model="flux",
+    width=512,
+    height=512
+)
+print(url)  # Instant URL, no API call to fetch image
+```
+
+### 2. Text Generation
+
+**Advanced Parameters**
+
+```python
+with BlossomClient(api_token=token) as client:
+    response = client.text.generate(
+        "Write a technical article about microservices",
+        model="openai",
+        max_tokens=2000,
+        frequency_penalty=0.5,   # reduce repetition
+        presence_penalty=0.3,    # encourage diversity
+        stream=False
+    )
+```
+
+**Real-Time Streaming**
+
+```python
+with BlossomClient(api_token=token) as client:
+    full_response = client.text.generate(
+        "Explain quantum computing",
+        stream=True  # Returns aggregated string after streaming
+    )
+    print(full_response)
+```
+
+**Multi-Turn Chat**
+
+```python
+messages = [
+    {"role": "system", "content": "You are a helpful coding assistant"},
+    {"role": "user", "content": "How do I optimize SQL queries?"},
+    {"role": "assistant", "content": "Here are key techniques..."},
+    {"role": "user", "content": "Show me an example with indexes"}
+]
+
+response = client.text.chat(messages, model="claude")
+```
+
+### 3. Vision Analysis 
+
+**Analyze Images**
+
+```python
+from blossom_ai import MessageBuilder
+
+with BlossomClient(api_token=token) as client:
+    # From URL
     messages = [
         MessageBuilder.image(
             role="user",
-            text="Identify the objects in this image",
-            image_path="/path/to/image.jpg",
-            detail="auto"
+            text="Describe this image in detail",
+            image_url="https://example.com/photo.jpg",
+            detail="high"  # low/auto/high
         )
     ]
     
-    result = ai.text.chat(messages, model="openai")
+    analysis = client.text.chat(messages, model="openai")
     
-    # Compare multiple images
+    # From local file
     messages = [
         MessageBuilder.image(
             role="user",
-            text="Compare these two images",
-            image_url="https://example.com/image1.jpg"
-        ),
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": "And this second image:"},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": "https://example.com/image2.jpg",
-                        "detail": "high"
-                    }
-                }
-            ]
-        }
+            text="What objects are in this image?",
+            image_path="/path/to/image.jpg"
+        )
     ]
     
-    comparison = ai.text.chat(messages, model="openai")
+    result = client.text.chat(messages, model="openai")
 ```
 
-</details>
+---
 
-<details>
-<summary><b>🔧 Shell Automation Examples</b></summary>
+## 🔧 Production Features
 
-```bash
-#!/bin/bash
+### Thread-Safe Caching
 
-# Generate multiple images in parallel
-for i in {1..5}; do
-    python -m blossom_ai.utils.cli \
-        --image "abstract art style $i" \
-        --output "art_$i.png" &
-done
-wait
+```python
+from blossom_ai.utils.cache import CacheManager, CacheConfig, CacheBackend
 
-# Batch text processing
-questions=(
-    "What is AI?"
-    "Explain machine learning"
-    "What is deep learning?"
+config = CacheConfig(
+    backend=CacheBackend.HYBRID,  # memory + disk
+    ttl=3600,
+    max_memory_size=100,
+    max_disk_size=1000,
+    cache_text=True,
+    cache_images=False  # images are large
 )
 
-for q in "${questions[@]}"; do
-    echo "Q: $q"
-    python -m blossom_ai.utils.cli --text "$q"
-    echo "---"
-done
+cache = CacheManager(config)
 
-# Vision analysis pipeline
-for img in *.jpg; do
-    echo "Analyzing: $img"
-    python -c "
-from blossom_ai import Blossom, MessageBuilder
-with Blossom(api_token='token') as ai:
-    messages = [MessageBuilder.image('user', 'Describe', image_path='$img')]
-    print(ai.text.chat(messages, model='openai'))
-"
-done
+# Thread-safe operations
+cache.set("key", "value")
+value = cache.get("key")
+
+# Async support
+await cache.aset("key", "value")
+value = await cache.aget("key")
+
+# Statistics
+stats = cache.get_stats()
+print(f"Hit rate: {stats.hit_rate}%")
 ```
 
-</details>
-
-## 🛡️ Production Ready
-
-Blossom AI v0.5.0 is battle-tested with:
-
-✅ **Vision Support**: Analyze images with AI models  
-✅ **HD Image Generation**: Up to 2048x2048 with quality controls  
-✅ **Advanced Text Features**: Function calling, JSON mode, streaming  
-✅ **CLI Interface**: Quick terminal access for testing and automation  
-✅ **Comprehensive Testing**: Integration tests with VCR.py  
-✅ **Memory Safe**: No memory leaks in long-running applications  
-✅ **Secure**: Tokens only in headers, SSL verification enforced  
-✅ **Fast**: Optimized caching and connection pooling  
-✅ **Reliable**: Smart retry logic with exponential backoff  
-
-### Quick Health Check
+### Smart Rate Limiting
 
 ```python
-from blossom_ai import Blossom
+from blossom_ai.utils.rate_limiter import TokenBucketRateLimiter
 
-def health_check():
-    """Verify everything works"""
-    try:
-        with Blossom(api_token="token") as client:
-            # Test image
-            img = client.image.generate("test", width=256, height=256)
-            assert len(img) > 1000
-            
-            # Test text
-            txt = client.text.generate("Say hello", max_tokens=10)
-            assert len(txt) > 0
-            
-            # Test vision
-            from blossom_ai import MessageBuilder
-            messages = [
-                MessageBuilder.image(
-                    "user",
-                    "What's this?",
-                    image_url="https://pollinations.ai/p/test"
-                )
-            ]
-            vision = client.text.chat(messages, model="openai")
-            assert len(vision) > 0
-            
-            print("✅ Health check passed!")
-            return True
-    except Exception as e:
-        print(f"❌ Health check failed: {e}")
-        return False
+limiter = TokenBucketRateLimiter(
+    requests_per_minute=120,
+    burst_capacity=10,
+    max_buckets=1000  # LRU eviction
+)
 
-health_check()
+# Async acquisition
+await limiter.acquire(key="user_123")
+
+# With timeout
+success = await limiter.acquire_with_wait(
+    key="user_123",
+    timeout=5.0
+)
+
+# Statistics
+stats = limiter.get_stats()
+print(stats)
 ```
 
-## 🎨 Advanced Features
-
-<table>
-<tr>
-<td>
-
-### 🧠 Reasoning Module
-Enhance prompts with structured thinking:
+### Enhanced Logging
 
 ```python
-from blossom_ai.utils import ReasoningEnhancer
+from blossom_ai.utils.logging import StructuredLogger, set_correlation_id
+
+logger = StructuredLogger("my_app")
+
+set_correlation_id("req-12345")
+
+logger.info("Processing request", user_id=123, action="generate")
+logger.error("Failed", error=str(e), exc_info=True)
+```
+
+### Reasoning Module
+
+```python
+from blossom_ai.utils.reasoning import ReasoningEnhancer, ReasoningLevel
 
 enhancer = ReasoningEnhancer()
+
+# Enhance prompt with structured thinking
 enhanced = enhancer.enhance(
-    "Design a microservices architecture",
-    level="high",
-    mode="auto"
+    "Design a distributed system",
+    level=ReasoningLevel.HIGH  # LOW/MEDIUM/HIGH/ADAPTIVE
+)
+
+response = client.text.generate(enhanced)
+
+# Extract reasoning
+result = enhancer.extract_reasoning(response)
+print("Reasoning:", result['reasoning'])
+print("Answer:", result['answer'])
+print("Confidence:", result['confidence'])
+```
+
+---
+
+## 🧪 Testing Support
+
+### Easy Mocking
+
+```python
+from unittest.mock import Mock, AsyncMock
+from blossom_ai import BlossomClient
+
+# Mock HTTP client
+mock_http = Mock()
+mock_http.get = AsyncMock(return_value=mock_response)
+mock_http.post = AsyncMock(return_value=mock_response)
+mock_http.close = AsyncMock()
+
+# Mock rate limiter
+mock_limiter = Mock()
+mock_limiter.acquire_with_wait = AsyncMock(return_value=True)
+
+# Inject mocks
+client = BlossomClient(
+    http_client=mock_http,
+    rate_limiter=mock_limiter
 )
 ```
 
-</td>
-<td>
-
-### ⚡ Caching Module
-Cache responses for better performance:
+### VCR.py Integration
 
 ```python
-from blossom_ai.utils import cached
+import pytest
+from blossom_ai import BlossomClient
 
-@cached(ttl=3600)
-def generate_text(prompt):
-    with Blossom() as ai:
-        return ai.text.generate(prompt)
+@pytest.mark.vcr()
+async def test_image_generation(vcr):
+    """Test with recorded cassettes"""
+    async with BlossomClient() as client:
+        image = await client.image.generate("test", width=512, height=512)
+        assert len(image) > 0
 ```
 
-</td>
-</tr>
-<tr>
-<td>
+---
 
-### 📁 File Reader
-Process files for AI prompts:
+## 📊 Why Choose Blossom AI?
+
+### Enterprise Architecture
+
+```
+✓ Dependency Injection for testability
+✓ Protocol-based interfaces for flexibility
+✓ Immutable configurations (frozen dataclasses)
+✓ Thread-safe operations with RLock
+✓ Async-first design with sync wrappers
+✓ Clean separation of concerns
+```
+
+### Security Hardened
+
+```
+✓ JSON-only storage (no pickle vulnerabilities)
+✓ API key sanitization in logs and cache
+✓ DoS protection (response size limits)
+✓ Path traversal prevention
+✓ Input validation with Pydantic
+✓ SSL enforcement
+```
+
+### Production Performance
+
+```
+✓ Connection pooling (httpx limits)
+✓ LRU eviction (cache, rate limiter, models)
+✓ Smart TTL cleanup (background threads)
+✓ Efficient memory management
+✓ No memory leaks (context managers)
+✓ Optimized caching strategies
+```
+
+### Developer Experience
+
+```
+✓ Full type hints (mypy strict)
+✓ Comprehensive error messages
+✓ Structured logging with context
+✓ 85%+ test coverage
+✓ Clear documentation
+✓ Sugar layer for simplicity
+```
+
+---
+
+## 🎯 Design Patterns
+
+### Factory Pattern (Cache)
 
 ```python
-from blossom_ai.utils import read_file_for_prompt
+from blossom_ai.utils.cache import get_default_cache
+from blossom_ai.core.config import SessionConfig
 
-content = read_file_for_prompt(
-    "code.py",
-    max_length=8000,
-    truncate_if_needed=True
+config = SessionConfig.from_env()
+cache = get_default_cache(config, logger)
+```
+
+### Builder Pattern (Parameters)
+
+```python
+from blossom_ai.generators.parameter_builder import ImageParamsV2, ChatParamsV2
+
+image_params = ImageParamsV2(
+    model="flux",
+    width=1920,
+    height=1080,
+    quality="hd"
+)
+
+query = image_params.to_query()  # URL-encoded params
+```
+
+### Strategy Pattern (Consensus)
+
+```python
+from blossom_ai.utils.reasoning.advanced import ConsensusReasoning, ConsensusStrategy
+
+consensus = ConsensusReasoning(client.text)
+
+result = await consensus.solve_with_consensus(
+    "Design a caching strategy",
+    models=["gemini", "claude", "mistral"],
+    strategy=ConsensusStrategy.SYNTHESIZE  # MAJORITY_VOTE/WEIGHTED/DEBATE
 )
 ```
 
-</td>
-<td>
-
-### 🌐 Web Applications
-Build REST APIs with FastAPI/Flask:
+### Singleton Pattern (Session Manager)
 
 ```python
-from fastapi import FastAPI
-app = FastAPI()
+from blossom_ai.core.session_manager import SyncSessionManager
 
-@app.post("/generate")
-async def generate(prompt: str):
-    async with Blossom() as ai:
-        return await ai.text.generate(prompt)
+# Same config returns same instance (per-thread)
+manager = SyncSessionManager(config)
+session = manager.get_session()  # Thread-local
 ```
 
-</td>
-</tr>
-</table>
+---
 
-**[📚 View Full Documentation →](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md)**
+## 📚 Documentation
+
+| Document                                                                                                             | Description         |
+|----------------------------------------------------------------------------------------------------------------------|---------------------|
+| [📖 Full Documentation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md)          | Complete guide      |
+| [👁️ Vision Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/VISION.md)              | Image analysis      |
+| [🎨 Image Generation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/IMAGE_GENERATION.md) | HD images           |
+| [💬 Text Generation](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/TEXT_GENERATION.md)   | Advanced text       |
+| [🧠 Reasoning Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/REASONING.md)         | Structured thinking |
+| [💾 Caching Guide](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CACHING.md)             | Performance         |
+| [📋 API Reference](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/API_REFERENCE.md)       | Technical docs      |
+| [🔧 Configuration](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/CONFIGURATION.md)       | Setup guide         |
+
+---
+
+## 🛠️ Advanced Usage
+
+### Custom HTTP Client
+
+```python
+from blossom_ai.utils.http_client import HttpxClient
+from blossom_ai.core.config import SessionConfig
+
+config = SessionConfig(
+    async_limit_total=100,
+    async_limit_per_host=30,
+    async_timeout_connect=30,
+    timeout=60.0
+)
+
+http_client = HttpxClient(config)
+client = BlossomClient(http_client=http_client)
+```
+
+### Custom Logger
+
+```python
+from blossom_ai.utils.logging import StructuredLogger
+
+logger = StructuredLogger("my_app", level="DEBUG")
+client = BlossomClient(logger=logger)
+```
+
+### Concurrent Operations
+
+```python
+import asyncio
+
+async def concurrent_generation():
+    async with BlossomClient(api_token=token) as client:
+        # Run multiple operations concurrently
+        tasks = [
+            client.text.generate("Question 1"),
+            client.text.generate("Question 2"),
+            client.image.generate("Prompt 1", width=512, height=512),
+            client.image.generate("Prompt 2", width=512, height=512)
+        ]
+        
+        results = await asyncio.gather(*tasks)
+        return results
+
+results = asyncio.run(concurrent_generation())
+```
+
+### Resource Management
+
+```python
+# Context manager ensures cleanup
+with BlossomClient(api_token=token) as client:
+    result = client.text.generate("Test")
+    # Automatic cleanup on exit
+
+# Manual control
+client = BlossomClient(api_token=token)
+try:
+    result = await client.text.generate("Test")
+finally:
+    await client.close()  # Explicit cleanup
+```
+
+---
+
+## 🔒 Security Best Practices
+
+```python
+import os
+from pathlib import Path
+
+# ✅ Environment variables
+api_token = os.getenv('POLLINATIONS_API_KEY')
+
+# ✅ .env files (not committed)
+from dotenv import load_dotenv
+load_dotenv()
+api_token = os.getenv('POLLINATIONS_API_KEY')
+
+# ❌ Hardcoded (NEVER do this)
+api_token = "sk_live_abc123..."  # NO!
+
+# ✅ File validation
+from blossom_ai.utils.security import validate_image_file
+
+try:
+    safe_path = validate_image_file("/path/to/image.jpg")
+except ValueError as e:
+    print(f"Security error: {e}")
+```
+
+---
+
+## 📦 Installation Options
+
+```bash
+# Basic installation
+pip install eclips-blossom-ai
+
+# With all optional dependencies
+pip install eclips-blossom-ai[all]
+
+# Development installation
+pip install eclips-blossom-ai[dev]
+
+# Documentation tools
+pip install eclips-blossom-ai[docs]
+
+# Testing tools
+pip install eclips-blossom-ai[test]
+```
+
+---
 
 ## 🤝 Contributing
 
-Contributions are what make the open-source community amazing! Any contributions you make are **greatly appreciated**.
+We welcome contributions! See [CONTRIBUTING.md](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/CONTRIBUTING.md) for:
+- Code style guidelines
+- Testing requirements
+- Pull request process
+- Development setup
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-See [CONTRIBUTING.md](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/CONTRIBUTING.md) for detailed guidelines.
+---
 
 ## 📄 License
 
-Distributed under the MIT License. See [`LICENSE`](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/LICENSE) for more information.
+MIT License - see [LICENSE](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/LICENSE) file.
 
-## 💖 Support
+---
 
-If you find this project helpful, please consider:
-- ⭐ Starring the repository
-- 🐛 Reporting bugs
-- 💡 Suggesting new features
-- 📢 Sharing with others
+## 🆘 Support
+
+- 🐛 **Bug reports**: [GitHub Issues](https://github.com/PrimeevolutionZ/blossom-ai/issues)
+- 🔒 **Security issues**: See [SECURITY.md](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/SECURITY.md)
+- 💡 **Feature requests**: [GitHub Discussions](https://github.com/PrimeevolutionZ/blossom-ai/discussions)
+- 📚 **Documentation**: [Full docs](https://github.com/PrimeevolutionZ/blossom-ai/blob/master/blossom_ai/docs/INDEX.md)
 
 ---
 
@@ -687,10 +656,8 @@ If you find this project helpful, please consider:
 
 **Made with 🌸 and ❤️ by [Eclips Team](https://github.com/PrimeevolutionZ)**
 
-[![Made with Python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/)
-[![Powered by Pollinations.AI](https://img.shields.io/badge/Powered%20by-Pollinations.AI-blueviolet.svg)](https://pollinations.ai/)
-[![Version 0.5.4](https://img.shields.io/badge/version-0.5.6-success.svg)](https://pypi.org/project/eclips-blossom-ai/)
-
-[⬆️ Back to top](#-blossom-ai)
+[![PyPI](https://img.shields.io/badge/PyPI-Package-blue)](https://pypi.org/project/eclips-blossom-ai/)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-green)](https://github.com/PrimeevolutionZ/blossom-ai)
+[![Version](https://img.shields.io/badge/version-0.7.0-success.svg)](https://pypi.org/project/eclips-blossom-ai/)
 
 </div>

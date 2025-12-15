@@ -16,7 +16,7 @@ name = "eclips-blossom-ai"
 version = "0.7.0"
 description = "🌸 Beautiful and simple AI generation library for images, text, and audio"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "Eclips Team", email = "develop@eclips-team.ru"}
@@ -283,7 +283,7 @@ directory = "htmlcov"
 
 [tool.black]
 line-length = 100
-target-version = ["py310", "py311", "py312", "py313"]
+target-version = ["py311", "py312", "py313"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -306,7 +306,7 @@ extend-exclude = '''
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 select = [
     "E",    # pycodestyle errors
     "W",    # pycodestyle warnings
@@ -363,7 +363,7 @@ no-lines-before = ["future", "standard-library"]
 # ============================================================================
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true
